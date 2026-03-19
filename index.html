@@ -354,7 +354,9 @@
     </div>
     <div class="hero-actions">
       <a href="https://github.com/libviprs/libviprs" class="btn-primary">GitHub</a>
+      <a href="https://docs.rs/libviprs" class="btn-outline">Documentation</a>
       <a href="https://github.com/libviprs/libviprs-dep/releases" class="btn-outline">Downloads</a>
+      <a href="https://github.com/libviprs/libviprs/issues" class="btn-outline">Issues</a>
     </div>
   </div>
 </div>
@@ -362,17 +364,18 @@
 <main>
 
   <section>
-    <p>Takes blueprint PDFs and images, extracts raster data, optionally geo-references it, and generates tile pyramids (DeepZoom, XYZ) suitable for web-based viewers. Inspired by <a href="https://www.libvips.org/" style="color:var(--primary);">libvips</a>, built from scratch.</p>
+    <p>Takes blueprint PDFs and images, extracts raster data, optionally geo-references it, and generates tile pyramids (DeepZoom, XYZ, Google Maps) suitable for web-based viewers. Inspired by <a href="https://www.libvips.org/" style="color:var(--primary);">libvips</a>, built from scratch.</p>
   </section>
 
   <section>
     <h2>Features</h2>
     <ul>
-      <li><strong>PDF extraction</strong> — extract embedded raster images from scanned blueprint PDFs via lopdf (zero runtime dependencies)</li>
+      <li><strong>PDF extraction</strong> — extract embedded raster images from scanned blueprint PDFs via lopdf (pure Rust, no C dependencies)</li>
       <li><strong>PDF rendering</strong> — render vector PDFs (AutoCAD exports, text, paths) via PDFium, with optional memory-budgeted rendering</li>
       <li><strong>Image decoding</strong> — JPEG, PNG, TIFF via the <code>image</code> crate</li>
       <li><strong>Tile pyramid generation</strong> — multi-threaded engine with backpressure, configurable tile size and overlap</li>
-      <li><strong>Layout formats</strong> — DeepZoom (<code>.dzi</code> + directory tree) and XYZ (<code>z/x/y</code>)</li>
+      <li><strong>Layout formats</strong> — DeepZoom (<code>.dzi</code> + directory tree), XYZ (<code>z/x/y</code>), and Google Maps (<code>z/y/x</code>, power-of-2 grids)</li>
+      <li><strong>Centre support</strong> — centre image within the tile grid with even background padding on all sides</li>
       <li><strong>Tile encoding</strong> — PNG, JPEG (configurable quality), or raw pixel output</li>
       <li><strong>Blank tile optimization</strong> — emit full tiles or write 1-byte placeholders for uniform-color regions</li>
       <li><strong>Edge tile background</strong> — configurable background color for padding partial tiles at image edges</li>
