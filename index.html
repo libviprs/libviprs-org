@@ -377,7 +377,7 @@
       <li><strong>PDF extraction</strong> — extract embedded raster images from scanned blueprint PDFs via lopdf (pure Rust, no C dependencies)</li>
       <li><strong>PDF rendering</strong> — render vector PDFs (AutoCAD exports, text, paths) via PDFium, with optional memory-budgeted rendering</li>
       <li><strong>Image decoding</strong> — JPEG, PNG, TIFF via the <code>image</code> crate</li>
-      <li><strong>Tile pyramid generation</strong> — multi-threaded engine with backpressure, configurable tile size and overlap</li>
+      <li><strong>Tile pyramid generation</strong> — multi-threaded engine with backpressure, configurable tile size and overlap; optional <strong>streaming mode</strong> processes images in horizontal strips for bounded peak memory</li>
       <li><strong>Layout formats</strong> — DeepZoom (<code>.dzi</code> + directory tree), XYZ (<code>z/x/y</code>), and Google Maps (<code>z/y/x</code>, power-of-2 grids)</li>
       <li><strong>Centre support</strong> — centre image within the tile grid with even background padding on all sides</li>
       <li><strong>Tile encoding</strong> — PNG, JPEG (configurable quality), or raw pixel output</li>
@@ -434,11 +434,63 @@
         <tr><td><code>planner</code></td><td>Tile math, level computation, layout generation</td></tr>
         <tr><td><code>resize</code></td><td>Downscaling for pyramid levels</td></tr>
         <tr><td><code>engine</code></td><td>Multi-threaded tile extraction with backpressure</td></tr>
+        <tr><td><code>streaming</code></td><td>Strip-based streaming engine for memory-bounded pyramid generation</td></tr>
         <tr><td><code>sink</code></td><td>Tile output (filesystem, memory, slow sink for testing)</td></tr>
         <tr><td><code>geo</code></td><td>Affine geo-transform, GCP solving, bounding box</td></tr>
         <tr><td><code>observe</code></td><td>Progress events, memory tracking</td></tr>
       </tbody>
     </table>
+  </section>
+
+  <section>
+    <h2>Streaming Engine</h2>
+    <p>Large raster images — scanned blueprints at 300 DPI, aerial surveys, architectural sheets — can easily exceed available RAM when the monolithic engine materialises the full canvas. The streaming engine solves this by processing the pyramid in horizontal strips, reducing peak memory by orders of magnitude while producing <strong>pixel-exact</strong> output.</p>
+    <p>Unlike <a href="https://www.libvips.org/" style="color:var(--primary);">libvips</a>, which implements a fully lazy demand-driven pipeline where each pixel is computed on demand through a complex DAG of operations, libviprs takes a pragmatic middle ground: strips are processed eagerly within each band, but the full canvas is never materialised. This keeps the pipeline architecture simple and auditable while delivering the memory savings that matter for AEC-scale images.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>libvips</th>
+          <th>libviprs (monolithic)</th>
+          <th>libviprs (streaming)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Peak memory</strong></td>
+          <td>O(tile_size&sup2;)</td>
+          <td>O(canvas&sup2;)</td>
+          <td>O(canvas_w &times; strip_h)</td>
+        </tr>
+        <tr>
+          <td><strong>16820&times;11888 Google+centre</strong></td>
+          <td>~1 MB</td>
+          <td>~5.1 GB</td>
+          <td>~50 MB</td>
+        </tr>
+        <tr>
+          <td><strong>Evaluation model</strong></td>
+          <td>Fully lazy (per-region)</td>
+          <td>Fully eager</td>
+          <td>Semi-lazy (per-strip)</td>
+        </tr>
+        <tr>
+          <td><strong>Downscale</strong></td>
+          <td>On-demand per-region</td>
+          <td>Full-level passes</td>
+          <td>Strip passes (same box filter)</td>
+        </tr>
+        <tr>
+          <td><strong>Trade-off</strong></td>
+          <td>Complex pipeline plumbing</td>
+          <td>Simple but memory-hungry</td>
+          <td>Middle ground</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>The caller sets a memory budget; the engine maximises strip height within that budget to balance memory and throughput. When the budget is large enough for the full canvas, the monolithic engine is used automatically — no code changes needed.</p>
   </section>
 
   <section>
