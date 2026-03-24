@@ -294,6 +294,72 @@
     [data-theme="dark"] .mc { color: #56b6c2; }
     [data-theme="dark"] .mod { color: #e06c75; }
 
+    /* Article clipping */
+    .clipping {
+      display: block;
+      max-width: var(--max-width);
+      margin: 0 auto 2.5rem;
+      padding: 1.5rem 1.75rem 1.25rem;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--primary);
+      border-radius: 0 6px 6px 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      text-decoration: none;
+      color: var(--text-light);
+      font-size: 0.9rem;
+      line-height: 1.65;
+      position: relative;
+      transition: box-shadow 0.2s, border-color 0.2s;
+    }
+
+    .clipping:hover {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+      border-left-color: var(--accent);
+    }
+
+    [data-theme="dark"] .clipping {
+      background: var(--code-bg);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    [data-theme="dark"] .clipping:hover {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+    }
+
+    .clipping-tag {
+      display: inline-block;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--primary);
+      background: var(--code-bg);
+      padding: 0.15rem 0.6rem;
+      border-radius: 3px;
+      margin-bottom: 0.75rem;
+    }
+
+    [data-theme="dark"] .clipping-tag {
+      background: var(--border);
+    }
+
+    .clipping p {
+      margin: 0 0 0.75rem;
+      color: var(--text);
+      font-style: italic;
+    }
+
+    .clipping-read {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--primary);
+    }
+
+    .clipping:hover .clipping-read {
+      text-decoration: underline;
+    }
+
     /* Footer */
     footer {
       text-align: center;
@@ -360,6 +426,7 @@
       <a href="https://github.com/libviprs/libviprs" class="btn-primary">GitHub</a>
       <a href="https://docs.rs/libviprs" class="btn-outline">Documentation</a>
       <a href="cli.html" class="btn-outline">CLI Documentation</a>
+      <a href="benchmarks.html" class="btn-outline">Benchmarks</a>
       <a href="https://github.com/libviprs/libviprs-dep/releases" class="btn-outline">Downloads</a>
       <a href="https://github.com/libviprs/libviprs/issues" class="btn-outline">Issues</a>
     </div>
@@ -371,6 +438,12 @@
   <section>
     <p>Takes blueprint PDFs and images, extracts raster data, optionally geo-references it, and generates tile pyramids (DeepZoom, XYZ, Google Maps) suitable for web-based viewers. Inspired by <a href="https://www.libvips.org/" style="color:var(--primary);">libvips</a>, built from scratch.</p>
   </section>
+
+  <a href="benchmarks.html" class="clipping">
+    <span class="clipping-tag">Benchmark</span>
+    <p>A pure-Rust image pyramiding library is outperforming the C heavyweight it was designed to replace. In head-to-head benchmarks on a 47-megapixel raster &mdash; the kind of image AEC firms tile every day from scanned blueprint PDFs &mdash; libviprs generates tiles 1.8&times; to 2.4&times; faster than libvips while using up to 10.7&times; less memory. Those aren't typos. And this isn't a rigged comparison: both libraries receive the same raw pixel buffer in process memory, both produce DeepZoom tile pyramids with identical parameters, and both are measured with the same clock. The difference is architectural.</p>
+    <span class="clipping-read">Read the full benchmark &rarr;</span>
+  </a>
 
   <section>
     <h2>Features</h2>
