@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>viprs(1) — CLI Documentation</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Code+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root, [data-theme="light"] {
+      --primary: #be6e34;
+      --primary-dark: #6d2c0f;
+      --accent: #d0704d;
+      --bg: #fafaf8;
+      --text: #2d2d2d;
+      --text-light: #555;
+      --code-bg: #f0ede8;
+      --border: #e0dcd4;
+      --white: #fff;
+      --hero-bg: #6d2c0f;
+      --table-header-bg: #f0ede8;
+      --max-width: 860px;
+    }
+
+    [data-theme="dark"] {
+      --primary: #d4894e;
+      --primary-dark: #e0a06a;
+      --accent: #d0704d;
+      --bg: #1a1a1a;
+      --text: #e0e0e0;
+      --text-light: #aaa;
+      --code-bg: #2a2a2a;
+      --border: #3a3a3a;
+      --white: #fff;
+      --hero-bg: #2c1608;
+      --table-header-bg: #2a2a2a;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: "Source Code Pro", "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Hero */
+    .hero {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      overflow: hidden;
+      background: var(--hero-bg);
+      color: var(--white);
+      padding: 1.5rem 1.5rem 1.25rem;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    .hero-inner {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+    }
+
+    .hero-inner img {
+      width: 40px;
+      height: auto;
+      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));
+    }
+
+    .hero-inner h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    .hero-inner h1 span {
+      font-weight: 400;
+      font-size: 1rem;
+      opacity: 0.7;
+      margin-left: 0.5rem;
+    }
+
+    .hero-nav {
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+    }
+
+    .hero-nav a {
+      color: rgba(255,255,255,0.7);
+      text-decoration: none;
+      margin: 0 0.5rem;
+    }
+
+    .hero-nav a:hover { color: var(--white); }
+
+    /* Main content */
+    main {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 4rem;
+    }
+
+    section { margin-bottom: 2.5rem; }
+
+    h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--primary-dark);
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.35rem;
+      border-bottom: 2px solid var(--border);
+    }
+
+    h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 1.5rem 0 0.5rem;
+    }
+
+    h4 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--primary-dark);
+      margin: 1.25rem 0 0.35rem;
+    }
+
+    p { margin-bottom: 0.75rem; color: var(--text-light); }
+
+    /* Man page section header styling */
+    .man-section {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+      margin-top: 2rem;
+    }
+
+    .man-section:first-child { margin-top: 0; }
+
+    /* Flag definition list */
+    dl.flags {
+      margin: 0 0 1rem 0;
+    }
+
+    dl.flags dt {
+      font-weight: 600;
+      color: var(--text);
+      margin-top: 1rem;
+      padding: 0.25rem 0;
+    }
+
+    dl.flags dt code {
+      background: var(--code-bg);
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      font-size: 0.9rem;
+      color: var(--primary-dark);
+    }
+
+    dl.flags dd {
+      margin-left: 1.5rem;
+      color: var(--text-light);
+      margin-bottom: 0.25rem;
+    }
+
+    dl.flags dd p { margin-bottom: 0.35rem; }
+
+    .default-val { font-size: 0.85rem; color: var(--text-light); }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 0.75rem;
+      font-size: 0.9rem;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      font-weight: 600;
+      color: var(--primary-dark);
+      background: var(--code-bg);
+    }
+
+    td code {
+      background: var(--code-bg);
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      font-size: 0.85rem;
+    }
+
+    /* Code blocks */
+    .code-wrap {
+      position: relative;
+      margin-bottom: 0.75rem;
+    }
+
+    .code-wrap .copy-btn {
+      position: absolute;
+      bottom: 0.5rem;
+      right: 0.5rem;
+      background: var(--border);
+      border: none;
+      border-radius: 4px;
+      padding: 0.3rem 0.5rem;
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-family: inherit;
+      color: var(--text-light);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .code-wrap:hover .copy-btn { opacity: 1; }
+    .code-wrap .copy-btn:hover { background: var(--primary); color: var(--white); }
+
+    pre {
+      background: var(--code-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem 1.25rem;
+      overflow-x: auto;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      margin-bottom: 0;
+    }
+
+    code {
+      font-family: "Source Code Pro", "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
+    }
+
+    /* Inline code in paragraphs */
+    p code, dd code, li code {
+      background: var(--code-bg);
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      font-size: 0.85rem;
+    }
+
+    /* Syntax highlighting */
+    .sh-prompt { color: #8c8fa1; user-select: none; }
+    .sh-flag { color: #8839ef; }
+    .sh-value { color: #40a02b; }
+    .sh-cmd { color: #1e66f5; }
+    .sh-comment { color: #8c8fa1; font-style: italic; }
+    .sh-output { color: #8c8fa1; }
+
+    [data-theme="dark"] .sh-prompt { color: #7f848e; }
+    [data-theme="dark"] .sh-flag { color: #c678dd; }
+    [data-theme="dark"] .sh-value { color: #98c379; }
+    [data-theme="dark"] .sh-cmd { color: #61afef; }
+    [data-theme="dark"] .sh-comment { color: #7f848e; }
+    [data-theme="dark"] .sh-output { color: #7f848e; }
+
+    /* Theme toggle */
+    .theme-toggle {
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.25);
+      color: var(--white);
+      border-radius: 20px;
+      padding: 0.3rem 0.7rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s;
+      z-index: 11;
+    }
+
+    .theme-toggle:hover {
+      background: rgba(255,255,255,0.25);
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 2rem 1.5rem;
+      color: var(--text-light);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border);
+      max-width: var(--max-width);
+      margin: 0 auto;
+    }
+
+    footer a { color: var(--primary); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      .hero-inner h1 { font-size: 1.3rem; }
+      .hero-inner img { width: 32px; }
+      .hero { padding: 1rem; }
+      .theme-toggle { top: 0.5rem; left: 0.5rem; font-size: 0.7rem; }
+      dl.flags dd { margin-left: 0.75rem; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="hero">
+  <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode"></button>
+  <div class="hero-inner">
+    <a href="index.html"><img src="https://raw.githubusercontent.com/libviprs/libviprs/main/images/libviprs-logo-claws.svg" alt="libviprs logo"></a>
+    <h1>viprs(1) <span>CLI Documentation</span></h1>
+  </div>
+  <div class="hero-nav">
+    <a href="index.html">Home</a>
+    <a href="https://github.com/libviprs/libviprs">GitHub</a>
+    <a href="https://docs.rs/libviprs">API Docs</a>
+  </div>
+</div>
+
+<main>
+
+<!-- ================================================================== -->
+<!-- NAME                                                                -->
+<!-- ================================================================== -->
+
+<section>
+  <p class="man-section">Name</p>
+  <p><strong>viprs</strong> &mdash; generate tile pyramids from images and PDFs for web-based viewers</p>
+</section>
+
+<!-- ================================================================== -->
+<!-- SYNOPSIS                                                            -->
+<!-- ================================================================== -->
+
+<section>
+  <p class="man-section">Synopsis</p>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code>viprs pyramid [OPTIONS] &lt;INPUT&gt; &lt;OUTPUT&gt;
+viprs info &lt;INPUT&gt;
+viprs plan [OPTIONS] &lt;WIDTH_OR_INPUT&gt;
+viprs test-image [OPTIONS] &lt;OUTPUT&gt;</code></pre>
+  </div>
+</section>
+
+<!-- ================================================================== -->
+<!-- DESCRIPTION                                                         -->
+<!-- ================================================================== -->
+
+<section>
+  <p class="man-section">Description</p>
+  <p><strong>viprs</strong> converts large raster images and PDF documents into multi-resolution tile pyramids suitable for Deep Zoom viewers, slippy-map UIs, and GIS applications. It supports three tile layouts (DeepZoom, XYZ, Google Maps), three image formats (PNG, JPEG, raw), and three engine modes (monolithic, streaming, parallel MapReduce) to balance throughput and memory usage for images of any size.</p>
+</section>
+
+<!-- ================================================================== -->
+<!-- COMMANDS                                                            -->
+<!-- ================================================================== -->
+
+<section>
+  <p class="man-section">Commands</p>
+
+  <!-- ---- pyramid ---- -->
+  <h2>pyramid</h2>
+  <p>Generate a tile pyramid from a PDF or image file. This is the primary command &mdash; it loads the source, plans the pyramid grid, and writes tiles to disk.</p>
+
+  <h3>Arguments</h3>
+  <dl class="flags">
+    <dt><code>&lt;INPUT&gt;</code></dt>
+    <dd>
+      <p>Path to a PDF, PNG, JPEG, or TIFF file. Use <code>"-"</code> for stdin (pipe a file directly into viprs). PDF inputs are either raster-extracted (default) or vector-rendered (with <code>--render</code>).</p>
+    </dd>
+
+    <dt><code>&lt;OUTPUT&gt;</code></dt>
+    <dd>
+      <p>Directory where tiles are written. Created automatically. DeepZoom also writes a <code>.dzi</code> manifest alongside.</p>
+    </dd>
+  </dl>
+
+  <h3>Tile options</h3>
+  <dl class="flags">
+    <dt><code>--tile-size &lt;PIXELS&gt;</code></dt>
+    <dd>
+      <p>Width and height of each tile in pixels. Viewers fetch tiles on demand &mdash; smaller tiles mean finer-grained loading but more HTTP requests. 256 is the web standard; use 512 for high-DPI displays or when serving from fast storage. <span class="default-val">Default: 256</span></p>
+    </dd>
+
+    <dt><code>--overlap &lt;PIXELS&gt;</code></dt>
+    <dd>
+      <p>Pixel overlap between adjacent tiles (DeepZoom only). Overlap lets viewers blend tile edges for seamless rendering. OpenSeadragon typically uses overlap=1. Not applicable to Google or XYZ layouts. <span class="default-val">Default: 0</span></p>
+    </dd>
+
+    <dt><code>--layout &lt;FORMAT&gt;</code></dt>
+    <dd>
+      <p>Tile naming and directory convention. Different viewers expect different conventions &mdash; OpenSeadragon uses DeepZoom, Leaflet uses XYZ, Google Maps uses its own grid. <span class="default-val">Default: deep-zoom</span></p>
+      <p>Values: <code>deep-zoom</code> (<code>{level}/{col}_{row}.ext</code> + <code>.dzi</code>), <code>xyz</code> (<code>{z}/{x}/{y}.ext</code>), <code>google</code> (<code>{z}/{y}/{x}.ext</code>, power-of-2 grids).</p>
+    </dd>
+
+    <dt><code>--format &lt;TYPE&gt;</code></dt>
+    <dd>
+      <p>Tile image encoding. PNG preserves quality for line drawings; JPEG saves disk for photographs; raw is useful when a downstream pipeline handles encoding. <span class="default-val">Default: png</span></p>
+      <p>Values: <code>png</code> (lossless), <code>jpeg</code> (lossy, smaller), <code>raw</code> (unencoded pixels, fastest).</p>
+    </dd>
+
+    <dt><code>--quality &lt;1-100&gt;</code></dt>
+    <dd>
+      <p>JPEG quality factor. Only used with <code>--format jpeg</code>. <span class="default-val">Default: 85</span></p>
+    </dd>
+
+    <dt><code>--centre</code></dt>
+    <dd>
+      <p>Centre the image within the tile grid, adding even background padding on all sides. Google Maps layout requires power-of-2 tile grids &mdash; without centring, the image sits at (0,0) and padding fills the right/bottom. With centring, padding is distributed evenly so the image appears centred in the viewer.</p>
+    </dd>
+
+    <dt><code>--skip-blank</code></dt>
+    <dd>
+      <p>Replace blank (uniform-color) tiles with a 1-byte placeholder instead of encoding the full image. Scanned blueprints have large white margins that produce many identical tiles &mdash; placeholder files reduce output size dramatically. Consumers detect them by file size and render a solid color.</p>
+    </dd>
+  </dl>
+
+  <h3>PDF options</h3>
+  <dl class="flags">
+    <dt><code>--dpi &lt;N&gt;</code></dt>
+    <dd>
+      <p>Resolution for PDF rendering and page-size scaling. Higher DPI produces more pixels (and more tiles). 72 matches libvips' default; use 150&ndash;300 for print-quality blueprints. <span class="default-val">Default: 72</span></p>
+    </dd>
+
+    <dt><code>--page &lt;N&gt;</code></dt>
+    <dd>
+      <p>PDF page to extract (1-based). <span class="default-val">Default: 1</span></p>
+    </dd>
+
+    <dt><code>--render</code></dt>
+    <dd>
+      <p>Use PDFium for vector PDF rendering instead of extracting embedded raster images. Scanned blueprints embed a raster image inside the PDF &mdash; extraction is fast and lossless. AutoCAD exports and text-heavy PDFs contain vector paths that must be rendered to pixels. Use <code>--render</code> when the PDF is not a simple raster scan.</p>
+    </dd>
+
+    <dt><code>--match-page-size</code></dt>
+    <dd>
+      <p>After extracting a raster from a PDF, resize it to match the PDF page dimensions at the specified <code>--dpi</code>. Has no effect with <code>--render</code>. Embedded rasters may have a different resolution than the page's declared dimensions &mdash; this flag produces output consistent with libvips' default PDF handling.</p>
+    </dd>
+  </dl>
+
+  <h3>Engine options</h3>
+  <dl class="flags">
+    <dt><code>--concurrency &lt;N&gt;</code></dt>
+    <dd>
+      <p>Number of worker threads for tile extraction. Tile extraction is embarrassingly parallel &mdash; each tile reads from the source independently. Set to the number of CPU cores for maximum throughput. With <code>--parallel</code>, this controls per-strip tile workers. <span class="default-val">Default: 0 (single-threaded)</span></p>
+    </dd>
+
+    <dt><code>--buffer-size &lt;N&gt;</code></dt>
+    <dd>
+      <p>Maximum tiles buffered between producer threads and the sink. A large buffer smooths out slow disk writes at the cost of higher memory; a small buffer limits peak memory but may cause producers to block. <span class="default-val">Default: 64</span></p>
+    </dd>
+
+    <dt><code>--memory-limit &lt;MB&gt;</code></dt>
+    <dd>
+      <p>Hard memory limit in MB. If the estimated peak memory exceeds this, the command exits before rendering. Acts as a safety net for containerised deployments &mdash; prevents the engine from attempting a pyramid that would OOM-kill the process. Combine with <code>--memory-budget</code> to both limit and control memory. <span class="default-val">Default: 0 (disabled)</span></p>
+    </dd>
+
+    <dt><code>--memory-budget &lt;MB&gt;</code></dt>
+    <dd>
+      <p>Soft memory budget for strip-based processing. Switches from the monolithic engine to the streaming engine, which processes the image in horizontal bands. A 16820&times;11888 blueprint at 300 DPI needs ~5 GB as a monolithic canvas &mdash; the streaming engine reduces this to ~50 MB by processing strips. The strip height is maximised within the budget to balance memory and speed.</p>
+      <p>When set to <code>0</code>: auto-selects a budget (1/4 of estimated monolithic peak). When omitted: uses the monolithic engine (original behavior).</p>
+    </dd>
+
+    <dt><code>--parallel</code></dt>
+    <dd>
+      <p>Use the parallel MapReduce engine instead of the sequential streaming engine. Requires <code>--memory-budget</code>. On multi-core systems, the MapReduce engine overlaps strip rendering for higher throughput &mdash; the sequential streaming engine processes one strip at a time. Both produce byte-identical output.</p>
+      <p>Renders multiple strips concurrently (bounded by the budget), then propagates downscale results sequentially. The <code>--concurrency</code> flag controls per-strip tile worker threads.</p>
+    </dd>
+  </dl>
+
+  <h3>Geo-reference options</h3>
+  <dl class="flags">
+    <dt><code>--geo-origin &lt;LON,LAT&gt;</code></dt>
+    <dd>
+      <p>Geographic coordinate of the top-left pixel as <code>"longitude,latitude"</code>.</p>
+    </dd>
+
+    <dt><code>--geo-scale &lt;SX,SY&gt;</code></dt>
+    <dd>
+      <p>Degrees per pixel as <code>"scale_x,scale_y"</code>. Typically positive X (east) and negative Y (south). Together with <code>--geo-origin</code>, defines an affine transform that lets tile viewers overlay the pyramid on a world map.</p>
+    </dd>
+  </dl>
+
+  <!-- ---- info ---- -->
+  <h2>info</h2>
+  <p>Show metadata about a PDF or image file without generating tiles. For PDFs, displays page count, dimensions, and embedded image details. For images, displays pixel dimensions and format.</p>
+
+  <dl class="flags">
+    <dt><code>&lt;INPUT&gt;</code></dt>
+    <dd>
+      <p>Path to the PDF or image file to inspect. Useful before running <code>pyramid</code> to understand source dimensions, plan memory usage, and decide on DPI settings.</p>
+    </dd>
+  </dl>
+
+  <!-- ---- plan ---- -->
+  <h2>plan</h2>
+  <p>Show the tile pyramid plan without generating any tiles. Displays the number of levels, total tiles, and per-level grid dimensions. Useful for capacity planning and understanding how tile parameters affect output.</p>
+
+  <dl class="flags">
+    <dt><code>&lt;WIDTH_OR_INPUT&gt;</code></dt>
+    <dd>
+      <p>Either a pixel width (when paired with <code>--height</code>) or a path to an image/PDF file to read dimensions from.</p>
+    </dd>
+
+    <dt><code>--height &lt;PIXELS&gt;</code></dt>
+    <dd><p>Image height in pixels. Required when the first argument is a number.</p></dd>
+
+    <dt><code>--tile-size</code>, <code>--overlap</code>, <code>--layout</code>, <code>--centre</code></dt>
+    <dd><p>Same as in <code>pyramid</code>. Control how the plan is computed.</p></dd>
+
+    <dt><code>--dpi</code>, <code>--page</code></dt>
+    <dd><p>Used when the input is a PDF to resolve page dimensions to pixels.</p></dd>
+  </dl>
+
+  <!-- ---- test-image ---- -->
+  <h2>test-image</h2>
+  <p>Generate a synthetic RGB8 gradient test image. Useful for benchmarking, testing, and verifying the tile pipeline without needing real image data.</p>
+
+  <dl class="flags">
+    <dt><code>&lt;OUTPUT&gt;</code></dt>
+    <dd><p>Output file path (PNG).</p></dd>
+
+    <dt><code>--width &lt;PIXELS&gt;</code></dt>
+    <dd><p>Image width. <span class="default-val">Default: 1024</span></p></dd>
+
+    <dt><code>--height &lt;PIXELS&gt;</code></dt>
+    <dd><p>Image height. <span class="default-val">Default: 1024</span></p></dd>
+  </dl>
+</section>
+
+<!-- ================================================================== -->
+<!-- EXAMPLES                                                            -->
+<!-- ================================================================== -->
+
+<section>
+  <p class="man-section">Examples</p>
+
+  <h3>Basic pyramid generation</h3>
+
+  <h4>DeepZoom from an image (default settings)</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> photo.jpg tiles/</code></pre>
+  </div>
+  <p>Produces a DeepZoom pyramid at <code>tiles/</code> with a companion <code>tiles.dzi</code> manifest. Tiles are 256&times;256 PNG with no overlap. The monolithic engine holds the entire image in memory.</p>
+
+  <h4>XYZ layout with JPEG tiles</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> aerial.tiff map_tiles/ <span class="sh-flag">\
+    --layout</span> <span class="sh-value">xyz</span> <span class="sh-flag">--format</span> <span class="sh-value">jpeg</span> <span class="sh-flag">--quality</span> <span class="sh-value">90</span></code></pre>
+  </div>
+  <p>Outputs <code>{z}/{x}/{y}.jpeg</code> tiles for Leaflet or Mapbox. JPEG reduces tile size ~5&times; vs PNG for photographic content.</p>
+
+  <h4>Google Maps layout with centring</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> blueprint.png google_tiles/ <span class="sh-flag">\
+    --layout</span> <span class="sh-value">google</span> <span class="sh-flag">--centre</span></code></pre>
+  </div>
+  <p>Google layout uses power-of-2 tile grids. <code>--centre</code> places the image in the middle of the canvas with even padding.</p>
+
+  <h4>DeepZoom with overlap for OpenSeadragon</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> scan.png viewer_tiles/ <span class="sh-flag">\
+    --tile-size</span> <span class="sh-value">512</span> <span class="sh-flag">--overlap</span> <span class="sh-value">1</span></code></pre>
+  </div>
+  <p>512px tiles with 1px overlap. OpenSeadragon uses the overlap to blend adjacent tiles for seamless rendering at high zoom.</p>
+
+  <h3>PDF inputs</h3>
+
+  <h4>Scanned blueprint (raster extraction)</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> blueprint.pdf tiles/ <span class="sh-flag">--page</span> <span class="sh-value">2</span></code></pre>
+  </div>
+  <p>Extracts the embedded raster image from page 2 of the PDF. Fast and lossless &mdash; no rendering needed for scanned documents.</p>
+
+  <h4>Vector PDF rendering with PDFium</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> floorplan.pdf tiles/ <span class="sh-flag">\
+    --render</span> <span class="sh-flag">--dpi</span> <span class="sh-value">300</span></code></pre>
+  </div>
+  <p>Renders the vector PDF at 300 DPI using PDFium. Required for AutoCAD exports, text-heavy documents, and PDFs with paths/shapes instead of embedded images.</p>
+
+  <h4>Match page dimensions after extraction</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> scan.pdf tiles/ <span class="sh-flag">\
+    --match-page-size</span> <span class="sh-flag">--dpi</span> <span class="sh-value">150</span></code></pre>
+  </div>
+  <p>Extracts the embedded raster, then resizes it to match the PDF page dimensions at 150 DPI. Produces output consistent with libvips' default PDF handling.</p>
+
+  <h3>Blank tile optimization</h3>
+
+  <h4>Skip blank tiles on sparse images</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> whiteboard.png tiles/ <span class="sh-flag">--skip-blank</span>
+
+<span class="sh-output">Done: 341 tiles, 11 levels, peak memory 12.5 MB, 2.31s (287 blank tiles skipped)</span></code></pre>
+  </div>
+  <p>Replaces 287 uniform-color tiles with 1-byte placeholders. Total output drops from ~45 MB to ~8 MB on a typical whiteboard scan.</p>
+
+  <h3>Multi-threaded execution</h3>
+
+  <h4>Parallel tile extraction (monolithic engine)</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> large.png tiles/ <span class="sh-flag">\
+    --concurrency</span> <span class="sh-value">8</span> <span class="sh-flag">--buffer-size</span> <span class="sh-value">128</span></code></pre>
+  </div>
+  <p>8 worker threads extract tiles in parallel from the full-resolution canvas. Buffer of 128 tiles smooths out disk I/O variance. Best when the image fits comfortably in RAM.</p>
+
+  <h3>Memory-constrained processing</h3>
+
+  <h4>Streaming engine with explicit budget</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> huge_scan.png tiles/ <span class="sh-flag">\
+    --memory-budget</span> <span class="sh-value">128</span>
+
+<span class="sh-output">Streaming: budget 128.0 MB, strip_height=2048, estimated peak 98.4 MB</span>
+<span class="sh-output">Done: 4521 tiles, 15 levels, peak memory 97.2 MB, 14.8s</span></code></pre>
+  </div>
+  <p>Processes the image in 2048px-tall horizontal strips, keeping peak memory under 128 MB. The monolithic engine would need ~2 GB for this image.</p>
+
+  <h4>Auto-select streaming budget</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> huge_scan.png tiles/ <span class="sh-flag">--memory-budget</span> <span class="sh-value">0</span></code></pre>
+  </div>
+  <p>Budget is set to 1/4 of the estimated monolithic peak. The engine auto-selects: monolithic if the image is small, streaming otherwise. Best default for unknown image sizes.</p>
+
+  <h4>Hard memory limit (safety net)</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> huge.pdf tiles/ <span class="sh-flag">\
+    --memory-limit</span> <span class="sh-value">512</span> <span class="sh-flag">--memory-budget</span> <span class="sh-value">128</span> <span class="sh-flag">--render</span> <span class="sh-flag">--dpi</span> <span class="sh-value">300</span></code></pre>
+  </div>
+  <p>Exits with an error if the estimated monolithic peak exceeds 512 MB, then uses streaming with a 128 MB budget. Double protection for containers with hard memory limits.</p>
+
+  <h3>Parallel MapReduce engine</h3>
+
+  <h4>MapReduce with concurrent strip rendering</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> huge_scan.png tiles/ <span class="sh-flag">\
+    --memory-budget</span> <span class="sh-value">256</span> <span class="sh-flag">--parallel</span>
+
+<span class="sh-output">MapReduce: budget 256.0 MB, strip_height=2048, 4 in-flight strips, estimated peak 198.7 MB</span>
+<span class="sh-output">Done: 4521 tiles, 15 levels, peak memory 195.3 MB, 9.2s</span></code></pre>
+  </div>
+  <p>Renders 4 strips concurrently within the 256 MB budget. ~35% faster than sequential streaming on a 4-core machine. Output is byte-identical.</p>
+
+  <h4>MapReduce with per-strip tile workers</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> huge_scan.png tiles/ <span class="sh-flag">\
+    --memory-budget</span> <span class="sh-value">256</span> <span class="sh-flag">--parallel</span> <span class="sh-flag">--concurrency</span> <span class="sh-value">4</span></code></pre>
+  </div>
+  <p>Each strip also uses 4 tile-extraction workers for an additional level of parallelism. Best on systems with 8+ cores and fast storage.</p>
+
+  <h4>MapReduce with auto budget and blank skipping</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> blueprint.pdf tiles/ <span class="sh-flag">\
+    --memory-budget</span> <span class="sh-value">0</span> <span class="sh-flag">--parallel</span> <span class="sh-flag">--skip-blank</span> <span class="sh-flag">\
+    --layout</span> <span class="sh-value">google</span> <span class="sh-flag">--centre</span></code></pre>
+  </div>
+  <p>Full-featured pipeline: auto budget, parallel processing, blank tile optimization, Google layout with centring. The engine chooses the optimal strip height and in-flight count.</p>
+
+  <h3>Geo-referenced tiles</h3>
+
+  <h4>Geo-referenced DeepZoom pyramid</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> site_plan.png tiles/ <span class="sh-flag">\
+    --geo-origin</span> <span class="sh-value">"-73.9857,40.7484"</span> <span class="sh-flag">--geo-scale</span> <span class="sh-value">"0.00001,-0.00001"</span></code></pre>
+  </div>
+  <p>Maps the top-left pixel to (73.9857&deg;W, 40.7484&deg;N) with ~1.1m per pixel. Enables map viewers to overlay the pyramid on a world map.</p>
+
+  <h3>Inspection and planning</h3>
+
+  <h4>Inspect a PDF file</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs info</span> blueprint.pdf
+
+<span class="sh-output">PDF: blueprint.pdf</span>
+<span class="sh-output">Pages: 3</span>
+<span class="sh-output">  Page 1: 841.89 x 595.28 pt (A4 landscape)</span>
+<span class="sh-output">    Image: 3508 x 2480 px (JPEG, 1234567 bytes)</span>
+<span class="sh-output">  Page 2: 841.89 x 595.28 pt</span>
+<span class="sh-output">    Image: 3508 x 2480 px (JPEG, 987654 bytes)</span>
+<span class="sh-output">  Page 3: 841.89 x 595.28 pt</span>
+<span class="sh-output">    (no embedded raster — use --render)</span></code></pre>
+  </div>
+  <p>Shows page dimensions, embedded raster details, and whether PDFium rendering is needed.</p>
+
+  <h4>Preview the pyramid plan</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs plan</span> blueprint.pdf <span class="sh-flag">--tile-size</span> <span class="sh-value">256</span> <span class="sh-flag">--layout</span> <span class="sh-value">google</span> <span class="sh-flag">--centre</span></code></pre>
+  </div>
+  <p>Shows levels, tile counts, and canvas dimensions without generating any tiles. Use this to estimate output size and pick the right tile parameters.</p>
+
+  <h4>Plan from explicit dimensions</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs plan</span> 16820 <span class="sh-flag">--height</span> <span class="sh-value">11888</span> <span class="sh-flag">--layout</span> <span class="sh-value">google</span> <span class="sh-flag">--centre</span></code></pre>
+  </div>
+  <p>Plan using raw pixel dimensions instead of reading from a file.</p>
+
+  <h3>Test images</h3>
+
+  <h4>Generate a test image for benchmarking</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs test-image</span> gradient.png <span class="sh-flag">--width</span> <span class="sh-value">4096</span> <span class="sh-flag">--height</span> <span class="sh-value">4096</span></code></pre>
+  </div>
+  <p>Creates a 4096&times;4096 RGB8 gradient image. Useful for benchmarking the tile engine without needing real production images.</p>
+
+  <h4>Full pipeline test (generate + tile)</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs test-image</span> /tmp/test.png <span class="sh-flag">--width</span> <span class="sh-value">2048</span> <span class="sh-flag">--height</span> <span class="sh-value">2048</span>
+<span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> /tmp/test.png /tmp/tiles/ <span class="sh-flag">\
+    --memory-budget</span> <span class="sh-value">8</span> <span class="sh-flag">--parallel</span> <span class="sh-flag">--concurrency</span> <span class="sh-value">4</span> <span class="sh-flag">--skip-blank</span></code></pre>
+  </div>
+  <p>End-to-end smoke test: create a synthetic image, then tile it with every engine feature enabled.</p>
+
+  <h3>Stdin input</h3>
+
+  <h4>Pipe an image from another command</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> curl -s https://example.com/scan.png | <span class="sh-cmd">viprs pyramid</span> - tiles/</code></pre>
+  </div>
+  <p>Use <code>-</code> as the input to read from stdin. Works with any command that outputs image data.</p>
+</section>
+
+<!-- ================================================================== -->
+<!-- ENGINE COMPARISON                                                   -->
+<!-- ================================================================== -->
+
+<section>
+  <p class="man-section">Engine Comparison</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Scenario</th>
+        <th>Flags</th>
+        <th>Engine</th>
+        <th>Best for</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Small image, fast disk</td>
+        <td><em>(none)</em></td>
+        <td>Monolithic</td>
+        <td>Images that fit in RAM</td>
+      </tr>
+      <tr>
+        <td>Small image, multi-core</td>
+        <td><code>--concurrency 8</code></td>
+        <td>Monolithic (parallel tiles)</td>
+        <td>Throughput on multi-core</td>
+      </tr>
+      <tr>
+        <td>Large image, limited RAM</td>
+        <td><code>--memory-budget 128</code></td>
+        <td>Streaming</td>
+        <td>Memory-constrained containers</td>
+      </tr>
+      <tr>
+        <td>Large image, multi-core</td>
+        <td><code>--memory-budget 256 --parallel</code></td>
+        <td>MapReduce</td>
+        <td>Fast + memory-bounded</td>
+      </tr>
+      <tr>
+        <td>Large image, max throughput</td>
+        <td><code>--memory-budget 256 --parallel --concurrency 8</code></td>
+        <td>MapReduce (full parallel)</td>
+        <td>Dedicated build servers</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>All engines produce byte-identical output. Choose based on available memory and CPU cores.</p>
+</section>
+
+<!-- ================================================================== -->
+<!-- EXIT STATUS                                                         -->
+<!-- ================================================================== -->
+
+<section>
+  <p class="man-section">Exit Status</p>
+  <table>
+    <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>0</code></td><td>Success</td></tr>
+      <tr><td><code>1</code></td><td>Error (invalid args, file not found, memory limit exceeded, engine failure)</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ================================================================== -->
+<!-- SEE ALSO                                                            -->
+<!-- ================================================================== -->
+
+<section>
+  <p class="man-section">See Also</p>
+  <p>
+    <a href="index.html" style="color:var(--primary);">libviprs home</a> &mdash;
+    <a href="https://docs.rs/libviprs" style="color:var(--primary);">API documentation</a> &mdash;
+    <a href="https://github.com/libviprs/libviprs" style="color:var(--primary);">GitHub repository</a> &mdash;
+    <a href="https://www.libvips.org/" style="color:var(--primary);">libvips</a> (the project that inspired libviprs)
+  </p>
+</section>
+
+</main>
+
+<footer>
+  <p>libviprs is MIT licensed. <a href="https://github.com/libviprs/libviprs">View on GitHub</a></p>
+</footer>
+
+<script>
+  const toggle = document.getElementById('themeToggle');
+  function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    toggle.textContent = theme === 'dark' ? '\u2600 Light' : '\u263E Dark';
+    localStorage.setItem('theme', theme);
+  }
+  const saved = localStorage.getItem('theme');
+  if (saved) {
+    setTheme(saved);
+  } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    setTheme('dark');
+  } else {
+    setTheme('light');
+  }
+  toggle.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme');
+    setTheme(current === 'dark' ? 'light' : 'dark');
+  });
+
+  // Copy buttons — attach to all code-wrap elements
+  document.querySelectorAll('.code-wrap .copy-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const code = this.closest('.code-wrap').querySelector('pre code').textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        this.textContent = '\u2713 Copied';
+        setTimeout(() => { this.innerHTML = '&#x2398; Copy'; }, 1500);
+      });
+    });
+  });
+
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+    if (!localStorage.getItem('theme')) setTheme(e.matches ? 'dark' : 'light');
+  });
+</script>
+</body>
+</html>

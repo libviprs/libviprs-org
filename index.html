@@ -359,6 +359,7 @@
     <div class="hero-actions">
       <a href="https://github.com/libviprs/libviprs" class="btn-primary">GitHub</a>
       <a href="https://docs.rs/libviprs" class="btn-outline">Documentation</a>
+      <a href="cli.html" class="btn-outline">CLI Documentation</a>
       <a href="https://github.com/libviprs/libviprs-dep/releases" class="btn-outline">Downloads</a>
       <a href="https://github.com/libviprs/libviprs/issues" class="btn-outline">Issues</a>
     </div>
@@ -435,6 +436,7 @@
         <tr><td><code>resize</code></td><td>Downscaling for pyramid levels</td></tr>
         <tr><td><code>engine</code></td><td>Multi-threaded tile extraction with backpressure</td></tr>
         <tr><td><code>streaming</code></td><td>Strip-based streaming engine for memory-bounded pyramid generation</td></tr>
+        <tr><td><code>streaming_mapreduce</code></td><td>Parallel MapReduce engine &mdash; concurrent strip rendering within a memory budget</td></tr>
         <tr><td><code>sink</code></td><td>Tile output (filesystem, memory, slow sink for testing)</td></tr>
         <tr><td><code>geo</code></td><td>Affine geo-transform, GCP solving, bounding box</td></tr>
         <tr><td><code>observe</code></td><td>Progress events, memory tracking</td></tr>
@@ -506,7 +508,7 @@
     <table>
       <thead><tr><th>Crate</th><th>Description</th></tr></thead>
       <tbody>
-        <tr><td><code>libviprs-cli</code></td><td>Command-line interface (<code>viprs</code> binary)</td></tr>
+        <tr><td><code>libviprs-cli</code></td><td>Command-line interface (<code>viprs</code> binary) &mdash; <a href="cli.html" style="color:var(--primary);">CLI reference</a></td></tr>
         <tr><td><code>libviprs-tests</code></td><td>Integration tests and fixtures</td></tr>
       </tbody>
     </table>
