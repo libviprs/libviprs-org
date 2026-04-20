@@ -428,6 +428,7 @@
       <a href="cli.html" class="btn-outline">CLI Documentation</a>
       <a href="benchmarks.html" class="btn-outline">Benchmarks</a>
       <a href="https://github.com/libviprs/libviprs-dep/releases" class="btn-outline">Downloads</a>
+      <a href="https://github.com/libviprs/libviprs-dep/blob/main/MANUAL.md" class="btn-outline">Build Tools Manual</a>
       <a href="https://github.com/libviprs/libviprs/issues" class="btn-outline">Issues</a>
     </div>
   </div>
@@ -722,17 +723,34 @@ viprs pyramid blueprint.pdf <span class="sh-flag">--sink</span> <span class="str
     <h2>Requirements</h2>
     <ul>
       <li><strong>Rust 1.85+</strong> (edition 2024)</li>
-      <li><strong>libpdfium</strong> shared library (only if using the <code>pdfium</code> feature)</li>
+      <li><strong>libpdfium</strong> shared library or static archive (only if using the <code>pdfium</code> / <code>pdfium-static</code> feature) &mdash; prebuilt in <a href="https://github.com/libviprs/libviprs-dep/releases" style="color:var(--primary);">libviprs-dep releases</a></li>
     </ul>
+  </section>
+
+  <section>
+    <h2>Native Dependencies</h2>
+    <p>PDFium is built from source and published as GitHub Releases under <a href="https://github.com/libviprs/libviprs-dep" style="color:var(--primary);">libviprs/libviprs-dep</a>. Every release tag ships four archives covering the full matrix of <code>{linux, musl} &times; {amd64, arm64}</code>, and each archive contains both the shared library (<code>libpdfium.so</code>) and the static archive (<code>libpdfium.a</code>):</p>
+    <table>
+      <thead><tr><th>Archive</th><th>libc</th><th>Use when</th></tr></thead>
+      <tbody>
+        <tr><td><code>pdfium-linux-x64.tgz</code></td><td>glibc</td><td>Debian, Ubuntu, RHEL, mainstream distros on x86_64</td></tr>
+        <tr><td><code>pdfium-linux-arm64.tgz</code></td><td>glibc</td><td>Debian, Ubuntu, &hellip; on aarch64</td></tr>
+        <tr><td><code>pdfium-musl-x64.tgz</code></td><td>musl</td><td>Alpine / musl-based distroless on x86_64</td></tr>
+        <tr><td><code>pdfium-musl-arm64.tgz</code></td><td>musl</td><td>Alpine / musl-based distroless on aarch64</td></tr>
+      </tbody>
+    </table>
+    <p>Loading a glibc <code>.so</code> from a musl process &mdash; or vice versa &mdash; fails at <code>dlopen</code> time, so match the archive libc to the runtime you deploy against. Fully-static musl binaries that cannot <code>dlopen</code> should link <code>libpdfium.a</code> via <code>pdfium-render/static</code>.</p>
+    <p>The build tooling is documented in full at <a href="https://github.com/libviprs/libviprs-dep/blob/main/MANUAL.md" style="color:var(--primary);">libviprs-dep/MANUAL.md</a> (man-page-style reference: CLI, options, artifact layout, environment, exit statuses, troubleshooting). A pipeline-level overview lives at <a href="https://github.com/libviprs/libviprs-dep/blob/main/pdfium/README.md" style="color:var(--primary);">libviprs-dep/pdfium/README.md</a>.</p>
   </section>
 
   <section>
     <h2>Related Crates</h2>
     <table>
-      <thead><tr><th>Crate</th><th>Description</th></tr></thead>
+      <thead><tr><th>Crate / Repo</th><th>Description</th></tr></thead>
       <tbody>
         <tr><td><code>libviprs-cli</code></td><td>Command-line interface (<code>viprs</code> binary) &mdash; <a href="cli.html" style="color:var(--primary);">CLI reference</a></td></tr>
         <tr><td><code>libviprs-tests</code></td><td>Integration tests and fixtures</td></tr>
+        <tr><td><code>libviprs-dep</code></td><td>Prebuilt native dependencies (PDFium today) &mdash; <a href="https://github.com/libviprs/libviprs-dep/blob/main/MANUAL.md" style="color:var(--primary);">build manual</a> &middot; <a href="https://github.com/libviprs/libviprs-dep/releases" style="color:var(--primary);">releases</a></td></tr>
       </tbody>
     </table>
   </section>
