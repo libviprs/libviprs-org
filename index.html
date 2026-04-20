@@ -408,7 +408,7 @@
 
 <div class="hero">
   <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode"></button>
-  <div class="ribbon">v0.1-alpha</div>
+  <div class="ribbon">v0.2</div>
   <div class="hero-inner">
     <div class="hero-brand">
       <img src="https://raw.githubusercontent.com/libviprs/libviprs/main/images/libviprs-logo-claws.svg" alt="libviprs logo">
@@ -452,6 +452,8 @@
       <li><strong>PDF rendering</strong> — render vector PDFs (AutoCAD exports, text, paths) via PDFium, with optional memory-budgeted rendering</li>
       <li><strong>Image decoding</strong> — JPEG, PNG, TIFF via the <code>image</code> crate</li>
       <li><strong>Tile pyramid generation</strong> — multi-threaded engine with backpressure, configurable tile size and overlap; optional <strong>streaming mode</strong> processes images in horizontal strips for bounded peak memory</li>
+      <li><strong>True source-side PDF streaming</strong> — <code>PdfiumStripSource</code> renders one strip of a vector PDF at a time via PDFium's clipped matrix path, including correct <code>/Rotate</code> handling, so multi-gigapixel pages stay inside the configured memory budget</li>
+      <li><strong>Memory-budget policy</strong> — <code>StreamingConfig.budget_policy</code> selects <code>BudgetPolicy::Error</code> (fail loudly when a strip cannot fit) or <code>BudgetPolicy::AutoAdjust</code> (raise the budget to the smallest workable strip); the engine also pre-flights the budget against canvas geometry before any work starts and returns a typed <code>BudgetExceeded</code> error</li>
       <li><strong>Layout formats</strong> — DeepZoom (<code>.dzi</code> + directory tree), XYZ (<code>z/x/y</code>), and Google Maps (<code>z/y/x</code>, power-of-2 grids)</li>
       <li><strong>Centre support</strong> — centre image within the tile grid with even background padding on all sides</li>
       <li><strong>Tile encoding</strong> — PNG, JPEG (configurable quality), or raw pixel output</li>
@@ -576,6 +578,7 @@
     </table>
 
     <p>The caller sets a memory budget; the engine maximises strip height within that budget to balance memory and throughput. When the budget is large enough for the full canvas, the monolithic engine is used automatically — no code changes needed.</p>
+    <p>For vector PDFs, <code>PdfiumStripSource</code> renders one strip at a time directly from the PDF using PDFium's clipped matrix path (with full <code>/Rotate</code> support), so the full page bitmap is never materialised. <code>BudgetPolicy::Error</code> fails loudly if the chosen budget cannot fit the smallest workable strip; <code>BudgetPolicy::AutoAdjust</code> raises the budget and continues. The engine also pre-flights the budget against canvas geometry before allocating, surfacing a typed <code>BudgetExceeded</code> error rather than running until OOM.</p>
   </section>
 
   <section>
@@ -620,7 +623,7 @@
     <p>When the <code>tracing</code> feature is enabled, the engine emits structured spans compatible with any <code>tracing</code>-subscriber, including OpenTelemetry exporters. Span names: <code>libviprs::pipeline</code>, <code>libviprs::level</code>, <code>libviprs::tile</code>.</p>
     <div class="code-wrap">
       <pre><code><span class="cm"># Cargo.toml</span>
-libviprs = { version = <span class="str">"0.1"</span>, features = [<span class="str">"tracing"</span>] }</code></pre>
+libviprs = { version = <span class="str">"0.2"</span>, features = [<span class="str">"tracing"</span>] }</code></pre>
     </div>
     <p>CLI: <code>--trace-level info</code> (values: <code>error</code>, <code>warn</code>, <code>info</code>, <code>debug</code>, <code>trace</code>).</p>
 
@@ -711,7 +714,7 @@ viprs pyramid blueprint.pdf <span class="sh-flag">--sink</span> <span class="str
     </table>
     <p>Enable multiple features in <code>Cargo.toml</code>:</p>
     <div class="code-wrap">
-      <pre><code>libviprs = { version = <span class="str">"0.1"</span>, features = [<span class="str">"s3"</span>, <span class="str">"tracing"</span>, <span class="str">"checksum"</span>, <span class="str">"dedupe"</span>] }</code></pre>
+      <pre><code>libviprs = { version = <span class="str">"0.2"</span>, features = [<span class="str">"s3"</span>, <span class="str">"tracing"</span>, <span class="str">"checksum"</span>, <span class="str">"dedupe"</span>] }</code></pre>
     </div>
   </section>
 
