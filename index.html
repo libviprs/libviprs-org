@@ -459,6 +459,16 @@
       <li><strong>Edge tile background</strong> — configurable background color for padding partial tiles at image edges</li>
       <li><strong>Geo-referencing</strong> — affine transform mapping pixel coordinates to geographic coordinates, GCP support</li>
       <li><strong>Observability</strong> — progress events, per-level callbacks, peak memory tracking</li>
+      <li><strong>Object-storage sinks</strong> — write tiles directly to S3-compatible buckets via <code>s3://</code> URIs; enabled with <code>--features s3</code></li>
+      <li><strong>Manifest v1 + versioning</strong> — <code>ManifestV1</code> / <code>ManifestBuilder</code> emit a versioned JSON manifest alongside the pyramid; unknown fields are ignored for forward compatibility</li>
+      <li><strong>Blank-tile tolerance</strong> — <code>BlankTileStrategy::PlaceholderWithTolerance</code> collapses near-uniform tiles within a configurable per-channel delta, reducing output for slightly noisy scans</li>
+      <li><strong>Tracing spans</strong> — structured spans (<code>libviprs::pipeline</code>, <code>libviprs::level</code>, <code>libviprs::tile</code>) for OpenTelemetry-compatible collectors; enabled with <code>--features tracing</code></li>
+      <li><strong>Resumable jobs</strong> — <code>generate_pyramid_resumable</code> writes a checkpoint file and supports <code>Overwrite</code>, <code>Resume</code>, and <code>Verify</code> modes; interrupted runs restart from the last completed tile</li>
+      <li><strong>Retry + failure policies</strong> — per-tile retry with configurable back-off; <code>FailurePolicy::RetryThenSkip</code> marks a tile as missing rather than aborting the entire job</li>
+      <li><strong>Checksums</strong> — tile-level Blake3 or SHA-256 digests written into or verified from the manifest; controlled by <code>ChecksumMode</code> and <code>ChecksumAlgo</code></li>
+      <li><strong>Deduplication</strong> — identical tiles are stored once and referenced via symlink, hardlink, or manifest-only pointer; <code>DedupeStrategy::Blanks</code> targets only placeholder tiles; <code>DedupeStrategy::All</code> dedupes every tile</li>
+      <li><strong>Packfile archive sinks</strong> — write the whole pyramid into a <code>.tar</code>, <code>.tar.gz</code>, or <code>.zip</code> archive; enabled with <code>--features packfile</code></li>
+      <li><strong>Extended EngineResult metrics</strong> — <code>bytes_read</code>, <code>bytes_written</code>, <code>retry_count</code>, <code>queue_pressure_peak</code>, <code>duration</code>, <code>stage_durations</code> for observability pipelines</li>
     </ul>
   </section>
 
@@ -566,6 +576,143 @@
     </table>
 
     <p>The caller sets a memory budget; the engine maximises strip height within that budget to balance memory and throughput. When the budget is large enough for the full canvas, the monolithic engine is used automatically — no code changes needed.</p>
+  </section>
+
+  <section>
+    <h2>Phase 3 Hardening</h2>
+    <p>Phase 3 adds production-hardening features: durable storage sinks, resumable jobs, retry policies, checksums, deduplication, structured tracing, and versioned manifests. All features are opt-in via Cargo feature flags.</p>
+
+    <h3>Object-storage sinks (<code>--features s3</code>)</h3>
+    <p>Write tiles directly to an S3-compatible bucket. The sink accepts any <code>s3://bucket/prefix</code> URI and uses the standard AWS SDK credential chain.</p>
+    <div class="code-wrap">
+      <pre><code><span class="kw">use</span> <span class="mod">libviprs</span>::<span class="ty">S3Sink</span>;
+
+<span class="kw">let</span> sink = <span class="ty">S3Sink</span>::<span class="fn">new</span>(<span class="str">"s3://my-bucket/tiles/"</span>, plan.<span class="fn">clone</span>(), <span class="ty">TileFormat</span>::<span class="ty">Png</span>)
+    .<span class="kw">await</span>.<span class="fn">unwrap</span>();
+<span class="fn">generate_pyramid</span>(&amp;raster, &amp;plan, &amp;sink, &amp;config).<span class="fn">unwrap</span>();</code></pre>
+    </div>
+
+    <h3>Manifest v1 + versioning</h3>
+    <p><code>ManifestBuilder</code> produces a <code>ManifestV1</code> JSON sidecar next to the pyramid root. The manifest carries a <code>schema_version</code> field; readers ignore unknown keys, so older consumers continue working as new fields are added.</p>
+    <div class="code-wrap">
+      <pre><code><span class="kw">use</span> <span class="mod">libviprs</span>::{<span class="ty">ManifestBuilder</span>, <span class="ty">ChecksumMode</span>, <span class="ty">ChecksumAlgo</span>};
+
+<span class="kw">let</span> manifest = <span class="ty">ManifestBuilder</span>::<span class="fn">new</span>(&amp;plan)
+    .<span class="fn">checksum_mode</span>(<span class="ty">ChecksumMode</span>::<span class="ty">EmitOnly</span>)
+    .<span class="fn">checksum_algo</span>(<span class="ty">ChecksumAlgo</span>::<span class="ty">Blake3</span>)
+    .<span class="fn">build</span>();
+<span class="cm">// serialises to: {"schema_version":1, "tiles": [...], ...}</span></code></pre>
+    </div>
+
+    <h3>Blank-tile tolerance</h3>
+    <p>Use <code>BlankTileStrategy::PlaceholderWithTolerance</code> to treat tiles whose every channel varies by at most <code>max_channel_delta</code> as blank. Useful for slightly noisy scans where pure-uniform detection misses near-white regions.</p>
+    <div class="code-wrap">
+      <pre><code><span class="kw">use</span> <span class="mod">libviprs</span>::<span class="ty">BlankTileStrategy</span>;
+
+<span class="kw">let</span> config = <span class="ty">EngineConfig</span>::<span class="fn">default</span>()
+    .<span class="fn">with_blank_tile_strategy</span>(<span class="ty">BlankTileStrategy</span>::<span class="ty">PlaceholderWithTolerance</span> {
+        max_channel_delta: <span class="num">2</span>,
+    });</code></pre>
+    </div>
+    <p>CLI equivalent: <code>--blank-tolerance 2</code></p>
+
+    <h3>Tracing spans (<code>--features tracing</code>)</h3>
+    <p>When the <code>tracing</code> feature is enabled, the engine emits structured spans compatible with any <code>tracing</code>-subscriber, including OpenTelemetry exporters. Span names: <code>libviprs::pipeline</code>, <code>libviprs::level</code>, <code>libviprs::tile</code>.</p>
+    <div class="code-wrap">
+      <pre><code><span class="cm"># Cargo.toml</span>
+libviprs = { version = <span class="str">"0.1"</span>, features = [<span class="str">"tracing"</span>] }</code></pre>
+    </div>
+    <p>CLI: <code>--trace-level info</code> (values: <code>error</code>, <code>warn</code>, <code>info</code>, <code>debug</code>, <code>trace</code>).</p>
+
+    <h3>Resumable jobs</h3>
+    <p><code>generate_pyramid_resumable</code> writes a checkpoint file (<code>.libviprs-job.json</code>) at the output root after each tile. A re-run with <code>ResumeMode::Resume</code> skips already-written tiles; <code>ResumeMode::Verify</code> re-reads them and asserts their checksums.</p>
+    <div class="code-wrap">
+      <pre><code><span class="kw">use</span> <span class="mod">libviprs</span>::{<span class="ty">generate_pyramid_resumable</span>, <span class="ty">ResumeMode</span>};
+
+<span class="fn">generate_pyramid_resumable</span>(
+    &amp;raster, &amp;plan, &amp;sink, &amp;config,
+    <span class="ty">ResumeMode</span>::<span class="ty">Resume</span>,
+).<span class="fn">unwrap</span>();</code></pre>
+    </div>
+    <p>CLI: <code>--resume</code> / <code>--overwrite</code> / <code>--verify</code></p>
+
+    <h3>Retry + failure policies</h3>
+    <p>Tile writes that fail transiently (network blip, lock contention) can be retried automatically. <code>FailurePolicy::RetryThenSkip</code> records the missing tile in the manifest instead of aborting the job.</p>
+    <div class="code-wrap">
+      <pre><code><span class="kw">use</span> <span class="mod">libviprs</span>::{<span class="ty">FailurePolicy</span>, <span class="ty">RetryPolicy</span>};
+
+<span class="kw">let</span> config = <span class="ty">EngineConfig</span>::<span class="fn">default</span>()
+    .<span class="fn">with_failure_policy</span>(<span class="ty">FailurePolicy</span>::<span class="ty">RetryThenFail</span>(
+        <span class="ty">RetryPolicy</span> { max_attempts: <span class="num">3</span>, backoff_ms: <span class="num">200</span> },
+    ));</code></pre>
+    </div>
+    <p>CLI: <code>--retry-max 3 --retry-backoff 200 --failure-policy retry-then-fail</code></p>
+
+    <h3>Checksums</h3>
+    <p>The engine can compute a digest for every tile and embed it in the manifest (<code>EmitOnly</code>) or verify existing digests on re-run (<code>Verify</code>).</p>
+    <div class="code-wrap">
+      <pre><code><span class="kw">use</span> <span class="mod">libviprs</span>::{<span class="ty">ChecksumMode</span>, <span class="ty">ChecksumAlgo</span>};
+
+<span class="kw">let</span> config = <span class="ty">EngineConfig</span>::<span class="fn">default</span>()
+    .<span class="fn">with_checksum_mode</span>(<span class="ty">ChecksumMode</span>::<span class="ty">EmitOnly</span>)
+    .<span class="fn">with_checksum_algo</span>(<span class="ty">ChecksumAlgo</span>::<span class="ty">Blake3</span>);</code></pre>
+    </div>
+    <p>CLI: <code>--manifest-emit-checksums --checksum-algo blake3</code></p>
+
+    <h3>Deduplication</h3>
+    <p>Identical tile content is stored once. The engine tries symlink first, then hardlink, then falls back to a manifest-only reference (for sinks that do not support links, such as S3).</p>
+    <div class="code-wrap">
+      <pre><code><span class="kw">use</span> <span class="mod">libviprs</span>::<span class="ty">DedupeStrategy</span>;
+
+<span class="cm">// Dedupe only blank placeholder tiles (fast, low overhead)</span>
+<span class="kw">let</span> config = <span class="ty">EngineConfig</span>::<span class="fn">default</span>()
+    .<span class="fn">with_dedupe</span>(<span class="ty">DedupeStrategy</span>::<span class="ty">Blanks</span>);
+
+<span class="cm">// Dedupe every tile using Blake3 content hashes</span>
+<span class="kw">let</span> config = <span class="ty">EngineConfig</span>::<span class="fn">default</span>()
+    .<span class="fn">with_dedupe</span>(<span class="ty">DedupeStrategy</span>::<span class="ty">All</span> { algo: <span class="ty">ChecksumAlgo</span>::<span class="ty">Blake3</span> });</code></pre>
+    </div>
+    <p>CLI: <code>--dedupe-blanks</code> / <code>--dedupe-all</code></p>
+
+    <h3>Packfile archive sinks (<code>--features packfile</code>)</h3>
+    <p>Archive the entire pyramid into a single file instead of a directory tree. Useful for cold storage, artifact upload, or reproducible builds.</p>
+    <div class="code-wrap">
+      <pre><code><span class="cm"># .tar, .tar.gz, and .zip are all supported</span>
+viprs pyramid blueprint.pdf <span class="sh-flag">--sink</span> <span class="str">packfile://output.tar.gz</span></code></pre>
+    </div>
+
+    <h3>Extended EngineResult metrics</h3>
+    <p>The <code>EngineResult</code> struct now carries detailed I/O and timing counters for integration with monitoring systems.</p>
+    <div class="code-wrap">
+      <pre><code><span class="kw">let</span> result = <span class="fn">generate_pyramid</span>(&amp;raster, &amp;plan, &amp;sink, &amp;config).<span class="fn">unwrap</span>();
+<span class="mc">println!</span>(
+    <span class="str">"read {} bytes, wrote {} bytes, {} retries, peak queue {}, {:?}"</span>,
+    result.bytes_read, result.bytes_written,
+    result.retry_count, result.queue_pressure_peak,
+    result.duration,
+);</code></pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>Feature Flags</h2>
+    <table>
+      <thead><tr><th>Feature</th><th>Default</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>default</code></td><td>yes</td><td>Core engine, filesystem sink, DeepZoom/XYZ/Google layouts, PNG/JPEG/raw encoding</td></tr>
+        <tr><td><code>pdfium</code></td><td>no</td><td>Vector PDF rendering via a dynamically-linked libpdfium</td></tr>
+        <tr><td><code>pdfium-static</code></td><td>no</td><td>Same as <code>pdfium</code> but links statically (larger binary, no runtime dep)</td></tr>
+        <tr><td><code>s3</code></td><td>no</td><td>S3-compatible object-storage sink (<code>s3://</code> URIs)</td></tr>
+        <tr><td><code>tracing</code></td><td>no</td><td>Structured spans via the <code>tracing</code> crate for OpenTelemetry and other subscribers</td></tr>
+        <tr><td><code>packfile</code></td><td>no</td><td>Archive sink: write the pyramid into a <code>.tar</code>, <code>.tar.gz</code>, or <code>.zip</code> file</td></tr>
+        <tr><td><code>checksum</code></td><td>no</td><td>Tile-level Blake3 / SHA-256 digest computation and manifest embedding</td></tr>
+        <tr><td><code>dedupe</code></td><td>no</td><td>Content-addressable deduplication via symlinks, hardlinks, or manifest references</td></tr>
+      </tbody>
+    </table>
+    <p>Enable multiple features in <code>Cargo.toml</code>:</p>
+    <div class="code-wrap">
+      <pre><code>libviprs = { version = <span class="str">"0.1"</span>, features = [<span class="str">"s3"</span>, <span class="str">"tracing"</span>, <span class="str">"checksum"</span>, <span class="str">"dedupe"</span>] }</code></pre>
+    </div>
   </section>
 
   <section>
