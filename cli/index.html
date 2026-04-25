@@ -12,23 +12,47 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Code+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/cli.css">
+  <link rel="stylesheet" href="../topbar.css">
+  <script src="../topbar.js" defer></script>
 </head>
 <body>
 
-<div class="hero">
-  <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode"></button>
-  <div class="hero-inner">
-    <a href="../index.html"><img src="https://raw.githubusercontent.com/libviprs/libviprs/main/images/libviprs-logo-claws.svg" alt="libviprs logo"></a>
-    <h1>viprs(1) <span>CLI Documentation</span></h1>
+<header class="topbar" id="topbar">
+  <div class="topbar-inner">
+    <a class="topbar-brand" href="../index.html">
+      <img src="https://raw.githubusercontent.com/libviprs/libviprs/main/images/libviprs-logo-claws.svg" alt="">
+      <span class="brand-name">libviprs</span>
+      <span class="brand-sub">viprs(1) &middot; CLI</span>
+    </a>
+    <button class="topbar-burger" id="topbarBurger" type="button"
+            aria-label="Toggle menu" aria-expanded="false" aria-controls="topbar-menu">
+      <span class="burger-icon" aria-hidden="true"></span>
+    </button>
   </div>
-  <div class="hero-nav">
-    <a href="../index.html">Home</a>
-    <a href="https://github.com/libviprs/libviprs">GitHub</a>
-    <a href="https://docs.rs/libviprs">API Docs</a>
-  </div>
-</div>
+  <nav class="topbar-menu" id="topbar-menu" aria-hidden="true">
+    <div class="topbar-menu-inner">
+      <a href="../index.html">Home</a>
+      <a href="./" class="is-current">CLI Documentation</a>
+      <a href="../benchmarks.html">Benchmarks</a>
+      <a href="https://github.com/libviprs/libviprs" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://docs.rs/libviprs" target="_blank" rel="noopener">API Docs</a>
+      <a href="https://github.com/libviprs/libviprs-dep/releases" target="_blank" rel="noopener">Downloads</a>
+      <a href="https://github.com/libviprs/libviprs-dep/blob/main/MANUAL.md" target="_blank" rel="noopener">Build Tools Manual</a>
+      <a href="https://github.com/libviprs/libviprs/issues" target="_blank" rel="noopener">Issues</a>
+      <hr class="menu-divider">
+      <button type="button" class="topbar-theme-toggle" id="themeToggle">
+        <span class="theme-glyph" aria-hidden="true">☾</span>
+        <span class="theme-label">Dark mode</span>
+      </button>
+    </div>
+  </nav>
+</header>
 
 <main>
+
+<header class="page-header">
+  <h1>viprs(1) <span class="page-header-sub">CLI Documentation</span></h1>
+</header>
 
 <!-- ================================================================== -->
 <!-- HOW-TO BUBBLE — auto-collapses after 10s; click ⓘ to reopen.        -->

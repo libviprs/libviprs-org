@@ -11,6 +11,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Code+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="topbar.css">
+  <script src="topbar.js" defer></script>
   <style>
     :root, [data-theme="light"] {
       --primary: #be6e34;
@@ -84,7 +86,7 @@
       --p2: 0;
       --p3: 0;
       position: sticky;
-      top: 0;
+      top: var(--topbar-height, 3.4rem);  /* sticks below the floating top bar */
       z-index: 100;
       overflow: hidden;
       background: var(--hero-bg);
@@ -159,20 +161,6 @@
       display: none;
     }
 
-    .hero.collapsed .hero-actions {
-      margin: 0 0 0 auto;
-      gap: 0.35rem;
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      scrollbar-width: thin;
-    }
-
-    .hero.collapsed .hero-actions a {
-      padding: 0.3rem 0.7rem;
-      font-size: 0.78rem;
-      white-space: nowrap;
-    }
-
     .hero.collapsed .ribbon {
       position: static;
       width: auto;
@@ -185,13 +173,6 @@
       box-shadow: none;
       flex-shrink: 0;
       order: 1;
-    }
-
-    .hero.collapsed .theme-toggle {
-      top: 0.4rem;
-      left: 0.6rem;
-      padding: 0.2rem 0.55rem;
-      font-size: 0.7rem;
     }
 
     .hero .pronunciation,
@@ -228,35 +209,6 @@
     }
 
     .hero .badges img { height: 20px; }
-
-    .hero-actions {
-      display: flex;
-      gap: 0.75rem;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
-
-    .hero-actions a {
-      display: inline-block;
-      padding: calc(0.55rem - 0.25rem * var(--p3)) calc(1.4rem - 0.7rem * var(--p3));
-      border-radius: 4px;
-      text-decoration: none;
-      font-weight: 600;
-      font-size: calc(0.9rem - 0.12rem * var(--p3));
-      transition: opacity 0.2s;
-    }
-
-    .hero-actions a:hover { opacity: 0.85; }
-
-    .btn-primary {
-      background: var(--primary);
-      color: var(--white);
-    }
-
-    .btn-outline {
-      border: 1.5px solid rgba(255,255,255,0.5);
-      color: var(--white);
-    }
 
     /* Main content */
     main {
@@ -467,144 +419,47 @@
     footer a { color: var(--primary); text-decoration: none; }
     footer a:hover { text-decoration: underline; }
 
-    /* Theme toggle */
-    .theme-toggle {
-      position: absolute;
-      top: 1rem;
-      left: 1rem;
-      background: rgba(255,255,255,0.15);
-      border: 1px solid rgba(255,255,255,0.25);
-      color: var(--white);
-      border-radius: 20px;
-      padding: 0.3rem 0.7rem;
-      font-size: 0.8rem;
-      cursor: pointer;
-      font-family: inherit;
-      transition: background 0.2s;
-      z-index: 11;
-    }
-
-    .theme-toggle:hover {
-      background: rgba(255,255,255,0.25);
-    }
-
-    /* Burger menu — desktop hides it; mobile uses it instead of the inline link strip. */
-    .burger-toggle {
-      display: none;
-      position: absolute;
-      top: 0.85rem;
-      right: 0.85rem;
-      width: 2.4rem;
-      height: 2.4rem;
-      background: rgba(255,255,255,0.15);
-      border: 1px solid rgba(255,255,255,0.3);
-      border-radius: 6px;
-      cursor: pointer;
-      z-index: 12;
-      padding: 0;
-    }
-
-    .burger-toggle .burger-icon,
-    .burger-toggle .burger-icon::before,
-    .burger-toggle .burger-icon::after {
-      display: block;
-      width: 1.2rem;
-      height: 2px;
-      background: var(--white);
-      border-radius: 1px;
-      transition: transform 0.25s ease, top 0.25s ease, opacity 0.2s ease, background 0.2s ease;
-    }
-
-    .burger-toggle .burger-icon {
-      position: relative;
-      margin: 0 auto;
-    }
-
-    .burger-toggle .burger-icon::before { content: ''; position: absolute; left: 0; top: -7px; }
-    .burger-toggle .burger-icon::after  { content: ''; position: absolute; left: 0; top:  7px; }
-
-    .hero.menu-open .burger-toggle .burger-icon { background: transparent; }
-    .hero.menu-open .burger-toggle .burger-icon::before { top: 0; transform: rotate(45deg); }
-    .hero.menu-open .burger-toggle .burger-icon::after  { top: 0; transform: rotate(-45deg); }
-
     /* Responsive */
     @media (max-width: 700px) {
       .hero-brand h1 { font-size: 2rem; }
       .hero-brand img { width: 56px; }
       .hero { padding: 2rem 1rem 1.5rem; }
-      .theme-toggle { top: 0.5rem; left: 0.5rem; font-size: 0.7rem; }
-
-      .burger-toggle { display: inline-flex; align-items: center; justify-content: center; }
-
-      /* Hide the link strip by default; the burger reveals it as a stacked
-         dropdown panel below the hero. */
-      .hero-actions {
-        display: none;
-        flex-direction: column;
-        gap: 0.5rem;
-        flex-wrap: nowrap;
-        overflow: visible;
-      }
-
-      .hero.menu-open .hero-actions {
-        display: flex;
-        margin: 1rem -1rem -1rem;
-        padding: 1rem 1.25rem 1.25rem;
-        background: rgba(0,0,0,0.18);
-        border-top: 1px solid rgba(255,255,255,0.15);
-      }
-
-      .hero.menu-open .hero-actions a {
-        display: block;
-        width: 100%;
-        text-align: center;
-        padding: 0.7rem 1rem;
-        font-size: 0.95rem;
-      }
-
-      /* Collapsed (scrolled) state on mobile: still show only the burger,
-         and let the menu drop as an overlay below the bar. */
-      .hero.collapsed .burger-toggle {
-        position: static;
-        top: auto;
-        right: auto;
-        width: 2rem;
-        height: 2rem;
-        margin-left: auto;
-        flex-shrink: 0;
-      }
-
-      .hero.collapsed .hero-actions {
-        display: none;
-      }
-
-      .hero.collapsed.menu-open .hero-actions {
-        display: flex;
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        margin: 0;
-        padding: 0.85rem 1rem;
-        background: var(--hero-bg);
-        box-shadow: 0 6px 14px rgba(0,0,0,0.3);
-        z-index: 99;
-      }
-
-      .hero.collapsed.menu-open .hero-actions a {
-        text-align: left;
-        padding: 0.55rem 0.6rem;
-      }
     }
   </style>
 </head>
 <body>
 
+<header class="topbar" id="topbar">
+  <div class="topbar-inner">
+    <a class="topbar-brand" href="index.html">
+      <img src="https://raw.githubusercontent.com/libviprs/libviprs/main/images/libviprs-logo-claws.svg" alt="">
+      <span class="brand-name">libviprs</span>
+    </a>
+    <button class="topbar-burger" id="topbarBurger" type="button"
+            aria-label="Toggle menu" aria-expanded="false" aria-controls="topbar-menu">
+      <span class="burger-icon" aria-hidden="true"></span>
+    </button>
+  </div>
+  <nav class="topbar-menu" id="topbar-menu" aria-hidden="true">
+    <div class="topbar-menu-inner">
+      <a href="index.html"      class="is-current">Home</a>
+      <a href="cli/">CLI Documentation</a>
+      <a href="benchmarks.html">Benchmarks</a>
+      <a href="https://github.com/libviprs/libviprs" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://docs.rs/libviprs" target="_blank" rel="noopener">API Docs</a>
+      <a href="https://github.com/libviprs/libviprs-dep/releases" target="_blank" rel="noopener">Downloads</a>
+      <a href="https://github.com/libviprs/libviprs-dep/blob/main/MANUAL.md" target="_blank" rel="noopener">Build Tools Manual</a>
+      <a href="https://github.com/libviprs/libviprs/issues" target="_blank" rel="noopener">Issues</a>
+      <hr class="menu-divider">
+      <button type="button" class="topbar-theme-toggle" id="themeToggle">
+        <span class="theme-glyph" aria-hidden="true">☾</span>
+        <span class="theme-label">Dark mode</span>
+      </button>
+    </div>
+  </nav>
+</header>
+
 <div class="hero">
-  <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode"></button>
-  <button class="burger-toggle" id="heroBurger" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="hero-actions">
-    <span class="burger-icon" aria-hidden="true"></span>
-  </button>
   <div class="ribbon">v0.3</div>
   <div class="hero-inner">
     <div class="hero-brand">
@@ -618,15 +473,6 @@
       <a href="https://github.com/libviprs/libviprs/actions/workflows/merge-gate.yml"><img src="https://github.com/libviprs/libviprs/actions/workflows/merge-gate.yml/badge.svg" alt="Merge Gate"></a>
       <img src="https://img.shields.io/badge/rust-1.85%2B-orange?logo=rust" alt="Rust 1.85+">
       <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License">
-    </div>
-    <div class="hero-actions" id="hero-actions">
-      <a href="https://github.com/libviprs/libviprs" class="btn-primary">GitHub</a>
-      <a href="https://docs.rs/libviprs" class="btn-outline">Documentation</a>
-      <a href="cli/" class="btn-outline">CLI Documentation</a>
-      <a href="benchmarks.html" class="btn-outline">Benchmarks</a>
-      <a href="https://github.com/libviprs/libviprs-dep/releases" class="btn-outline">Downloads</a>
-      <a href="https://github.com/libviprs/libviprs-dep/blob/main/MANUAL.md" class="btn-outline">Build Tools Manual</a>
-      <a href="https://github.com/libviprs/libviprs/issues" class="btn-outline">Issues</a>
     </div>
   </div>
 </div>
@@ -968,33 +814,14 @@ viprs pyramid blueprint.pdf <span class="sh-flag">--sink</span> <span class="str
 </footer>
 
 <script>
-  const toggle = document.getElementById('themeToggle');
-  function setTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    toggle.textContent = theme === 'dark' ? '☀ Light' : '☾ Dark';
-    localStorage.setItem('theme', theme);
-  }
-  const saved = localStorage.getItem('theme');
-  if (saved) {
-    setTheme(saved);
-  } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-    setTheme('dark');
-  } else {
-    setTheme('light');
-  }
-  toggle.addEventListener('click', () => {
-    const current = document.documentElement.getAttribute('data-theme');
-    setTheme(current === 'dark' ? 'light' : 'dark');
-  });
-  document.getElementById('copyBtn').addEventListener('click', function() {
+  // Hero scroll-collapse animation. Theme toggle + burger menu live in the
+  // shared topbar and are handled by topbar.js.
+  document.getElementById('copyBtn').addEventListener('click', function () {
     const code = document.querySelector('.code-wrap pre code').textContent;
     navigator.clipboard.writeText(code).then(() => {
       this.textContent = '✓ Copied';
       setTimeout(() => { this.innerHTML = '&#x2398; Copy'; }, 1500);
     });
-  });
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-    if (!localStorage.getItem('theme')) setTheme(e.matches ? 'dark' : 'light');
   });
 
   const hero = document.querySelector('.hero');
@@ -1012,39 +839,6 @@ viprs pyramid blueprint.pdf <span class="sh-flag">--sink</span> <span class="str
   window.addEventListener('scroll', updateHeroCollapse, { passive: true });
   window.addEventListener('resize', updateHeroCollapse);
   updateHeroCollapse();
-
-  // Mobile burger menu — toggles `.menu-open` on the hero. CSS hides the
-  // link strip below 700px and reveals it as a stacked dropdown when open.
-  const burger = document.getElementById('heroBurger');
-  if (burger) {
-    burger.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const open = hero.classList.toggle('menu-open');
-      burger.setAttribute('aria-expanded', open ? 'true' : 'false');
-    });
-    // Tapping a menu link closes the panel so the destination loads cleanly.
-    document.querySelectorAll('.hero-actions a').forEach((a) => {
-      a.addEventListener('click', () => {
-        hero.classList.remove('menu-open');
-        burger.setAttribute('aria-expanded', 'false');
-      });
-    });
-    // Tapping outside the hero closes the panel.
-    document.addEventListener('click', (e) => {
-      if (!hero.classList.contains('menu-open')) return;
-      if (hero.contains(e.target)) return;
-      hero.classList.remove('menu-open');
-      burger.setAttribute('aria-expanded', 'false');
-    });
-    // Close on Esc for keyboard users.
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && hero.classList.contains('menu-open')) {
-        hero.classList.remove('menu-open');
-        burger.setAttribute('aria-expanded', 'false');
-        burger.focus();
-      }
-    });
-  }
 </script>
 </body>
 </html>
