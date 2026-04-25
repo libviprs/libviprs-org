@@ -27,6 +27,11 @@
   --p2: 1;  /* shrinks logo + brand name */
   --p3: 1;  /* shrinks padding; controls collapse layout flip */
 
+  /* `sticky` is the default; once .collapsed is added, `fixed` (rule
+     below) pins the bar to the viewport top reliably across browsers
+     — iOS Safari has long-running quirks with sticky on dynamically
+     resizing elements that are easier to dodge than to debug. */
+  position: -webkit-sticky;
   position: sticky;
   top: 0;
   z-index: var(--topbar-zindex);
@@ -52,6 +57,18 @@
   align-items: center;
   gap: 1rem;
   text-align: left;
+  /* Pin the collapsed bar to the viewport top regardless of scroll
+     position. body:has(.topbar.collapsed) (rule below) reserves the
+     vertical space the bar no longer occupies in flow. */
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+/* :has() is supported in every 2026 browser baseline. */
+body:has(.topbar.collapsed) {
+  padding-top: var(--topbar-collapsed-height);
 }
 
 .topbar.is-hero {
@@ -202,27 +219,9 @@
 .topbar.collapsed .topbar-content { order: 0; }
 .topbar.collapsed .topbar-menu    { order: 2; }
 
-/* Mobile only: when scrolled (.collapsed) the corner ribbon disappears and
-   a sibling chip inside the drawer takes its place. The corner ribbon is
-   restored on desktop further down (no drawer there). */
-.topbar.collapsed .ribbon { display: none; }
-
-.ribbon-drawer { display: none; }
-
-.topbar.collapsed.menu-open .ribbon-drawer {
-  display: inline-flex;
-  align-self: flex-start;
-  margin: 0.4rem 0.6rem 0.2rem;
-  padding: 0.25rem 0.6rem;
-  background: #cc3333;
-  color: var(--white);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  border-radius: 3px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
-}
+/* Ribbon stays visible in collapsed state on every viewport — flex
+   `order` (set above) places it to the right of .topbar-content. */
+.ribbon-drawer { display: none !important; }
 
 /* Burger toggle — fixed top-right of the bar in every state.
    Visible at every viewport width; this is the primary nav. */
