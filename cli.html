@@ -360,7 +360,7 @@ viprs test-image [OPTIONS] &lt;OUTPUT&gt;
 <span class="sh-comment"># Phase 3 hardening flags (subset)</span>
 viprs pyramid input.pdf tiles/ --blank-tolerance 2
 viprs pyramid input.pdf --sink s3://bucket/prefix
-viprs pyramid input.pdf out/ --resume --retry-max 3 --retry-backoff 200
+viprs pyramid input.pdf out/ --resume --on-failure retry=3,200ms
 viprs pyramid input.pdf out/ --manifest-emit-checksums --checksum-algo blake3
 viprs pyramid input.pdf out/ --dedupe-blanks
 viprs pyramid input.pdf --sink packfile://out.tar.gz
@@ -529,20 +529,16 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
 
   <h3>Retry and failure policy options</h3>
   <dl class="flags">
-    <dt><code>--retry-max &lt;N&gt;</code></dt>
+    <dt><code>--on-failure &lt;SPEC&gt;</code></dt>
     <dd>
-      <p>Maximum number of attempts for a single tile write before the failure policy is applied. <span class="default-val">Default: 0 (no retry)</span></p>
-    </dd>
-
-    <dt><code>--retry-backoff &lt;MS&gt;</code></dt>
-    <dd>
-      <p>Initial back-off delay in milliseconds between retry attempts. Each subsequent attempt doubles the delay (exponential back-off). <span class="default-val">Default: 100</span></p>
-    </dd>
-
-    <dt><code>--failure-policy &lt;POLICY&gt;</code></dt>
-    <dd>
-      <p>What to do when a tile write exhausts its retries. <span class="default-val">Default: fail-fast</span></p>
-      <p>Values: <code>fail-fast</code> (abort immediately), <code>retry-then-fail</code> (retry up to <code>--retry-max</code> times then abort), <code>retry-then-skip</code> (retry then record the tile as missing in the manifest and continue).</p>
+      <p>How the engine reacts when a sink write fails. A single flag selects the failure policy and (where applicable) the retry parameters. <span class="default-val">Default: fail-fast</span></p>
+      <p>Accepted values:</p>
+      <ul style="margin-left: 1.5rem; color: var(--text-light);">
+        <li><code>fail-fast</code> &mdash; abort on the first error.</li>
+        <li><code>retry=N,DURATION</code> &mdash; retry up to <code>N</code> times with initial back-off <code>DURATION</code> (exponential), then abort.</li>
+        <li><code>retry-skip=N,DURATION</code> &mdash; retry up to <code>N</code> times, then record the tile as missing in the manifest and continue.</li>
+      </ul>
+      <p><code>DURATION</code> accepts an <code>ns</code>/<code>us</code>/<code>ms</code>/<code>s</code> suffix (e.g. <code>50ms</code>, <code>2s</code>). A bare integer is interpreted as milliseconds.</p>
     </dd>
   </dl>
 
@@ -550,13 +546,18 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
   <dl class="flags">
     <dt><code>--manifest-emit-checksums</code></dt>
     <dd>
-      <p>Compute a digest for each tile and embed it in the manifest JSON. Does not verify existing tiles; use <code>--verify</code> for that. Requires <code>--features checksum</code>.</p>
+      <p>Compute a digest for each tile and embed it in the manifest JSON. Does not verify existing tiles; use <code>--verify</code> for that.</p>
     </dd>
 
     <dt><code>--checksum-algo &lt;ALGO&gt;</code></dt>
     <dd>
-      <p>Hash algorithm for tile digests. Only used with <code>--manifest-emit-checksums</code> or <code>--verify</code>. <span class="default-val">Default: blake3</span></p>
+      <p>Hash algorithm for tile digests. Only meaningful in combination with <code>--manifest-emit-checksums</code> or <code>--dedupe-all</code>. <span class="default-val">Default: blake3</span></p>
       <p>Values: <code>blake3</code> (faster, 256-bit), <code>sha256</code> (wider tooling support).</p>
+    </dd>
+
+    <dt><code>--manifest-version &lt;N&gt;</code></dt>
+    <dd>
+      <p>Manifest schema version to emit. Only <code>1</code> is currently accepted; any other value is rejected at parse time. <span class="default-val">Default: 1</span></p>
     </dd>
   </dl>
 
@@ -564,12 +565,12 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
   <dl class="flags">
     <dt><code>--dedupe-blanks</code></dt>
     <dd>
-      <p>Store only one copy of the blank placeholder tile and point all other blank positions at it via a symlink or hardlink. Significantly reduces inode count on images with large uniform margins. Requires <code>--features dedupe</code>.</p>
+      <p>Store only one copy of the blank placeholder tile and point all other blank positions at it via a symlink or hardlink. Significantly reduces inode count on images with large uniform margins. Mutually exclusive with <code>--dedupe-all</code>.</p>
     </dd>
 
     <dt><code>--dedupe-all</code></dt>
     <dd>
-      <p>Extend deduplication to every tile, not just blanks. The engine hashes each encoded tile; duplicate content is stored once and the rest are links or manifest references. Implies <code>--manifest-emit-checksums</code>. Requires <code>--features dedupe</code>. Slower than <code>--dedupe-blanks</code> due to per-tile hashing.</p>
+      <p>Extend deduplication to every tile, not just blanks. The engine hashes each encoded tile (using <code>--checksum-algo</code>); duplicate content is stored once and the rest are links or manifest references. Slower than <code>--dedupe-blanks</code> due to per-tile hashing. Mutually exclusive with <code>--dedupe-blanks</code>.</p>
     </dd>
   </dl>
 
@@ -577,8 +578,7 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
   <dl class="flags">
     <dt><code>--trace-level &lt;LEVEL&gt;</code></dt>
     <dd>
-      <p>Emit structured tracing spans at the given verbosity level. Spans are named <code>libviprs::pipeline</code>, <code>libviprs::level</code>, and <code>libviprs::tile</code>. Attach any <code>tracing</code>-compatible subscriber (e.g. <code>tracing-opentelemetry</code>) to export spans to Jaeger, Tempo, or another collector. Requires <code>--features tracing</code> at compile time. <span class="default-val">Default: off</span></p>
-      <p>Values: <code>error</code>, <code>warn</code>, <code>info</code>, <code>debug</code>, <code>trace</code>.</p>
+      <p>Initialise the <code>tracing-subscriber</code> at the given verbosity level. The engine emits <code>pipeline</code> and <code>level</code> spans on the <code>libviprs</code> target and per-tile events on the <code>libviprs::tile</code> target. Attach any <code>tracing</code>-compatible subscriber (e.g. <code>tracing-opentelemetry</code>) to export spans to Jaeger, Tempo, or another collector. The value is passed to <code>EnvFilter</code>, so directives such as <code>info,libviprs::tile=trace</code> are accepted. Requires <code>--features tracing</code> at compile time; without it, supplying this flag exits with an error. <span class="default-val">Default: off</span></p>
     </dd>
   </dl>
 
@@ -905,8 +905,7 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
   <div class="code-wrap">
     <button class="copy-btn">&#x2398; Copy</button>
     <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> blueprint.pdf <span class="sh-flag">--sink</span> <span class="sh-value">s3://my-bucket/out/</span> <span class="sh-flag">\
-    --retry-max</span> <span class="sh-value">5</span> <span class="sh-flag">--retry-backoff</span> <span class="sh-value">500</span> <span class="sh-flag">\
-    --failure-policy</span> <span class="sh-value">retry-then-skip</span></code></pre>
+    --on-failure</span> <span class="sh-value">retry-skip=5,500ms</span></code></pre>
   </div>
   <p>Each failing tile is retried up to 5 times with 500 ms initial back-off. If still failing, the tile is recorded as missing in the manifest and the job continues. Useful for long-running S3 uploads over unreliable links.</p>
 
@@ -946,7 +945,7 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
     <button class="copy-btn">&#x2398; Copy</button>
     <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> blueprint.pdf tiles/ <span class="sh-flag">--trace-level</span> <span class="sh-value">info</span></code></pre>
   </div>
-  <p>Emits <code>libviprs::pipeline</code>, <code>libviprs::level</code>, and <code>libviprs::tile</code> spans. Wire up a <code>tracing-opentelemetry</code> subscriber before calling <code>viprs</code> from a Rust driver, or export via the <code>OTEL_EXPORTER_OTLP_ENDPOINT</code> environment variable. Requires compile-time <code>--features tracing</code>.</p>
+  <p>Emits <code>pipeline</code> and <code>level</code> spans on the <code>libviprs</code> target plus per-tile events on the <code>libviprs::tile</code> target. The argument is passed straight to <code>EnvFilter</code>, so directives such as <code>info,libviprs::tile=trace</code> are accepted. Requires compile-time <code>--features tracing</code>.</p>
 </section>
 
 <!-- ================================================================== -->
@@ -1009,20 +1008,17 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
   <p>Optional capabilities are gated behind Cargo features. Pass them at build time:</p>
   <div class="code-wrap">
     <button class="copy-btn">&#x2398; Copy</button>
-    <pre><code><span class="sh-prompt">$</span> cargo install --path . <span class="sh-flag">--features</span> <span class="sh-value">s3,tracing,checksum,dedupe</span></code></pre>
+    <pre><code><span class="sh-prompt">$</span> cargo install --path . <span class="sh-flag">--features</span> <span class="sh-value">s3,packfile,tracing</span></code></pre>
   </div>
   <table>
     <thead><tr><th>Feature</th><th>Default</th><th>Enables</th></tr></thead>
     <tbody>
-      <tr><td><code>pdfium</code></td><td>no</td><td><code>--render</code> flag (dynamic libpdfium)</td></tr>
-      <tr><td><code>pdfium-static</code></td><td>no</td><td><code>--render</code> flag (static libpdfium, larger binary)</td></tr>
       <tr><td><code>s3</code></td><td>no</td><td><code>--sink s3://…</code></td></tr>
-      <tr><td><code>tracing</code></td><td>no</td><td><code>--trace-level</code></td></tr>
-      <tr><td><code>packfile</code></td><td>no</td><td><code>--sink packfile://…</code></td></tr>
-      <tr><td><code>checksum</code></td><td>no</td><td><code>--manifest-emit-checksums</code>, <code>--checksum-algo</code>, <code>--verify</code></td></tr>
-      <tr><td><code>dedupe</code></td><td>no</td><td><code>--dedupe-blanks</code>, <code>--dedupe-all</code></td></tr>
+      <tr><td><code>packfile</code></td><td>no</td><td><code>--sink packfile://…</code> and the <code>--packfile</code> shorthand</td></tr>
+      <tr><td><code>tracing</code></td><td>no</td><td><code>--trace-level</code> and the <code>tracing-subscriber</code> dependency</td></tr>
     </tbody>
   </table>
+  <p>PDFium support (<code>--render</code>) is built into the CLI unconditionally; it depends on a dynamically-linked <code>libpdfium</code> at runtime. Checksum and deduplication options (<code>--manifest-emit-checksums</code>, <code>--checksum-algo</code>, <code>--dedupe-blanks</code>, <code>--dedupe-all</code>, <code>--verify</code>) are always available and require no extra features.</p>
 </section>
 
 <!-- ================================================================== -->
