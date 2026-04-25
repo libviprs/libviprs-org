@@ -218,6 +218,23 @@ body:has(.topbar.collapsed) {
 
 .topbar.collapsed .topbar-content { order: 0; }
 .topbar.collapsed .topbar-menu    { order: 2; }
+.topbar.collapsed .topbar-burger  { order: 3; }
+
+/* Reading left-to-right in the collapsed bar:
+   1. brand (.topbar-content)         order 0
+   2. version chip (.ribbon)          order 1
+   3. inline nav (.topbar-menu, desktop only — display: none on mobile)
+   4. burger (.topbar-burger)         order 3, pushed to the far right
+                                      by margin-left: auto
+
+   On mobile the menu is `display: none` (drawer mode), so the visual
+   layout becomes [brand] [ribbon] [——— gap ———] [burger]. */
+
+.topbar.collapsed .topbar-content {
+  margin: 0;          /* override default `margin: 0 auto`, which would
+                         expand the brand block inside the flex row. */
+  flex: 0 0 auto;
+}
 
 /* Ribbon stays visible in collapsed state on every viewport — flex
    `order` (set above) places it to the right of .topbar-content. */
@@ -245,10 +262,15 @@ body:has(.topbar.collapsed) {
 }
 
 .topbar.collapsed .topbar-burger {
-  top: 0.45rem;
-  right: 0.5rem;
+  /* In hero state the burger sits absolute-positioned in the corner;
+     in collapsed state it joins the flex row at the far right. */
+  position: static;
+  top: auto;
+  right: auto;
   width: 2rem;
   height: 2rem;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .topbar-burger:hover { background: rgba(255, 255, 255, 0.25); }
