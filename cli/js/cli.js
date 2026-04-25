@@ -852,11 +852,74 @@
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // 10. How-to info bubble (top of page, auto-collapse after 10s)
+  // ---------------------------------------------------------------------------
+
+  function initInfoBubble() {
+    var bubble = document.getElementById('how-to-bubble');
+    if (!bubble) return;
+    var icon = bubble.querySelector('.info-bubble-icon');
+    var timerEl = bubble.querySelector('.info-bubble-timer');
+    var COUNTDOWN_S = 10;
+    var tickHandle = null;
+
+    function setState(state) {
+      bubble.dataset.state = state;
+      if (icon) icon.setAttribute('aria-expanded', state === 'open' ? 'true' : 'false');
+      if (state !== 'open' && tickHandle !== null) {
+        clearInterval(tickHandle);
+        tickHandle = null;
+      }
+    }
+
+    function startCountdown() {
+      var remaining = COUNTDOWN_S;
+      if (timerEl) timerEl.textContent = remaining;
+      if (tickHandle !== null) clearInterval(tickHandle);
+      tickHandle = setInterval(function () {
+        remaining -= 1;
+        if (timerEl) timerEl.textContent = remaining > 0 ? remaining : 0;
+        if (remaining <= 0) {
+          clearInterval(tickHandle);
+          tickHandle = null;
+          setState('closed');
+        }
+      }, 1000);
+    }
+
+    if (icon) {
+      icon.addEventListener('click', function () {
+        if (bubble.dataset.state === 'open') {
+          setState('closed');
+        } else {
+          setState('open');
+          startCountdown();
+        }
+      });
+    }
+
+    // Pause the countdown while the user hovers, so reading the bubble
+    // doesn't get yanked out from under them.
+    bubble.addEventListener('mouseenter', function () {
+      if (tickHandle !== null) {
+        clearInterval(tickHandle);
+        tickHandle = null;
+      }
+    });
+    bubble.addEventListener('mouseleave', function () {
+      if (bubble.dataset.state === 'open' && tickHandle === null) startCountdown();
+    });
+
+    startCountdown();
+  }
+
   ready(function () {
     initThemeToggle();
     initDelegatedCopyButtons();
     initBaseSetupToggles();
     paintStaticRustBlocks();
+    initInfoBubble();
 
     loadSnippets().then(function () {
       setUpFlagRows();
