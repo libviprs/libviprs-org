@@ -64,7 +64,14 @@
   top: 0;
   left: 0;
   right: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
+
+/* Defensive: let flex children shrink when the bar is narrow.
+   Without this, a long brand name or ribbon can force the row to
+   grow past the viewport edge. */
+.topbar.collapsed > * { min-width: 0; }
 
 /* :has() is supported in every 2026 browser baseline. */
 body:has(.topbar.collapsed) {
@@ -371,6 +378,25 @@ body:has(.topbar.collapsed) {
   .topbar.is-hero .topbar-brand .brand-name {
     font-size: calc(1rem + 1rem * (1 - var(--p2)));  /* 1 → 2rem */
   }
+}
+
+/* Phone-sized collapsed bar: tighter padding + gap so the brand
+   sits comfortably on the left and the burger on the right with
+   nothing pushed off-viewport. The breakpoint is 700 px to match
+   the desktop/mobile divide used for the burger and inline nav. */
+@media (max-width: 700px) {
+  .topbar.collapsed {
+    padding: 0.45rem 0.65rem;
+    gap: 0.55rem;
+  }
+
+  /* Cluster brand + ribbon tightly together — they read as one unit
+     on the left side of the bar. */
+  .topbar.collapsed .topbar-content { margin-right: 0.4rem; }
+  .topbar.collapsed .ribbon { margin: 0; }
+
+  /* Ribbon already sits via `order: 1` after the brand; the burger
+     uses `order: 3` and `margin-left: auto` to pin to the far right. */
 }
 
 /* ============================================================
