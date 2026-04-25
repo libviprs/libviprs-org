@@ -78,6 +78,17 @@ body:has(.topbar.collapsed) {
   padding-top: var(--topbar-collapsed-height);
 }
 
+/* Kill horizontal overflow at the document root so a stray wide
+   element (long code block, wide table, oversized image) can't
+   force the page wider than the viewport on mobile. `clip` is used
+   instead of `hidden` because `clip` doesn't create a new scrolling
+   container — `position: sticky` on the topbar (hero state) and
+   anchor scroll-margin still work. */
+html, body {
+  overflow-x: clip;
+  max-width: 100%;
+}
+
 .topbar.is-hero {
   --p1: 0;
   --p2: 0;
