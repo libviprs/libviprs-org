@@ -272,7 +272,7 @@
   </div>
   <div class="hero-nav">
     <a href="index.html">Home</a>
-    <a href="cli.html">CLI Docs</a>
+    <a href="cli/">CLI Docs</a>
     <a href="https://github.com/libviprs/libviprs">GitHub</a>
   </div>
 </div>
@@ -288,7 +288,7 @@
 
 <p>Fair benchmarking between libraries written in different languages is notoriously difficult. Shell out to a CLI and you're measuring process spawn time. Write to disk and you're measuring your SSD. To eliminate every variable except the tiling pipeline itself, we linked both libraries into the same Rust process using <code>libvips-rs</code> FFI bindings to call <code>vips_image_new_from_memory</code> and <code>vips_dzsave</code> directly. Both libraries start from an identical <code>RGB8</code> pixel buffer already resident in memory. libvips writes raw tiles to a tmpdir (the minimum <code>dzsave</code> allows); libviprs writes to a <code>MemorySink</code> (in-memory collection). Neither side encodes to PNG or JPEG &mdash; this is pure pyramid generation throughput.</p>
 
-<p>We tested six image sizes from 0.2 megapixels (512&times;360) to 47 megapixels (8192&times;5760), using the aspect ratio of a real construction blueprint PDF (43551_California_South.pdf, 4608&times;3240 pts). Tile size was 256&times;256 with no overlap &mdash; standard DeepZoom configuration. libviprs was tested across all three of its engine modes: monolithic, sequential streaming, and parallel MapReduce.</p>
+<p>We tested six image sizes from 0.2 megapixels (512&times;360) to 47 megapixels (8192&times;5760), using the aspect ratio of a real construction blueprint PDF (43551_California_South.pdf, 4608&times;3240 pts). <a href="cli/#flag-tile-size" style="color:var(--primary);">Tile size</a> was 256&times;256 with no <a href="cli/#flag-overlap" style="color:var(--primary);">overlap</a> &mdash; standard DeepZoom configuration. libviprs was tested across all three of its engine modes: monolithic, sequential streaming, and <a href="cli/#flag-parallel" style="color:var(--primary);">parallel MapReduce</a>.</p>
 
 <h2>The Numbers</h2>
 
@@ -297,7 +297,7 @@
   <p class="chart-caption">Wall time vs. image size. Lower is better. libviprs engines (blue, green, red) stay below libvips (purple) at every size.</p>
 </div>
 
-<p>At the largest test size (8192&times;5760, 47 megapixels), libvips completes in 429 ms. The libviprs monolithic engine finishes in 180 ms &mdash; 2.4&times; faster. The streaming engine takes 287 ms while staying within a 4 MB memory budget, and the MapReduce engine splits the difference at 236 ms. Every libviprs engine beats libvips on wall time at every image size tested.</p>
+<p>At the largest test size (8192&times;5760, 47 megapixels), libvips completes in 429 ms. The libviprs monolithic engine finishes in 180 ms &mdash; 2.4&times; faster. The streaming engine takes 287 ms while staying within a 4 MB <a href="cli/#flag-memory-budget" style="color:var(--primary);">memory budget</a>, and the MapReduce engine splits the difference at 236 ms. Every libviprs engine beats libvips on wall time at every image size tested.</p>
 
 <table>
   <thead>
@@ -343,7 +343,7 @@
 
 <p>The efficiency chart reveals the real story. At 47 megapixels, the libviprs MapReduce engine delivers 101 tiles per second per megabyte of peak memory. The monolithic engine delivers 41. libvips delivers 5.2. The MapReduce engine is 19&times; more memory-efficient than libvips &mdash; it produces the same tiles using a fraction of the resources.</p>
 
-<p>This metric matters for deployment. Cloud containers bill by memory-seconds. A Kubernetes pod with a 512 MB memory limit can comfortably run the streaming engine on images that would OOM libvips. And because the streaming engine's memory is configurable via a single budget parameter, operators can tune the memory/throughput tradeoff without changing application code.</p>
+<p>This metric matters for deployment. Cloud containers bill by memory-seconds. A Kubernetes pod with a 512 MB memory limit can comfortably run the streaming engine on images that would OOM libvips. And because the streaming engine's memory is configurable via a single <a href="cli/#flag-memory-budget" style="color:var(--primary);">budget parameter</a>, operators can tune the memory/throughput tradeoff without changing application code.</p>
 
 <div class="chart-wrap">
   <img src="bench/scalability_resource_cost.svg" alt="Resource cost chart — MB&middot;s per tile">
@@ -373,7 +373,7 @@
 
 <h2>Three Engines, One API</h2>
 
-<p>libviprs ships three engines behind a unified API. The <strong>monolithic engine</strong> materialises the full canvas and processes levels top-down &mdash; fastest when memory is abundant. The <strong>streaming engine</strong> processes the image in horizontal strips, keeping peak memory proportional to strip height rather than image height &mdash; best for memory-constrained containers. The <strong>MapReduce engine</strong> extends streaming with parallel strip rendering, overlapping the Map phase (render + tile) across multiple strips while the Reduce phase (downscale propagation) runs sequentially. All three produce byte-identical output.</p>
+<p>libviprs ships three engines behind a unified API. The <strong>monolithic engine</strong> materialises the full canvas and processes levels top-down &mdash; fastest when memory is abundant. The <strong>streaming engine</strong> processes the image in horizontal strips, keeping peak memory proportional to strip height rather than image height &mdash; best for memory-constrained containers. The <a href="cli/#flag-parallel" style="color:var(--primary);"><strong>MapReduce engine</strong></a> extends streaming with parallel strip rendering, overlapping the Map phase (render + tile) across multiple strips while the Reduce phase (downscale propagation) runs sequentially. All three produce byte-identical <a href="cli/#pyramid" style="color:var(--primary);">pyramid output</a>.</p>
 
 <table>
   <thead>
@@ -387,7 +387,7 @@
   </tbody>
 </table>
 
-<p>Auto-selection is built into <code>EngineBuilder::new(...).with_engine(EngineKind::Auto)</code> &mdash; and <code>EngineKind::Auto</code> is the default, so it applies even if you never call <code>with_engine</code>. The builder picks the engine at runtime from the source kind (in-memory raster vs. strip source) and the value passed to <code>with_memory_budget</code>. If the monolithic engine fits the budget for a raster source, it's used for maximum throughput. Otherwise, the streaming or MapReduce engine kicks in. No code changes, no configuration files &mdash; just a memory budget parameter.</p>
+<p>Auto-selection is built into <code>EngineBuilder::new(...).with_engine(EngineKind::Auto)</code> &mdash; and <code>EngineKind::Auto</code> is the default, so it applies even if you never call <code>with_engine</code>. The builder picks the engine at runtime from the source kind (in-memory raster vs. strip source) and the value passed to <a href="cli/#flag-memory-budget" style="color:var(--primary);"><code>with_memory_budget</code></a>. If the monolithic engine fits the budget for a raster source, it's used for maximum throughput. Otherwise, the streaming or MapReduce engine kicks in. No code changes, no configuration files &mdash; just a memory budget parameter.</p>
 
 <h2>What libvips Does Better</h2>
 
