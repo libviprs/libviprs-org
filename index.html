@@ -49,6 +49,7 @@
       background: var(--bg);
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
+      overflow-anchor: none;
     }
 
     /* Alpha ribbon */
@@ -74,15 +75,21 @@
       z-index: 10;
     }
 
-    /* Hero */
+    /* Hero — sizes are scroll-driven via --p1/--p2/--p3 (0..1 each, set by JS).
+       Stage 1 (0–2% vh): fade pronunciation/tagline/badges.
+       Stage 2 (2–4% vh): shrink logo + h1.
+       Stage 3 (4–6% vh): shrink padding + buttons; .collapsed flips to row layout at p3=1. */
     .hero {
+      --p1: 0;
+      --p2: 0;
+      --p3: 0;
       position: sticky;
       top: 0;
       z-index: 100;
       overflow: hidden;
       background: var(--hero-bg);
       color: var(--white);
-      padding: 3rem 1.5rem 2.5rem;
+      padding: calc(3rem - 2.5rem * var(--p3)) 1.5rem calc(2.5rem - 2rem * var(--p3));
       text-align: center;
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
     }
@@ -95,27 +102,111 @@
     .hero-brand {
       display: inline-flex;
       align-items: center;
-      gap: 1.25rem;
-      margin-bottom: 1rem;
+      gap: calc(1.25rem - 0.7rem * var(--p2));
+      margin-bottom: calc(1rem * (1 - var(--p2)));
     }
 
     .hero-brand img {
-      width: 80px;
+      width: calc(80px - 52px * var(--p2));
       height: auto;
       filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));
     }
 
     .hero-brand h1 {
-      font-size: 2.8rem;
+      font-size: calc(2.8rem - 1.7rem * var(--p2));
       font-weight: 700;
       letter-spacing: -0.5px;
+    }
+
+    /* Collapsed hero — single-line bar shown while scrolled */
+    .hero.collapsed {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.5rem 1.25rem;
+      text-align: left;
+    }
+
+    .hero.collapsed .hero-inner {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex: 1;
+      min-width: 0;
+      max-width: none;
+      margin: 0;
+      padding-left: 5rem;
+    }
+
+    .hero.collapsed .hero-brand {
+      margin-bottom: 0;
+      gap: 0.55rem;
+      flex-shrink: 0;
+    }
+
+    .hero.collapsed .hero-brand img {
+      width: 28px;
+      filter: none;
+    }
+
+    .hero.collapsed .hero-brand h1 {
+      font-size: 1.1rem;
+    }
+
+    .hero.collapsed .pronunciation,
+    .hero.collapsed .tagline,
+    .hero.collapsed .badges {
+      display: none;
+    }
+
+    .hero.collapsed .hero-actions {
+      margin: 0 0 0 auto;
+      gap: 0.35rem;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      scrollbar-width: thin;
+    }
+
+    .hero.collapsed .hero-actions a {
+      padding: 0.3rem 0.7rem;
+      font-size: 0.78rem;
+      white-space: nowrap;
+    }
+
+    .hero.collapsed .ribbon {
+      position: static;
+      width: auto;
+      top: auto;
+      right: auto;
+      transform: none;
+      padding: 0.3rem 0.7rem;
+      border-radius: 3px;
+      font-size: 0.7rem;
+      box-shadow: none;
+      flex-shrink: 0;
+      order: 1;
+    }
+
+    .hero.collapsed .theme-toggle {
+      top: 0.4rem;
+      left: 0.6rem;
+      padding: 0.2rem 0.55rem;
+      font-size: 0.7rem;
+    }
+
+    .hero .pronunciation,
+    .hero p.tagline,
+    .hero .badges {
+      opacity: calc(1 - var(--p1));
+      overflow: hidden;
     }
 
     .hero .pronunciation {
       font-size: 0.95rem;
       color: var(--white);
       font-style: italic;
-      margin-bottom: 0.75rem;
+      max-height: calc((1 - var(--p1)) * 3rem);
+      margin-bottom: calc((1 - var(--p1)) * 0.75rem);
       letter-spacing: 0.5px;
     }
 
@@ -123,7 +214,8 @@
       font-size: 1.15rem;
       color: var(--white);
       max-width: 600px;
-      margin: 0 auto 1.5rem;
+      max-height: calc((1 - var(--p1)) * 5rem);
+      margin: 0 auto calc((1 - var(--p1)) * 1.5rem);
     }
 
     .hero .badges {
@@ -131,7 +223,8 @@
       gap: 0.5rem;
       justify-content: center;
       flex-wrap: wrap;
-      margin-bottom: 1.5rem;
+      max-height: calc((1 - var(--p1)) * 3rem);
+      margin-bottom: calc((1 - var(--p1)) * 1.5rem);
     }
 
     .hero .badges img { height: 20px; }
@@ -145,11 +238,11 @@
 
     .hero-actions a {
       display: inline-block;
-      padding: 0.55rem 1.4rem;
+      padding: calc(0.55rem - 0.25rem * var(--p3)) calc(1.4rem - 0.7rem * var(--p3));
       border-radius: 4px;
       text-decoration: none;
       font-weight: 600;
-      font-size: 0.9rem;
+      font-size: calc(0.9rem - 0.12rem * var(--p3));
       transition: opacity 0.2s;
     }
 
@@ -790,6 +883,22 @@ viprs pyramid blueprint.pdf <span class="sh-flag">--sink</span> <span class="str
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
     if (!localStorage.getItem('theme')) setTheme(e.matches ? 'dark' : 'light');
   });
+
+  const hero = document.querySelector('.hero');
+  function updateHeroCollapse() {
+    const vh = window.innerHeight || document.documentElement.clientHeight;
+    const y = window.scrollY || document.documentElement.scrollTop;
+    const stage = (start, end) =>
+      Math.max(0, Math.min(1, (y - vh * start) / (vh * (end - start))));
+    hero.style.setProperty('--p1', stage(0, 0.02));
+    hero.style.setProperty('--p2', stage(0.02, 0.04));
+    const p3 = stage(0.04, 0.06);
+    hero.style.setProperty('--p3', p3);
+    hero.classList.toggle('collapsed', p3 >= 1);
+  }
+  window.addEventListener('scroll', updateHeroCollapse, { passive: true });
+  window.addEventListener('resize', updateHeroCollapse);
+  updateHeroCollapse();
 </script>
 </body>
 </html>
