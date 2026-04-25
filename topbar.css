@@ -1,67 +1,99 @@
 /* ============================================================
-   libviprs.org shared top bar — used on every page.
-   Fixed at the top of the viewport, always visible. The burger
-   button on the right opens a stacked menu of nav links plus
-   the light/dark mode toggle.
+   libviprs.org shared header.
+   Same element on every page. On the home page it starts as the
+   full hero (logo + tagline + badges) and shrinks into a sticky
+   bar as the user scrolls — the .is-hero class plus three
+   scroll-driven CSS variables (--p1, --p2, --p3) drive the
+   transition. Inner pages omit .is-hero (and pin the variables
+   to 1) so they begin in the collapsed bar shape.
+
+   The burger button on the right opens a drawer that holds every
+   nav link plus the light/dark mode toggle.
    ============================================================ */
 
 :root {
-  --topbar-height: 3.4rem;
-  --topbar-bg:     var(--hero-bg, #6d2c0f);
-  --topbar-fg:     var(--white, #fff);
   --topbar-zindex: 1000;
+  /* Height of the bar in its fully-collapsed shape. Used as
+     scroll-margin for hash anchors so deep links don't end up
+     under the bar. The hero state is taller and laid out in flow,
+     so it doesn't need a separate offset. */
+  --topbar-collapsed-height: 3.4rem;
 }
-
-/* Push the page content below the fixed bar so nothing renders
-   underneath it. Each page may override --topbar-height locally. */
-body { padding-top: var(--topbar-height); }
 
 .topbar {
-  position: fixed;
-  top: 0; left: 0; right: 0;
+  /* Defaults are the *collapsed* values — inner pages render that
+     way without any JS. .is-hero overrides them to start at 0. */
+  --p1: 1;  /* fades pronunciation/tagline/badges */
+  --p2: 1;  /* shrinks logo + brand name */
+  --p3: 1;  /* shrinks padding; controls collapse layout flip */
+
+  position: sticky;
+  top: 0;
   z-index: var(--topbar-zindex);
-  background: var(--topbar-bg);
-  color: var(--topbar-fg);
+  background: var(--hero-bg, #6d2c0f);
+  color: var(--white, #fff);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  font-family: "Source Code Pro", "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  padding: calc(0.5rem + 2.5rem * (1 - var(--p3))) 1.25rem
+           calc(0.5rem + 2rem * (1 - var(--p3)));
+  font-family: "Source Code Pro", "IBM Plex Sans",
+               -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+               Helvetica, Arial, sans-serif;
+  text-align: center;
 }
 
-.topbar-inner {
+.topbar.is-hero {
+  --p1: 0;
+  --p2: 0;
+  --p3: 0;
+}
+
+/* In hero state .topbar-content stacks vertically and centres; in
+   collapsed state it flips to a horizontal row with brand left,
+   burger right. */
+.topbar-content {
   max-width: var(--max-width, 860px);
   margin: 0 auto;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
+  gap: 0;
+}
+
+.topbar.collapsed .topbar-content {
+  flex-direction: row;
+  align-items: center;
   gap: 1rem;
-  padding: 0.55rem 1rem;
-  height: var(--topbar-height);
-  box-sizing: border-box;
+  text-align: left;
 }
 
 /* Brand: logo + project name. Always links to the site root. */
 .topbar-brand {
   display: inline-flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: calc(0.55rem + 0.7rem * (1 - var(--p2)));
+  margin-bottom: calc(1rem * (1 - var(--p2)));
   text-decoration: none;
-  color: var(--topbar-fg);
-  flex: 0 1 auto;
-  min-width: 0;
+  color: var(--white);
+  flex-shrink: 0;
 }
+
+.topbar.collapsed .topbar-brand { margin-bottom: 0; }
 
 .topbar-brand img {
-  width: 32px;
+  width: calc(28px + 52px * (1 - var(--p2)));
   height: auto;
   filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
+  transition: filter 0.2s;
 }
 
+.topbar.collapsed .topbar-brand img { filter: none; }
+
 .topbar-brand .brand-name {
-  font-size: 1.1rem;
+  font-size: calc(1.1rem + 1.7rem * (1 - var(--p2)));
   font-weight: 700;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .topbar-brand .brand-sub {
@@ -71,21 +103,111 @@ body { padding-top: var(--topbar-height); }
   margin-left: 0.4rem;
 }
 
-/* Burger toggle — visible on all viewports per the new design. */
-.topbar-burger {
+/* Hero-only content: pronunciation + tagline + badges. They fade
+   away (opacity + max-height + margin) under --p1 control, then
+   the .collapsed flip removes them entirely so they don't take
+   any layout space. */
+.topbar .pronunciation,
+.topbar .tagline,
+.topbar .badges {
+  opacity: calc(1 - var(--p1));
+  overflow: hidden;
+}
+
+.topbar.collapsed .pronunciation,
+.topbar.collapsed .tagline,
+.topbar.collapsed .badges {
+  display: none;
+}
+
+.topbar .pronunciation {
+  font-size: 0.95rem;
+  color: var(--white);
+  font-style: italic;
+  max-height: calc((1 - var(--p1)) * 3rem);
+  margin-bottom: calc((1 - var(--p1)) * 0.75rem);
+  letter-spacing: 0.5px;
+}
+
+.topbar .tagline {
+  font-size: 1.15rem;
+  color: var(--white);
+  max-width: 600px;
+  max-height: calc((1 - var(--p1)) * 5rem);
+  margin: 0 auto calc((1 - var(--p1)) * 1.5rem);
+}
+
+.topbar .badges {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  max-height: calc((1 - var(--p1)) * 3rem);
+  margin-bottom: calc((1 - var(--p1)) * 1.5rem);
+}
+
+.topbar .badges img { height: 20px; }
+
+/* Ribbon (only present on the home page). Floats top-right of the
+   hero; in collapsed state it inlines next to the burger as a small
+   chip. */
+.topbar .ribbon {
+  position: absolute;
+  top: 24px;
+  right: -65px;
+  width: 250px;
+  text-align: center;
+  padding: 0.35rem 0;
+  background: #cc3333;
+  color: var(--white);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  transform: rotate(45deg);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+}
+
+.topbar.collapsed .ribbon {
+  position: static;
+  width: auto;
+  top: auto;
+  right: auto;
+  transform: none;
+  padding: 0.25rem 0.55rem;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  box-shadow: none;
   flex-shrink: 0;
+}
+
+/* Burger toggle — fixed top-right of the bar in every state.
+   Visible at every viewport width; this is the primary nav. */
+.topbar-burger {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
   width: 2.4rem;
   height: 2.4rem;
   background: rgba(255, 255, 255, 0.15);
   border: 1px solid rgba(255, 255, 255, 0.3);
-  color: var(--topbar-fg);
+  color: var(--white);
   border-radius: 6px;
   cursor: pointer;
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.2s;
+  transition: background 0.2s, top 0.2s, right 0.2s;
+  z-index: calc(var(--topbar-zindex) + 1);
+}
+
+.topbar.collapsed .topbar-burger {
+  top: 0.45rem;
+  right: 0.5rem;
+  width: 2rem;
+  height: 2rem;
 }
 
 .topbar-burger:hover { background: rgba(255, 255, 255, 0.25); }
@@ -96,7 +218,7 @@ body { padding-top: var(--topbar-height); }
   display: block;
   width: 1.2rem;
   height: 2px;
-  background: var(--topbar-fg);
+  background: var(--white);
   border-radius: 1px;
   transition: transform 0.25s ease, top 0.25s ease, opacity 0.2s ease, background 0.2s ease;
 }
@@ -109,19 +231,23 @@ body { padding-top: var(--topbar-height); }
 .topbar.menu-open .topbar-burger .burger-icon::before { top: 0; transform: rotate(45deg); }
 .topbar.menu-open .topbar-burger .burger-icon::after  { top: 0; transform: rotate(-45deg); }
 
-/* Menu drawer — drops below the bar when open. */
+/* Drawer — overlays page content via position: absolute below the
+   bar. Hidden by default; .menu-open on the bar reveals it. */
 .topbar-menu {
   display: none;
   position: absolute;
   top: 100%;
   left: 0;
   right: 0;
-  background: var(--topbar-bg);
+  background: var(--hero-bg, #6d2c0f);
   border-top: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.3);
   padding: 0.5rem;
-  z-index: calc(var(--topbar-zindex) - 1);
+  z-index: var(--topbar-zindex);
+  text-align: left;
 }
+
+.topbar.menu-open .topbar-menu { display: block; }
 
 .topbar-menu-inner {
   max-width: var(--max-width, 860px);
@@ -131,8 +257,6 @@ body { padding-top: var(--topbar-height); }
   gap: 0.15rem;
 }
 
-.topbar.menu-open .topbar-menu { display: block; }
-
 .topbar-menu a,
 .topbar-menu .topbar-theme-toggle {
   display: flex;
@@ -140,7 +264,7 @@ body { padding-top: var(--topbar-height); }
   gap: 0.6rem;
   width: 100%;
   padding: 0.7rem 0.9rem;
-  color: var(--topbar-fg);
+  color: var(--white);
   text-decoration: none;
   font-size: 0.95rem;
   font-weight: 600;
@@ -151,6 +275,7 @@ body { padding-top: var(--topbar-height); }
   cursor: pointer;
   font-family: inherit;
   transition: background 0.15s;
+  box-sizing: border-box;
 }
 
 .topbar-menu a:hover,
@@ -158,9 +283,7 @@ body { padding-top: var(--topbar-height); }
   background: rgba(255, 255, 255, 0.12);
 }
 
-.topbar-menu a.is-current {
-  background: rgba(255, 255, 255, 0.18);
-}
+.topbar-menu a.is-current { background: rgba(255, 255, 255, 0.18); }
 
 .topbar-menu .menu-divider {
   height: 1px;
@@ -176,10 +299,13 @@ body { padding-top: var(--topbar-height); }
 }
 
 @media (max-width: 600px) {
-  :root { --topbar-height: 3rem; }
-  .topbar-inner { padding: 0.4rem 0.85rem; }
-  .topbar-brand img { width: 26px; }
-  .topbar-brand .brand-name { font-size: 1rem; }
+  .topbar-burger { width: 2.1rem; height: 2.1rem; top: 0.45rem; right: 0.5rem; }
   .topbar-brand .brand-sub { display: none; }
-  .topbar-burger { width: 2.1rem; height: 2.1rem; }
+  /* Tighten the hero on phones so the burger doesn't feel cramped. */
+  .topbar.is-hero .topbar-brand img {
+    width: calc(28px + 28px * (1 - var(--p2)));   /* 28 → 56 */
+  }
+  .topbar.is-hero .topbar-brand .brand-name {
+    font-size: calc(1rem + 1rem * (1 - var(--p2)));  /* 1 → 2rem */
+  }
 }
