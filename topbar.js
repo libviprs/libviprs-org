@@ -23,6 +23,7 @@
       document.documentElement.setAttribute('data-theme', theme);
       if (glyph) glyph.textContent = theme === 'dark' ? '☀' : '☾';
       if (label) label.textContent = theme === 'dark' ? 'Light mode' : 'Dark mode';
+      if (btn) btn.setAttribute('aria-checked', theme === 'dark' ? 'true' : 'false');
       try { localStorage.setItem('theme', theme); } catch (_) { /* private mode */ }
     }
 
