@@ -31,6 +31,25 @@
 <main>
 
 <!-- ================================================================== -->
+<!-- HOW-TO BUBBLE — auto-collapses after 10s; click ⓘ to reopen.        -->
+<!-- ================================================================== -->
+
+<aside class="info-bubble" id="how-to-bubble" data-state="open" aria-live="polite">
+  <button class="info-bubble-icon" type="button" aria-label="Toggle help" aria-expanded="true">
+    <span aria-hidden="true">&#9432;</span>
+  </button>
+  <div class="info-bubble-body">
+    <p class="info-bubble-title">How to use this page</p>
+    <ul class="info-bubble-list">
+      <li><strong>Tick a flag's checkbox</strong> below to assemble a complete <code>viprs pyramid …</code> command and a copy-pasteable Rust program in the <a href="#cli-generator">generator panel</a> at the bottom.</li>
+      <li><strong>Click <em>Rust code</em></strong> on any flag to reveal the standalone <code>libviprs</code> API call that flag drives.</li>
+      <li><strong>Click <em>test</em></strong> next to a flag to jump to the integration test in <a href="https://github.com/libviprs/libviprs-tests" target="_blank" rel="noopener">libviprs-tests</a> that exercises it.</li>
+    </ul>
+    <p class="info-bubble-footer">Auto-hides in <span class="info-bubble-timer" aria-hidden="true">10</span>&nbsp;s &middot; click <span aria-hidden="true">&#9432;</span> to reopen.</p>
+  </div>
+</aside>
+
+<!-- ================================================================== -->
 <!-- NAME                                                                -->
 <!-- ================================================================== -->
 

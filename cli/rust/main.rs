@@ -626,7 +626,8 @@ fn run_pyramid(args: PyramidArgs) {
 
     // @doc-snippet:begin slot=memory-limit
     // @doc-test: streaming_engine.rs::estimate_streaming_memory_reasonable:435
-    if args.memory_limit > 0 { // @doc-flag: memory-limit kind=param param_name=memory-limit
+    if args.memory_limit > 0 {
+        // @doc-flag: memory-limit kind=param param_name=memory-limit
         let limit_bytes = args.memory_limit * 1024 * 1024;
         if peak_memory > limit_bytes {
             eprintln!(
@@ -1253,14 +1254,16 @@ fn load_source(args: &PyramidArgs) -> Raster {
     // @doc-snippet:begin slot=load-source imports=Raster,extract_page_image,render_page_pdfium,decode_file
     if ext == "pdf" {
         // @doc-test: pdfium_integration.rs::libviprs_pdfium_render_paths:34
-        if args.render { // @doc-flag: render kind=override
+        if args.render {
+            // @doc-flag: render kind=override
             // Use PDFium to render the page (vector PDFs)
             eprintln!(
                 "Rendering PDF page {} at {} DPI (pdfium)...",
                 args.page, args.dpi
             );
             // @doc-test: pdfium_integration.rs::libviprs_pdfium_render_paths:34
-            match render_page_pdfium(&path, args.page, args.dpi) { // @doc-flag: dpi kind=param param_name=dpi
+            match render_page_pdfium(&path, args.page, args.dpi) {
+                // @doc-flag: dpi kind=param param_name=dpi
                 Ok(r) => r,
                 Err(e) => {
                     eprintln!("Error rendering PDF with pdfium: {e}");
@@ -1274,7 +1277,8 @@ fn load_source(args: &PyramidArgs) -> Raster {
             // Extract embedded raster image (scanned PDFs)
             eprintln!("Extracting image from PDF page {}...", args.page);
             // @doc-test: pdf_ops.rs::extract_page_image_from_blueprint:31
-            let raster = match extract_page_image(&path, args.page) { // @doc-flag: page kind=param param_name=page
+            let raster = match extract_page_image(&path, args.page) {
+                // @doc-flag: page kind=param param_name=page
                 Ok(r) => r,
                 Err(e) => {
                     eprintln!("Error extracting image from PDF: {e}");
@@ -1287,7 +1291,8 @@ fn load_source(args: &PyramidArgs) -> Raster {
 
             // Optionally resize to match PDF page dimensions at the given DPI
             // @doc-test: pdf_to_pyramid.rs::pdf_to_georeferenced_pyramid_memory:17
-            if args.match_page_size { // @doc-flag: match-page-size kind=append
+            if args.match_page_size {
+                // @doc-flag: match-page-size kind=append
                 let page_dims = match libviprs::pdf_info(&path) {
                     Ok(info) => {
                         let page_info = info.pages.iter().find(|p| p.page_number == args.page);

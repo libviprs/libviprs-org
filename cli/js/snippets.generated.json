@@ -87,7 +87,7 @@
       }
     },
     "dpi": {
-      "fragment": "            match render_page_pdfium(&path, args.page, args.dpi) {",
+      "fragment": "",
       "imports_when_active": [],
       "kind": "param",
       "param_name": "dpi",
@@ -177,7 +177,7 @@
       }
     },
     "match-page-size": {
-      "fragment": "            if args.match_page_size {",
+      "fragment": "",
       "imports_when_active": [],
       "kind": "append",
       "slot": "load-source",
@@ -201,7 +201,7 @@
       }
     },
     "memory-limit": {
-      "fragment": "    if args.memory_limit > 0 {",
+      "fragment": "",
       "imports_when_active": [],
       "kind": "param",
       "param_name": "memory-limit",
@@ -239,7 +239,7 @@
       }
     },
     "page": {
-      "fragment": "            let raster = match extract_page_image(&path, args.page) {",
+      "fragment": "",
       "imports_when_active": [],
       "kind": "param",
       "param_name": "page",
@@ -277,7 +277,7 @@
       }
     },
     "render": {
-      "fragment": "        if args.render {",
+      "fragment": "",
       "imports_when_active": [],
       "kind": "override",
       "slot": "load-source",
