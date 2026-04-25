@@ -39,6 +39,19 @@
                -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
                Helvetica, Arial, sans-serif;
   text-align: center;
+  /* Top-level flex container so brand (in hero) and inline nav (on
+     desktop) can sit side-by-side when collapsed. */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+}
+
+.topbar.collapsed {
+  flex-direction: row;
+  align-items: center;
+  gap: 1rem;
+  text-align: left;
 }
 
 .topbar.is-hero {
@@ -182,6 +195,28 @@
   flex-shrink: 0;
 }
 
+/* Mobile only: when scrolled (.collapsed) the corner ribbon disappears and
+   a sibling chip inside the drawer takes its place. The corner ribbon is
+   restored on desktop further down (no drawer there). */
+.topbar.collapsed .ribbon { display: none; }
+
+.ribbon-drawer { display: none; }
+
+.topbar.collapsed.menu-open .ribbon-drawer {
+  display: inline-flex;
+  align-self: flex-start;
+  margin: 0.4rem 0.6rem 0.2rem;
+  padding: 0.25rem 0.6rem;
+  background: #cc3333;
+  color: var(--white);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border-radius: 3px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+}
+
 /* Burger toggle — fixed top-right of the bar in every state.
    Visible at every viewport width; this is the primary nav. */
 .topbar-burger {
@@ -307,5 +342,96 @@
   }
   .topbar.is-hero .topbar-brand .brand-name {
     font-size: calc(1rem + 1rem * (1 - var(--p2)));  /* 1 → 2rem */
+  }
+}
+
+/* ============================================================
+   Desktop overrides (≥ 701 px).
+   No burger menu — nav items list inline in the hero, then
+   horizontally across the bar when collapsed. The corner
+   ribbon stays visible always; the drawer-only ribbon is
+   hidden because there's no drawer to live in.
+   ============================================================ */
+@media (min-width: 701px) {
+  .topbar-burger { display: none; }
+
+  /* Drawer becomes an inline strip; no overlay positioning. */
+  .topbar-menu {
+    display: block;
+    position: static;
+    background: transparent;
+    border-top: none;
+    box-shadow: none;
+    padding: 0;
+  }
+
+  .topbar-menu-inner {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  /* Inline nav items styled as outline buttons (matches the original
+     .btn-outline strip the home page used to ship). */
+  .topbar-menu a,
+  .topbar-menu .topbar-theme-toggle {
+    width: auto;
+    padding: 0.55rem 1.1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: transparent;
+    border: 1.5px solid rgba(255, 255, 255, 0.4);
+    border-radius: 4px;
+    line-height: 1.2;
+    transition: opacity 0.2s, background 0.2s, border-color 0.2s;
+  }
+
+  .topbar-menu a:hover,
+  .topbar-menu .topbar-theme-toggle:hover {
+    opacity: 0.9;
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.6);
+  }
+
+  /* Highlight the current page with a filled primary chip. */
+  .topbar-menu a.is-current {
+    background: var(--primary, #be6e34);
+    border-color: var(--primary, #be6e34);
+  }
+
+  .topbar-menu a.is-current:hover { opacity: 0.9; background: var(--primary, #be6e34); }
+
+  /* The mobile-only divider has no purpose in the inline strip. */
+  .topbar-menu .menu-divider { display: none; }
+
+  /* Drawer-only ribbon never shows on desktop (corner ribbon is the
+     authoritative one here). */
+  .ribbon-drawer { display: none !important; }
+
+  /* Collapsed state on desktop: brand on the left, inline nav on the
+     right, corner ribbon stays visible. */
+  .topbar.collapsed .topbar-content {
+    flex: 0 0 auto;
+  }
+
+  .topbar.collapsed .topbar-menu {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin: 0;
+  }
+
+  .topbar.collapsed .ribbon {
+    display: inline-flex;     /* restored — see mobile rule above */
+    align-items: center;
+  }
+
+  /* Hero state on desktop: nav strip sits in flow below the badges. */
+  .topbar.is-hero:not(.collapsed) .topbar-menu {
+    margin-top: 0.5rem;
+    padding-bottom: 0.5rem;
   }
 }
