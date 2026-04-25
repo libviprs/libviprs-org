@@ -488,12 +488,113 @@
       background: rgba(255,255,255,0.25);
     }
 
+    /* Burger menu — desktop hides it; mobile uses it instead of the inline link strip. */
+    .burger-toggle {
+      display: none;
+      position: absolute;
+      top: 0.85rem;
+      right: 0.85rem;
+      width: 2.4rem;
+      height: 2.4rem;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 6px;
+      cursor: pointer;
+      z-index: 12;
+      padding: 0;
+    }
+
+    .burger-toggle .burger-icon,
+    .burger-toggle .burger-icon::before,
+    .burger-toggle .burger-icon::after {
+      display: block;
+      width: 1.2rem;
+      height: 2px;
+      background: var(--white);
+      border-radius: 1px;
+      transition: transform 0.25s ease, top 0.25s ease, opacity 0.2s ease, background 0.2s ease;
+    }
+
+    .burger-toggle .burger-icon {
+      position: relative;
+      margin: 0 auto;
+    }
+
+    .burger-toggle .burger-icon::before { content: ''; position: absolute; left: 0; top: -7px; }
+    .burger-toggle .burger-icon::after  { content: ''; position: absolute; left: 0; top:  7px; }
+
+    .hero.menu-open .burger-toggle .burger-icon { background: transparent; }
+    .hero.menu-open .burger-toggle .burger-icon::before { top: 0; transform: rotate(45deg); }
+    .hero.menu-open .burger-toggle .burger-icon::after  { top: 0; transform: rotate(-45deg); }
+
     /* Responsive */
-    @media (max-width: 600px) {
+    @media (max-width: 700px) {
       .hero-brand h1 { font-size: 2rem; }
       .hero-brand img { width: 56px; }
       .hero { padding: 2rem 1rem 1.5rem; }
       .theme-toggle { top: 0.5rem; left: 0.5rem; font-size: 0.7rem; }
+
+      .burger-toggle { display: inline-flex; align-items: center; justify-content: center; }
+
+      /* Hide the link strip by default; the burger reveals it as a stacked
+         dropdown panel below the hero. */
+      .hero-actions {
+        display: none;
+        flex-direction: column;
+        gap: 0.5rem;
+        flex-wrap: nowrap;
+        overflow: visible;
+      }
+
+      .hero.menu-open .hero-actions {
+        display: flex;
+        margin: 1rem -1rem -1rem;
+        padding: 1rem 1.25rem 1.25rem;
+        background: rgba(0,0,0,0.18);
+        border-top: 1px solid rgba(255,255,255,0.15);
+      }
+
+      .hero.menu-open .hero-actions a {
+        display: block;
+        width: 100%;
+        text-align: center;
+        padding: 0.7rem 1rem;
+        font-size: 0.95rem;
+      }
+
+      /* Collapsed (scrolled) state on mobile: still show only the burger,
+         and let the menu drop as an overlay below the bar. */
+      .hero.collapsed .burger-toggle {
+        position: static;
+        top: auto;
+        right: auto;
+        width: 2rem;
+        height: 2rem;
+        margin-left: auto;
+        flex-shrink: 0;
+      }
+
+      .hero.collapsed .hero-actions {
+        display: none;
+      }
+
+      .hero.collapsed.menu-open .hero-actions {
+        display: flex;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        margin: 0;
+        padding: 0.85rem 1rem;
+        background: var(--hero-bg);
+        box-shadow: 0 6px 14px rgba(0,0,0,0.3);
+        z-index: 99;
+      }
+
+      .hero.collapsed.menu-open .hero-actions a {
+        text-align: left;
+        padding: 0.55rem 0.6rem;
+      }
     }
   </style>
 </head>
@@ -501,6 +602,9 @@
 
 <div class="hero">
   <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode"></button>
+  <button class="burger-toggle" id="heroBurger" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="hero-actions">
+    <span class="burger-icon" aria-hidden="true"></span>
+  </button>
   <div class="ribbon">v0.3</div>
   <div class="hero-inner">
     <div class="hero-brand">
@@ -515,7 +619,7 @@
       <img src="https://img.shields.io/badge/rust-1.85%2B-orange?logo=rust" alt="Rust 1.85+">
       <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License">
     </div>
-    <div class="hero-actions">
+    <div class="hero-actions" id="hero-actions">
       <a href="https://github.com/libviprs/libviprs" class="btn-primary">GitHub</a>
       <a href="https://docs.rs/libviprs" class="btn-outline">Documentation</a>
       <a href="cli/" class="btn-outline">CLI Documentation</a>
@@ -908,6 +1012,39 @@ viprs pyramid blueprint.pdf <span class="sh-flag">--sink</span> <span class="str
   window.addEventListener('scroll', updateHeroCollapse, { passive: true });
   window.addEventListener('resize', updateHeroCollapse);
   updateHeroCollapse();
+
+  // Mobile burger menu — toggles `.menu-open` on the hero. CSS hides the
+  // link strip below 700px and reveals it as a stacked dropdown when open.
+  const burger = document.getElementById('heroBurger');
+  if (burger) {
+    burger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = hero.classList.toggle('menu-open');
+      burger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    // Tapping a menu link closes the panel so the destination loads cleanly.
+    document.querySelectorAll('.hero-actions a').forEach((a) => {
+      a.addEventListener('click', () => {
+        hero.classList.remove('menu-open');
+        burger.setAttribute('aria-expanded', 'false');
+      });
+    });
+    // Tapping outside the hero closes the panel.
+    document.addEventListener('click', (e) => {
+      if (!hero.classList.contains('menu-open')) return;
+      if (hero.contains(e.target)) return;
+      hero.classList.remove('menu-open');
+      burger.setAttribute('aria-expanded', 'false');
+    });
+    // Close on Esc for keyboard users.
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && hero.classList.contains('menu-open')) {
+        hero.classList.remove('menu-open');
+        burger.setAttribute('aria-expanded', 'false');
+        burger.focus();
+      }
+    });
+  }
 </script>
 </body>
 </html>
