@@ -54,161 +54,8 @@
       overflow-anchor: none;
     }
 
-    /* Alpha ribbon */
-
-    .ribbon {
-      position: absolute;
-      top: 24px;
-      right: -65px;
-      width: 250px;
-      text-align: center;
-      padding: 0.35rem 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: #cc3333;
-      color: var(--white);
-      font-size: 0.7rem;
-      font-weight: 700;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      transform: rotate(45deg);
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-      z-index: 10;
-    }
-
-    /* Hero — sizes are scroll-driven via --p1/--p2/--p3 (0..1 each, set by JS).
-       Stage 1 (0–2% vh): fade pronunciation/tagline/badges.
-       Stage 2 (2–4% vh): shrink logo + h1.
-       Stage 3 (4–6% vh): shrink padding + buttons; .collapsed flips to row layout at p3=1. */
-    .hero {
-      --p1: 0;
-      --p2: 0;
-      --p3: 0;
-      position: sticky;
-      top: var(--topbar-height, 3.4rem);  /* sticks below the floating top bar */
-      z-index: 100;
-      overflow: hidden;
-      background: var(--hero-bg);
-      color: var(--white);
-      padding: calc(3rem - 2.5rem * var(--p3)) 1.5rem calc(2.5rem - 2rem * var(--p3));
-      text-align: center;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    }
-
-    .hero-inner {
-      max-width: var(--max-width);
-      margin: 0 auto;
-    }
-
-    .hero-brand {
-      display: inline-flex;
-      align-items: center;
-      gap: calc(1.25rem - 0.7rem * var(--p2));
-      margin-bottom: calc(1rem * (1 - var(--p2)));
-    }
-
-    .hero-brand img {
-      width: calc(80px - 52px * var(--p2));
-      height: auto;
-      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));
-    }
-
-    .hero-brand h1 {
-      font-size: calc(2.8rem - 1.7rem * var(--p2));
-      font-weight: 700;
-      letter-spacing: -0.5px;
-    }
-
-    /* Collapsed hero — single-line bar shown while scrolled */
-    .hero.collapsed {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 0.5rem 1.25rem;
-      text-align: left;
-    }
-
-    .hero.collapsed .hero-inner {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      flex: 1;
-      min-width: 0;
-      max-width: none;
-      margin: 0;
-      padding-left: 5rem;
-    }
-
-    .hero.collapsed .hero-brand {
-      margin-bottom: 0;
-      gap: 0.55rem;
-      flex-shrink: 0;
-    }
-
-    .hero.collapsed .hero-brand img {
-      width: 28px;
-      filter: none;
-    }
-
-    .hero.collapsed .hero-brand h1 {
-      font-size: 1.1rem;
-    }
-
-    .hero.collapsed .pronunciation,
-    .hero.collapsed .tagline,
-    .hero.collapsed .badges {
-      display: none;
-    }
-
-    .hero.collapsed .ribbon {
-      position: static;
-      width: auto;
-      top: auto;
-      right: auto;
-      transform: none;
-      padding: 0.3rem 0.7rem;
-      border-radius: 3px;
-      font-size: 0.7rem;
-      box-shadow: none;
-      flex-shrink: 0;
-      order: 1;
-    }
-
-    .hero .pronunciation,
-    .hero p.tagline,
-    .hero .badges {
-      opacity: calc(1 - var(--p1));
-      overflow: hidden;
-    }
-
-    .hero .pronunciation {
-      font-size: 0.95rem;
-      color: var(--white);
-      font-style: italic;
-      max-height: calc((1 - var(--p1)) * 3rem);
-      margin-bottom: calc((1 - var(--p1)) * 0.75rem);
-      letter-spacing: 0.5px;
-    }
-
-    .hero p.tagline {
-      font-size: 1.15rem;
-      color: var(--white);
-      max-width: 600px;
-      max-height: calc((1 - var(--p1)) * 5rem);
-      margin: 0 auto calc((1 - var(--p1)) * 1.5rem);
-    }
-
-    .hero .badges {
-      display: flex;
-      gap: 0.5rem;
-      justify-content: center;
-      flex-wrap: wrap;
-      max-height: calc((1 - var(--p1)) * 3rem);
-      margin-bottom: calc((1 - var(--p1)) * 1.5rem);
-    }
-
-    .hero .badges img { height: 20px; }
+    /* Hero / topbar styling lives in topbar.css. Only page-specific
+       overrides (none right now) belong here. */
 
     /* Main content */
     main {
@@ -419,30 +266,36 @@
     footer a { color: var(--primary); text-decoration: none; }
     footer a:hover { text-decoration: underline; }
 
-    /* Responsive */
-    @media (max-width: 700px) {
-      .hero-brand h1 { font-size: 2rem; }
-      .hero-brand img { width: 56px; }
-      .hero { padding: 2rem 1rem 1.5rem; }
-    }
   </style>
 </head>
 <body>
 
-<header class="topbar" id="topbar">
-  <div class="topbar-inner">
+<header class="topbar is-hero" id="topbar">
+  <div class="ribbon">v0.3</div>
+
+  <div class="topbar-content">
     <a class="topbar-brand" href="index.html">
-      <img src="https://raw.githubusercontent.com/libviprs/libviprs/main/images/libviprs-logo-claws.svg" alt="">
-      <span class="brand-name">libviprs</span>
+      <img src="https://raw.githubusercontent.com/libviprs/libviprs/main/images/libviprs-logo-claws.svg" alt="libviprs logo">
+      <h1 class="brand-name">libviprs</h1>
     </a>
-    <button class="topbar-burger" id="topbarBurger" type="button"
-            aria-label="Toggle menu" aria-expanded="false" aria-controls="topbar-menu">
-      <span class="burger-icon" aria-hidden="true"></span>
-    </button>
+    <p class="pronunciation">/l&#618;b-&#712;va&#618;&#183;p&#601;rz/</p>
+    <p class="tagline">A pure-Rust, thread-safe image pyramiding engine for the AEC/construction domain.</p>
+    <div class="badges">
+      <a href="https://github.com/libviprs/libviprs/actions/workflows/ci.yml"><img src="https://github.com/libviprs/libviprs/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+      <a href="https://github.com/libviprs/libviprs/actions/workflows/merge-gate.yml"><img src="https://github.com/libviprs/libviprs/actions/workflows/merge-gate.yml/badge.svg" alt="Merge Gate"></a>
+      <img src="https://img.shields.io/badge/rust-1.85%2B-orange?logo=rust" alt="Rust 1.85+">
+      <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License">
+    </div>
   </div>
+
+  <button class="topbar-burger" id="topbarBurger" type="button"
+          aria-label="Toggle menu" aria-expanded="false" aria-controls="topbar-menu">
+    <span class="burger-icon" aria-hidden="true"></span>
+  </button>
+
   <nav class="topbar-menu" id="topbar-menu" aria-hidden="true">
     <div class="topbar-menu-inner">
-      <a href="index.html"      class="is-current">Home</a>
+      <a href="index.html" class="is-current">Home</a>
       <a href="cli/">CLI Documentation</a>
       <a href="benchmarks.html">Benchmarks</a>
       <a href="https://github.com/libviprs/libviprs" target="_blank" rel="noopener">GitHub</a>
@@ -458,24 +311,6 @@
     </div>
   </nav>
 </header>
-
-<div class="hero">
-  <div class="ribbon">v0.3</div>
-  <div class="hero-inner">
-    <div class="hero-brand">
-      <img src="https://raw.githubusercontent.com/libviprs/libviprs/main/images/libviprs-logo-claws.svg" alt="libviprs logo">
-      <h1>libviprs</h1>
-    </div>
-    <p class="pronunciation">/l&#618;b-&#712;va&#618;&#183;p&#601;rz/</p>
-    <p class="tagline">A pure-Rust, thread-safe image pyramiding engine for the AEC/construction domain.</p>
-    <div class="badges">
-      <a href="https://github.com/libviprs/libviprs/actions/workflows/ci.yml"><img src="https://github.com/libviprs/libviprs/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-      <a href="https://github.com/libviprs/libviprs/actions/workflows/merge-gate.yml"><img src="https://github.com/libviprs/libviprs/actions/workflows/merge-gate.yml/badge.svg" alt="Merge Gate"></a>
-      <img src="https://img.shields.io/badge/rust-1.85%2B-orange?logo=rust" alt="Rust 1.85+">
-      <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License">
-    </div>
-  </div>
-</div>
 
 <main>
 
@@ -814,8 +649,9 @@ viprs pyramid blueprint.pdf <span class="sh-flag">--sink</span> <span class="str
 </footer>
 
 <script>
-  // Hero scroll-collapse animation. Theme toggle + burger menu live in the
-  // shared topbar and are handled by topbar.js.
+  // Hero scroll-collapse animation, theme toggle, and burger drawer all
+  // live in topbar.js (loaded above). Page-specific JS only handles the
+  // single Usage code-block copy button.
   document.getElementById('copyBtn').addEventListener('click', function () {
     const code = document.querySelector('.code-wrap pre code').textContent;
     navigator.clipboard.writeText(code).then(() => {
@@ -823,22 +659,6 @@ viprs pyramid blueprint.pdf <span class="sh-flag">--sink</span> <span class="str
       setTimeout(() => { this.innerHTML = '&#x2398; Copy'; }, 1500);
     });
   });
-
-  const hero = document.querySelector('.hero');
-  function updateHeroCollapse() {
-    const vh = window.innerHeight || document.documentElement.clientHeight;
-    const y = window.scrollY || document.documentElement.scrollTop;
-    const stage = (start, end) =>
-      Math.max(0, Math.min(1, (y - vh * start) / (vh * (end - start))));
-    hero.style.setProperty('--p1', stage(0, 0.02));
-    hero.style.setProperty('--p2', stage(0.02, 0.04));
-    const p3 = stage(0.04, 0.06);
-    hero.style.setProperty('--p3', p3);
-    hero.classList.toggle('collapsed', p3 >= 1);
-  }
-  window.addEventListener('scroll', updateHeroCollapse, { passive: true });
-  window.addEventListener('resize', updateHeroCollapse);
-  updateHeroCollapse();
 </script>
 </body>
 </html>
