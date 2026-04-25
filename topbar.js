@@ -1,11 +1,11 @@
-/* libviprs.org shared top bar — used on every page.
+/* libviprs.org shared header — used on every page.
  *
- * Two responsibilities:
- *   1. Burger drawer (toggle .menu-open on the <header>; CSS handles the rest).
- *   2. Light/dark theme toggle (now lives inside the drawer, not on the bar).
- *
- * Both used to be inline-duplicated across index.html, benchmarks.html, and
- * cli/index.html. This script is the single source of truth.
+ * Three responsibilities:
+ *   1. Scroll-collapse animation on the home page (.topbar.is-hero).
+ *      Drives --p1 / --p2 / --p3 and toggles .collapsed when fully shrunk.
+ *      Inner pages don't ship .is-hero, so this becomes a no-op for them.
+ *   2. Burger drawer toggle (.menu-open on the header).
+ *   3. Light/dark theme toggle (now lives inside the drawer).
  */
 (function () {
   'use strict';
@@ -21,17 +21,17 @@
 
     function applyTheme(theme) {
       document.documentElement.setAttribute('data-theme', theme);
-      if (glyph) glyph.textContent = theme === 'dark' ? '☀' : '☾'; // sun / moon
+      if (glyph) glyph.textContent = theme === 'dark' ? '☀' : '☾';
       if (label) label.textContent = theme === 'dark' ? 'Light mode' : 'Dark mode';
-      try { localStorage.setItem('theme', theme); } catch (e) { /* ignore */ }
+      try { localStorage.setItem('theme', theme); } catch (_) { /* private mode */ }
     }
 
     var saved = null;
-    try { saved = localStorage.getItem('theme'); } catch (e) { /* ignore */ }
+    try { saved = localStorage.getItem('theme'); } catch (_) { /* ignore */ }
 
-    if (saved === 'dark' || saved === 'light') {
+    if (saved === 'light' || saved === 'dark') {
       applyTheme(saved);
-    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
       applyTheme('dark');
     } else {
       applyTheme('light');
@@ -44,15 +44,16 @@
       });
     }
 
-    // Track OS-level changes if the user hasn't pinned a preference.
-    var mq = window.matchMedia('(prefers-color-scheme: dark)');
-    var listener = function (e) {
-      var pinned = null;
-      try { pinned = localStorage.getItem('theme'); } catch (err) { /* ignore */ }
-      if (!pinned) applyTheme(e.matches ? 'dark' : 'light');
-    };
-    if (mq.addEventListener) mq.addEventListener('change', listener);
-    else if (mq.addListener) mq.addListener(listener); // Safari < 14
+    if (window.matchMedia) {
+      var mq = window.matchMedia('(prefers-color-scheme: dark)');
+      var listener = function (e) {
+        var pinned = null;
+        try { pinned = localStorage.getItem('theme'); } catch (_) { /* ignore */ }
+        if (!pinned) applyTheme(e.matches ? 'dark' : 'light');
+      };
+      if (mq.addEventListener) mq.addEventListener('change', listener);
+      else if (mq.addListener) mq.addListener(listener);  // Safari < 14
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -66,30 +67,29 @@
     if (!bar || !burger || !menu) return;
 
     function setOpen(open) {
-      if (open) bar.classList.add('menu-open');
-      else bar.classList.remove('menu-open');
+      bar.classList.toggle('menu-open', !!open);
       burger.setAttribute('aria-expanded', open ? 'true' : 'false');
       menu.setAttribute('aria-hidden', open ? 'false' : 'true');
     }
 
     burger.addEventListener('click', function (e) {
+      e.preventDefault();
       e.stopPropagation();
       setOpen(!bar.classList.contains('menu-open'));
     });
 
-    // Tap a link → drawer closes so the navigation feels snappy.
-    menu.querySelectorAll('a').forEach(function (a) {
+    // Tap a link → close so the navigation feels snappy.
+    Array.prototype.forEach.call(menu.querySelectorAll('a'), function (a) {
       a.addEventListener('click', function () { setOpen(false); });
     });
 
-    // Click anywhere outside the drawer closes it.
+    // Click anywhere outside the drawer or burger closes it.
     document.addEventListener('click', function (e) {
       if (!bar.classList.contains('menu-open')) return;
       if (bar.contains(e.target)) return;
       setOpen(false);
     });
 
-    // Esc closes; restore focus to the burger so keyboard users don't lose context.
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && bar.classList.contains('menu-open')) {
         setOpen(false);
@@ -99,19 +99,49 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Init
+  // Scroll-collapse animation (home page only)
   // ---------------------------------------------------------------------------
 
-  function ready(fn) {
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', fn, { once: true });
-    } else {
-      fn();
+  function initHeroCollapse() {
+    var bar = document.getElementById('topbar');
+    if (!bar || !bar.classList.contains('is-hero')) return;
+
+    function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+
+    function update() {
+      var vh = window.innerHeight || document.documentElement.clientHeight;
+      var y = window.scrollY || document.documentElement.scrollTop;
+      var stage = function (start, end) {
+        return clamp01((y - vh * start) / (vh * (end - start)));
+      };
+      bar.style.setProperty('--p1', stage(0, 0.02));
+      bar.style.setProperty('--p2', stage(0.02, 0.04));
+      var p3 = stage(0.04, 0.06);
+      bar.style.setProperty('--p3', p3);
+      bar.classList.toggle('collapsed', p3 >= 1);
     }
+
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    update();
   }
 
-  ready(function () {
+  // ---------------------------------------------------------------------------
+  // Init — run *now* if DOM is already parsed; otherwise wait for it. Don't
+  // gate on DOMContentLoaded alone, because <script defer> runs after parse
+  // but before DCL fires, and we want the burger to work the moment the
+  // user can see it.
+  // ---------------------------------------------------------------------------
+
+  function start() {
     initTheme();
     initDrawer();
-  });
+    initHeroCollapse();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start, { once: true });
+  } else {
+    start();
+  }
 })();
