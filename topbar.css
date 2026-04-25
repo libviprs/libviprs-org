@@ -441,4 +441,136 @@
     margin-top: 0.5rem;
     padding-bottom: 0.5rem;
   }
+
+  /* ----------------------------------------------------------
+     Collapsed-bar form on desktop: nav items swap to short
+     labels / icons, and the theme toggle morphs into an
+     iOS-style sun/moon slider. Hero state and the mobile
+     drawer (handled by the ≤ 700 px rules above) keep the
+     full labels and the original ☾ Dark mode chip.
+     ---------------------------------------------------------- */
+
+  /* By default (hero state on desktop, mobile drawer) the icon
+     SVGs are hidden — full labels do the talking. */
+  .topbar-menu .nav-icon { display: none; }
+
+  /* Short labels are also hidden by default; they only appear
+     when the bar collapses on desktop. */
+  .topbar-menu .nav-label-short { display: none; }
+
+  /* Collapsed-on-desktop label/icon swap. */
+  .topbar.collapsed .topbar-menu .nav-item .nav-icon {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    color: currentColor;
+  }
+
+  /* If a nav item carries an icon, hide its full text label so the
+     icon stands alone (Home, GitHub). */
+  .topbar.collapsed .topbar-menu .nav-item:has(.nav-icon) .nav-label-full {
+    display: none;
+  }
+
+  /* If a nav item provides a short label, prefer it over the full
+     one (CLI Docs, Bench, Build Man). */
+  .topbar.collapsed .topbar-menu .nav-item:has(.nav-label-short) .nav-label-full {
+    display: none;
+  }
+
+  .topbar.collapsed .topbar-menu .nav-item .nav-label-short {
+    display: inline;
+  }
+
+  /* Items that only have a full label (API Docs, Downloads,
+     Issues) keep showing it — no rule needed, but make sure the
+     hide-on-icon rule above doesn't accidentally apply. */
+  .topbar.collapsed .topbar-menu .nav-item:not(:has(.nav-icon)):not(:has(.nav-label-short)) .nav-label-full {
+    display: inline;
+  }
+
+  /* ---- Theme slider ----
+     The slider sub-tree is hidden everywhere by default; the
+     existing glyph + label chip remains visible in the drawer
+     and in the desktop hero strip. */
+  .topbar-theme-toggle .theme-slider { display: none; }
+
+  /* In collapsed-bar form on desktop the chip morphs: hide the
+     glyph + word, show the slider, and tighten the button so it
+     sits like a small inline pill alongside the nav items. */
+  .topbar.collapsed .topbar-menu .topbar-theme-toggle {
+    padding: 0.25rem 0.45rem;
+    background: transparent;
+    border: 1.5px solid rgba(255, 255, 255, 0.4);
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    line-height: 1;
+  }
+
+  .topbar.collapsed .topbar-menu .topbar-theme-toggle:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.6);
+  }
+
+  .topbar.collapsed .topbar-menu .topbar-theme-toggle .theme-glyph,
+  .topbar.collapsed .topbar-menu .topbar-theme-toggle .theme-label {
+    display: none;
+  }
+
+  .topbar.collapsed .topbar-menu .topbar-theme-toggle .theme-slider {
+    display: inline-block;
+    line-height: 1;
+  }
+
+  /* The track: ~3rem × ~1.4rem rounded pill with sun on the
+     left, moon on the right, knob sliding between. */
+  .topbar.collapsed .topbar-menu .theme-slider-track {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    box-sizing: border-box;
+    width: 3rem;
+    height: 1.4rem;
+    padding: 0 0.3rem;
+    background: rgba(0, 0, 0, 0.35);
+    border-radius: 999px;
+    font-size: 0.75rem;
+    line-height: 1;
+    color: var(--white, #fff);
+    transition: background 0.2s ease;
+  }
+
+  .topbar.collapsed .topbar-menu .theme-slider-sun,
+  .topbar.collapsed .topbar-menu .theme-slider-moon {
+    position: relative;
+    z-index: 1;
+    pointer-events: none;
+    line-height: 1;
+  }
+
+  /* Knob: a ~1.1rem white circle that slides along the track. In
+     light mode it sits on the left (covering the sun); in dark
+     mode it slides right (covering the moon). */
+  .topbar.collapsed .topbar-menu .theme-slider-knob {
+    position: absolute;
+    top: 50%;
+    left: 0.15rem;
+    width: 1.1rem;
+    height: 1.1rem;
+    background: var(--white, #fff);
+    border-radius: 50%;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    transform: translateY(-50%);
+    transition: transform 0.25s ease, left 0.25s ease;
+  }
+
+  /* Dark theme: slide the knob to the right end of the track
+     (track is 3rem wide with 1.1rem knob and 0.15rem inset, so
+     translate by 3rem - 1.1rem - 0.3rem = 1.6rem). */
+  :root[data-theme="dark"] .topbar.collapsed .topbar-menu .theme-slider-knob {
+    transform: translate(1.6rem, -50%);
+  }
 }
