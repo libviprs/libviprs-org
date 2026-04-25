@@ -37,59 +37,34 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    /* Hero */
-    .hero {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      overflow: hidden;
-      background: var(--hero-bg);
-      color: var(--white);
-      padding: 1.5rem 1.5rem 1.25rem;
-      text-align: center;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    }
-
-    .hero-inner {
+    /* Page header (replaces the old in-hero h1). */
+    .page-header {
       max-width: var(--max-width);
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 1rem;
+      margin: 0 auto 1.5rem;
+      padding: 0.5rem 0 0.85rem;
+      border-bottom: 1px solid var(--border);
     }
 
-    .hero-inner img {
-      width: 40px;
-      height: auto;
-      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));
-    }
-
-    .hero-inner h1 {
+    .page-header h1 {
       font-size: 1.6rem;
       font-weight: 700;
       letter-spacing: -0.5px;
+      color: var(--primary-dark);
     }
 
-    .hero-inner h1 span {
+    .page-header h1 .page-header-sub {
       font-weight: 400;
       font-size: 1rem;
-      opacity: 0.7;
+      opacity: 0.65;
       margin-left: 0.5rem;
     }
 
-    .hero-nav {
-      margin-top: 0.5rem;
-      font-size: 0.85rem;
+    /* Hash-anchor headings shouldn't slide under the floating top bar
+       when scrolled into view — give them breathing room. */
+    [id^="flag-"], #pyramid, #info, #plan, #test-image,
+    #cli-generator, #pyramid-base-setup {
+      scroll-margin-top: calc(var(--topbar-height, 3.4rem) + 0.5rem);
     }
-
-    .hero-nav a {
-      color: rgba(255,255,255,0.7);
-      text-decoration: none;
-      margin: 0 0.5rem;
-    }
-
-    .hero-nav a:hover { color: var(--white); }
 
     /* Main content */
     main {
@@ -404,27 +379,6 @@
       .info-bubble-list li { font-size: 0.8rem; }
     }
 
-    /* Theme toggle */
-    .theme-toggle {
-      position: absolute;
-      top: 1rem;
-      left: 1rem;
-      background: rgba(255,255,255,0.15);
-      border: 1px solid rgba(255,255,255,0.25);
-      color: var(--white);
-      border-radius: 20px;
-      padding: 0.3rem 0.7rem;
-      font-size: 0.8rem;
-      cursor: pointer;
-      font-family: inherit;
-      transition: background 0.2s;
-      z-index: 11;
-    }
-
-    .theme-toggle:hover {
-      background: rgba(255,255,255,0.25);
-    }
-
     /* Footer */
     footer {
       text-align: center;
@@ -441,10 +395,7 @@
 
     /* Responsive */
     @media (max-width: 600px) {
-      .hero-inner h1 { font-size: 1.3rem; }
-      .hero-inner img { width: 32px; }
-      .hero { padding: 1rem; }
-      .theme-toggle { top: 0.5rem; left: 0.5rem; font-size: 0.7rem; }
+      .page-header h1 { font-size: 1.3rem; }
       dl.flags dd { margin-left: 0.75rem; }
     }
 

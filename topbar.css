@@ -1,0 +1,185 @@
+/* ============================================================
+   libviprs.org shared top bar — used on every page.
+   Fixed at the top of the viewport, always visible. The burger
+   button on the right opens a stacked menu of nav links plus
+   the light/dark mode toggle.
+   ============================================================ */
+
+:root {
+  --topbar-height: 3.4rem;
+  --topbar-bg:     var(--hero-bg, #6d2c0f);
+  --topbar-fg:     var(--white, #fff);
+  --topbar-zindex: 1000;
+}
+
+/* Push the page content below the fixed bar so nothing renders
+   underneath it. Each page may override --topbar-height locally. */
+body { padding-top: var(--topbar-height); }
+
+.topbar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: var(--topbar-zindex);
+  background: var(--topbar-bg);
+  color: var(--topbar-fg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  font-family: "Source Code Pro", "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.topbar-inner {
+  max-width: var(--max-width, 860px);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 1rem;
+  height: var(--topbar-height);
+  box-sizing: border-box;
+}
+
+/* Brand: logo + project name. Always links to the site root. */
+.topbar-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  text-decoration: none;
+  color: var(--topbar-fg);
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.topbar-brand img {
+  width: 32px;
+  height: auto;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
+}
+
+.topbar-brand .brand-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar-brand .brand-sub {
+  font-size: 0.85rem;
+  font-weight: 400;
+  opacity: 0.7;
+  margin-left: 0.4rem;
+}
+
+/* Burger toggle — visible on all viewports per the new design. */
+.topbar-burger {
+  flex-shrink: 0;
+  width: 2.4rem;
+  height: 2.4rem;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: var(--topbar-fg);
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.topbar-burger:hover { background: rgba(255, 255, 255, 0.25); }
+
+.topbar-burger .burger-icon,
+.topbar-burger .burger-icon::before,
+.topbar-burger .burger-icon::after {
+  display: block;
+  width: 1.2rem;
+  height: 2px;
+  background: var(--topbar-fg);
+  border-radius: 1px;
+  transition: transform 0.25s ease, top 0.25s ease, opacity 0.2s ease, background 0.2s ease;
+}
+
+.topbar-burger .burger-icon { position: relative; }
+.topbar-burger .burger-icon::before { content: ''; position: absolute; left: 0; top: -7px; }
+.topbar-burger .burger-icon::after  { content: ''; position: absolute; left: 0; top:  7px; }
+
+.topbar.menu-open .topbar-burger .burger-icon { background: transparent; }
+.topbar.menu-open .topbar-burger .burger-icon::before { top: 0; transform: rotate(45deg); }
+.topbar.menu-open .topbar-burger .burger-icon::after  { top: 0; transform: rotate(-45deg); }
+
+/* Menu drawer — drops below the bar when open. */
+.topbar-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--topbar-bg);
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.3);
+  padding: 0.5rem;
+  z-index: calc(var(--topbar-zindex) - 1);
+}
+
+.topbar-menu-inner {
+  max-width: var(--max-width, 860px);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.topbar.menu-open .topbar-menu { display: block; }
+
+.topbar-menu a,
+.topbar-menu .topbar-theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  color: var(--topbar-fg);
+  text-decoration: none;
+  font-size: 0.95rem;
+  font-weight: 600;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.topbar-menu a:hover,
+.topbar-menu .topbar-theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.topbar-menu a.is-current {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.topbar-menu .menu-divider {
+  height: 1px;
+  margin: 0.35rem 0.5rem;
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+}
+
+.topbar-theme-toggle .theme-glyph {
+  display: inline-block;
+  width: 1.1rem;
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  :root { --topbar-height: 3rem; }
+  .topbar-inner { padding: 0.4rem 0.85rem; }
+  .topbar-brand img { width: 26px; }
+  .topbar-brand .brand-name { font-size: 1rem; }
+  .topbar-brand .brand-sub { display: none; }
+  .topbar-burger { width: 2.1rem; height: 2.1rem; }
+}
