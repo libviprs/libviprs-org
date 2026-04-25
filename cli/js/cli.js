@@ -6,7 +6,7 @@
  * script's top-level executes, but our work is gated on it anyway).
  *
  * Layout, in source order:
- *   1. Theme toggle  (#themeToggle, [data-theme] on <html>, persisted)
+ *   1. Theme toggle  — moved to ../topbar.js (shared across all pages)
  *   2. Delegated copy buttons  (.code-wrap .copy-btn — works for injected snippets)
  *   3. Snippet store           (fetch js/snippets.generated.json, expose on window)
  *   4. Per-flag controls       (rewrite each <dt> under "pyramid" h2)
@@ -86,50 +86,10 @@
   }
 
   // ---------------------------------------------------------------------------
-  // 1. Theme toggle
+  // 1. Theme toggle — moved to the shared topbar.js (loaded by index.html).
+  //    Left intentionally blank here so the section numbering keeps reading
+  //    in source order with the original layout.
   // ---------------------------------------------------------------------------
-
-  function initThemeToggle() {
-    var btn = document.getElementById('themeToggle');
-    if (!btn) return;
-
-    function applyTheme(theme) {
-      document.documentElement.setAttribute('data-theme', theme);
-      // Sun for light → "switch to light"; moon for dark → "switch to dark".
-      btn.textContent = theme === 'dark' ? '☀ Light' : '☾ Dark';
-    }
-    function setTheme(theme) {
-      applyTheme(theme);
-      try { localStorage.setItem('theme', theme); } catch (_) { /* private mode */ }
-    }
-
-    var saved = null;
-    try { saved = localStorage.getItem('theme'); } catch (_) { /* ignore */ }
-    if (saved === 'light' || saved === 'dark') {
-      applyTheme(saved);
-    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      applyTheme('dark');
-    } else {
-      applyTheme('light');
-    }
-
-    btn.addEventListener('click', function () {
-      var current = document.documentElement.getAttribute('data-theme');
-      setTheme(current === 'dark' ? 'light' : 'dark');
-    });
-
-    // Track OS preference only when the user hasn't pinned a choice.
-    if (window.matchMedia) {
-      var mq = window.matchMedia('(prefers-color-scheme: dark)');
-      var listener = function (e) {
-        var pinned = null;
-        try { pinned = localStorage.getItem('theme'); } catch (_) { /* ignore */ }
-        if (!pinned) applyTheme(e.matches ? 'dark' : 'light');
-      };
-      if (mq.addEventListener) mq.addEventListener('change', listener);
-      else if (mq.addListener) mq.addListener(listener);
-    }
-  }
 
   // ---------------------------------------------------------------------------
   // 2. Delegated copy buttons
@@ -915,7 +875,6 @@
   }
 
   ready(function () {
-    initThemeToggle();
     initDelegatedCopyButtons();
     initBaseSetupToggles();
     paintStaticRustBlocks();
