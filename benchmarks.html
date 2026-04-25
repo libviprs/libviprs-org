@@ -280,7 +280,7 @@
 <main>
 <article>
 
-<p class="byline">Benchmark methodology &middot; v0.2.0 &middot; In-process FFI comparison on identical pixel buffers</p>
+<p class="byline">Benchmark methodology &middot; v0.3.0 &middot; In-process FFI comparison on identical pixel buffers</p>
 
 <p>A pure-Rust image pyramiding library is outperforming the C heavyweight it was designed to replace. In head-to-head benchmarks on a 47-megapixel raster &mdash; the kind of image AEC firms tile every day from scanned blueprint PDFs &mdash; libviprs generates tiles 1.8&times; to 2.4&times; faster than libvips while using up to 10.7&times; less memory. Those aren't typos. And this isn't a rigged comparison: both libraries receive the same raw pixel buffer in process memory, both produce DeepZoom tile pyramids with identical parameters, and both are measured with the same clock. The difference is architectural.</p>
 
@@ -387,7 +387,7 @@
   </tbody>
 </table>
 
-<p>The auto-select API (<code>generate_pyramid_auto</code>, <code>generate_pyramid_mapreduce_auto</code>) picks the engine at runtime based on estimated memory vs. budget. If the monolithic engine fits, it's used for maximum throughput. Otherwise, the streaming or MapReduce engine kicks in. No code changes, no configuration files &mdash; just a memory budget parameter.</p>
+<p>Auto-selection is built into <code>EngineBuilder::new(...).with_engine(EngineKind::Auto)</code> &mdash; and <code>EngineKind::Auto</code> is the default, so it applies even if you never call <code>with_engine</code>. The builder picks the engine at runtime from the source kind (in-memory raster vs. strip source) and the value passed to <code>with_memory_budget</code>. If the monolithic engine fits the budget for a raster source, it's used for maximum throughput. Otherwise, the streaming or MapReduce engine kicks in. No code changes, no configuration files &mdash; just a memory budget parameter.</p>
 
 <h2>What libvips Does Better</h2>
 
@@ -411,7 +411,7 @@
 </main>
 
 <footer>
-  <p>libviprs is MIT licensed. <a href="https://github.com/libviprs/libviprs">View on GitHub</a> &middot; Benchmark data: <a href="https://github.com/libviprs/libviprs">libviprs-bench v0.2.0</a></p>
+  <p>libviprs is MIT licensed. <a href="https://github.com/libviprs/libviprs">View on GitHub</a> &middot; Benchmark data: <a href="https://github.com/libviprs/libviprs">libviprs-bench v0.3.0</a></p>
 </footer>
 
 <script>
