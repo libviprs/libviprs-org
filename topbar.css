@@ -193,7 +193,14 @@
   font-size: 0.65rem;
   box-shadow: none;
   flex-shrink: 0;
+  /* DOM has the ribbon as the first child of <header>; flex-order
+     pulls it visually after .topbar-content, with .topbar-menu after
+     it, so the collapsed bar reads: brand · ribbon · nav strip. */
+  order: 1;
 }
+
+.topbar.collapsed .topbar-content { order: 0; }
+.topbar.collapsed .topbar-menu    { order: 2; }
 
 /* Mobile only: when scrolled (.collapsed) the corner ribbon disappears and
    a sibling chip inside the drawer takes its place. The corner ribbon is
