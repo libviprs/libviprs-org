@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>viprs(1) — CLI Documentation</title>
+  <link rel="icon" type="image/x-icon" href="../favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="../favicon-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Code+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/cli.css">
+</head>
+<body>
+
+<div class="hero">
+  <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode"></button>
+  <div class="hero-inner">
+    <a href="../index.html"><img src="https://raw.githubusercontent.com/libviprs/libviprs/main/images/libviprs-logo-claws.svg" alt="libviprs logo"></a>
+    <h1>viprs(1) <span>CLI Documentation</span></h1>
+  </div>
+  <div class="hero-nav">
+    <a href="../index.html">Home</a>
+    <a href="https://github.com/libviprs/libviprs">GitHub</a>
+    <a href="https://docs.rs/libviprs">API Docs</a>
+  </div>
+</div>
+
+<main>
+
+<!-- ================================================================== -->
+<!-- NAME                                                                -->
+<!-- ================================================================== -->
+
+<section>
+  <p class="man-section">Name</p>
+  <p><strong>viprs</strong> &mdash; generate tile pyramids from images and PDFs for web-based viewers</p>
+</section>
+
+<!-- ================================================================== -->
+<!-- SYNOPSIS                                                            -->
+<!-- ================================================================== -->
+
+<section>
+  <p class="man-section">Synopsis</p>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code>viprs pyramid [OPTIONS] &lt;INPUT&gt; [&lt;OUTPUT&gt;]
+viprs info &lt;INPUT&gt;
+viprs plan [OPTIONS] &lt;WIDTH_OR_INPUT&gt;
+viprs test-image [OPTIONS] &lt;OUTPUT&gt;
+
+<span class="sh-comment"># Phase 3 hardening flags (subset)</span>
+viprs pyramid input.pdf tiles/ --blank-tolerance 2
+viprs pyramid input.pdf --sink s3://bucket/prefix
+viprs pyramid input.pdf out/ --resume --retry-max 3 --retry-backoff 200
+viprs pyramid input.pdf out/ --manifest-emit-checksums --checksum-algo blake3
+viprs pyramid input.pdf out/ --dedupe-blanks
+viprs pyramid input.pdf --sink packfile://out.tar.gz
+viprs pyramid input.pdf out/ --trace-level info</code></pre>
+  </div>
+</section>
+
+<!-- ================================================================== -->
+<!-- DESCRIPTION                                                         -->
+<!-- ================================================================== -->
+
+<section>
+  <p class="man-section">Description</p>
+  <p><strong>viprs</strong> converts large raster images and PDF documents into multi-resolution tile pyramids suitable for Deep Zoom viewers, slippy-map UIs, and GIS applications. It supports three tile layouts (DeepZoom, XYZ, Google Maps), three image formats (PNG, JPEG, raw), and three engine modes (monolithic, streaming, parallel MapReduce) to balance throughput and memory usage for images of any size.</p>
+</section>
+
+<!-- ================================================================== -->
+<!-- COMMANDS                                                            -->
+<!-- ================================================================== -->
+
+<section>
+  <p class="man-section">Commands</p>
+
+  <!-- ---- pyramid ---- -->
+  <h2 id="pyramid">pyramid</h2>
+  <p>Generate a tile pyramid from a PDF or image file. This is the primary command &mdash; it loads the source, plans the pyramid grid, and writes tiles to disk.</p>
+
+  <div class="cmd-base-setup" id="pyramid-base-setup">
+    <button type="button" class="cmd-base-setup-toggle" aria-expanded="false">
+      Show base Rust setup &mdash; what each flag below modifies
+    </button>
+    <div class="cmd-base-setup-body">
+      <p>The Rust program below is what <code>viprs pyramid input.pdf tiles/</code> runs internally with no flags. Click any flag below to see how it slots into this template, or check flags to assemble a complete program in the generator panel at the bottom.</p>
+      <div class="code-wrap">
+        <button class="copy-btn">&#x2398; Copy</button>
+        <pre><code id="pyramid-base-code" class="language-rust">// Pre-generated; the live version reflects flag selections.</code></pre>
+      </div>
+      <p class="test-ref">Reference test: <a href="https://github.com/libviprs/libviprs-tests/blob/main/tests/builder_sink_fs.rs#L47" target="_blank" rel="noopener">builder_sink_fs.rs &middot; <code>two_arg_new_defaults_to_png</code></a> &mdash; the canonical minimal builder call.</p>
+    </div>
+  </div>
+
+  <h3>Arguments</h3>
+  <dl class="flags">
+    <dt><code>&lt;INPUT&gt;</code></dt>
+    <dd>
+      <p>Path to a PDF, PNG, JPEG, or TIFF file. Use <code>"-"</code> for stdin (pipe a file directly into viprs). PDF inputs are either raster-extracted (default) or vector-rendered (with <code>--render</code>).</p>
+    </dd>
+
+    <dt><code>&lt;OUTPUT&gt;</code></dt>
+    <dd>
+      <p>Directory where tiles are written. Created automatically. DeepZoom also writes a <code>.dzi</code> manifest alongside.</p>
+    </dd>
+  </dl>
+
+  <h3>Tile options</h3>
+  <dl class="flags">
+    <dt><code>--tile-size &lt;PIXELS&gt;</code></dt>
+    <dd>
+      <p>Width and height of each tile in pixels. Viewers fetch tiles on demand &mdash; smaller tiles mean finer-grained loading but more HTTP requests. 256 is the web standard; use 512 for high-DPI displays or when serving from fast storage. <span class="default-val">Default: 256</span></p>
+    </dd>
+
+    <dt><code>--overlap &lt;PIXELS&gt;</code></dt>
+    <dd>
+      <p>Pixel overlap between adjacent tiles (DeepZoom only). Overlap lets viewers blend tile edges for seamless rendering. OpenSeadragon typically uses overlap=1. Not applicable to Google or XYZ layouts. <span class="default-val">Default: 0</span></p>
+    </dd>
+
+    <dt><code>--layout &lt;FORMAT&gt;</code></dt>
+    <dd>
+      <p>Tile naming and directory convention. Different viewers expect different conventions &mdash; OpenSeadragon uses DeepZoom, Leaflet uses XYZ, Google Maps uses its own grid. <span class="default-val">Default: deep-zoom</span></p>
+      <p>Values: <code>deep-zoom</code> (<code>{level}/{col}_{row}.ext</code> + <code>.dzi</code>), <code>xyz</code> (<code>{z}/{x}/{y}.ext</code>), <code>google</code> (<code>{z}/{y}/{x}.ext</code>, power-of-2 grids).</p>
+    </dd>
+
+    <dt><code>--format &lt;TYPE&gt;</code></dt>
+    <dd>
+      <p>Tile image encoding. PNG preserves quality for line drawings; JPEG saves disk for photographs; raw is useful when a downstream pipeline handles encoding. <span class="default-val">Default: png</span></p>
+      <p>Values: <code>png</code> (lossless), <code>jpeg</code> (lossy, smaller), <code>raw</code> (unencoded pixels, fastest).</p>
+    </dd>
+
+    <dt><code>--quality &lt;1-100&gt;</code></dt>
+    <dd>
+      <p>JPEG quality factor. Only used with <code>--format jpeg</code>. <span class="default-val">Default: 85</span></p>
+    </dd>
+
+    <dt><code>--centre</code></dt>
+    <dd>
+      <p>Centre the image within the tile grid, adding even background padding on all sides. Google Maps layout requires power-of-2 tile grids &mdash; without centring, the image sits at (0,0) and padding fills the right/bottom. With centring, padding is distributed evenly so the image appears centred in the viewer.</p>
+    </dd>
+
+    <dt><code>--skip-blank</code></dt>
+    <dd>
+      <p>Replace blank (uniform-color) tiles with a 1-byte placeholder instead of encoding the full image. Scanned blueprints have large white margins that produce many identical tiles &mdash; placeholder files reduce output size dramatically. Consumers detect them by file size and render a solid color.</p>
+    </dd>
+
+    <dt><code>--blank-tolerance &lt;N&gt;</code></dt>
+    <dd>
+      <p>Treat a tile as blank when every channel in every pixel varies by at most <code>N</code> from the first pixel's value. Extends <code>--skip-blank</code> to near-uniform tiles; useful for slightly noisy scanner output where pure-white detection misses off-white margins. Requires <code>--skip-blank</code> or <code>--dedupe-blanks</code>. <span class="default-val">Default: 0 (exact match only)</span></p>
+    </dd>
+  </dl>
+
+  <h3>PDF options</h3>
+  <dl class="flags">
+    <dt><code>--dpi &lt;N&gt;</code></dt>
+    <dd>
+      <p>Resolution for PDF rendering and page-size scaling. Higher DPI produces more pixels (and more tiles). 72 matches libvips' default; use 150&ndash;300 for print-quality blueprints. <span class="default-val">Default: 72</span></p>
+    </dd>
+
+    <dt><code>--page &lt;N&gt;</code></dt>
+    <dd>
+      <p>PDF page to extract (1-based). <span class="default-val">Default: 1</span></p>
+    </dd>
+
+    <dt><code>--render</code></dt>
+    <dd>
+      <p>Use PDFium for vector PDF rendering instead of extracting embedded raster images. Scanned blueprints embed a raster image inside the PDF &mdash; extraction is fast and lossless. AutoCAD exports and text-heavy PDFs contain vector paths that must be rendered to pixels. Use <code>--render</code> when the PDF is not a simple raster scan.</p>
+    </dd>
+
+    <dt><code>--match-page-size</code></dt>
+    <dd>
+      <p>After extracting a raster from a PDF, resize it to match the PDF page dimensions at the specified <code>--dpi</code>. Has no effect with <code>--render</code>. Embedded rasters may have a different resolution than the page's declared dimensions &mdash; this flag produces output consistent with libvips' default PDF handling.</p>
+    </dd>
+  </dl>
+
+  <h3>Engine options</h3>
+  <dl class="flags">
+    <dt><code>--concurrency &lt;N&gt;</code></dt>
+    <dd>
+      <p>Number of worker threads for tile extraction. Tile extraction is embarrassingly parallel &mdash; each tile reads from the source independently. Set to the number of CPU cores for maximum throughput. With <code>--parallel</code>, this controls per-strip tile workers. <span class="default-val">Default: 0 (single-threaded)</span></p>
+    </dd>
+
+    <dt><code>--buffer-size &lt;N&gt;</code></dt>
+    <dd>
+      <p>Maximum tiles buffered between producer threads and the sink. A large buffer smooths out slow disk writes at the cost of higher memory; a small buffer limits peak memory but may cause producers to block. <span class="default-val">Default: 64</span></p>
+    </dd>
+
+    <dt><code>--memory-limit &lt;MB&gt;</code></dt>
+    <dd>
+      <p>Hard memory limit in MB. If the estimated peak memory exceeds this, the command exits before rendering. Acts as a safety net for containerised deployments &mdash; prevents the engine from attempting a pyramid that would OOM-kill the process. Combine with <code>--memory-budget</code> to both limit and control memory. <span class="default-val">Default: 0 (disabled)</span></p>
+    </dd>
+
+    <dt><code>--memory-budget &lt;MB&gt;</code></dt>
+    <dd>
+      <p>Soft memory budget for strip-based processing. Switches from the monolithic engine to the streaming engine, which processes the image in horizontal bands. A 16820&times;11888 blueprint at 300 DPI needs ~5 GB as a monolithic canvas &mdash; the streaming engine reduces this to ~50 MB by processing strips. The strip height is maximised within the budget to balance memory and speed.</p>
+      <p>When set to <code>0</code>: auto-selects a budget (1/4 of estimated monolithic peak). When omitted: uses the monolithic engine (original behavior).</p>
+    </dd>
+
+    <dt><code>--parallel</code></dt>
+    <dd>
+      <p>Use the parallel MapReduce engine instead of the sequential streaming engine. Requires <code>--memory-budget</code>. On multi-core systems, the MapReduce engine overlaps strip rendering for higher throughput &mdash; the sequential streaming engine processes one strip at a time. Both produce byte-identical output.</p>
+      <p>Renders multiple strips concurrently (bounded by the budget), then propagates downscale results sequentially. The <code>--concurrency</code> flag controls per-strip tile worker threads.</p>
+    </dd>
+  </dl>
+
+  <h3>Output sink options</h3>
+  <dl class="flags">
+    <dt><code>--sink &lt;URI&gt;</code></dt>
+    <dd>
+      <p>Output sink URI. The default filesystem sink is used when this flag is omitted (the <code>&lt;OUTPUT&gt;</code> positional argument sets the directory). Two additional sink types are available with optional features:</p>
+      <p><code>s3://bucket/prefix</code> &mdash; write tiles to an S3-compatible object store. Requires <code>--features s3</code> at compile time and standard AWS credentials in the environment.</p>
+      <p><code>packfile://out.tar</code>, <code>packfile://out.tar.gz</code>, <code>packfile://out.zip</code> &mdash; archive the pyramid into a single file. Requires <code>--features packfile</code>.</p>
+    </dd>
+  </dl>
+
+  <h3>Resumable job options</h3>
+  <dl class="flags">
+    <dt><code>--resume</code></dt>
+    <dd>
+      <p>Resume an interrupted run. Reads the checkpoint file (<code>.libviprs-job.json</code>) at the output root and skips tiles that were already written. The run completes from the last safe checkpoint. Cannot be combined with <code>--overwrite</code> or <code>--verify</code>.</p>
+    </dd>
+
+    <dt><code>--overwrite</code></dt>
+    <dd>
+      <p>Start fresh even if a previous run's output or checkpoint exists. All existing tiles and the checkpoint file are removed before the job begins. <span class="default-val">Default behaviour when none of <code>--resume</code> / <code>--overwrite</code> / <code>--verify</code> is given</span></p>
+    </dd>
+
+    <dt><code>--verify</code></dt>
+    <dd>
+      <p>Re-read every tile produced by a previous run and verify its checksum against the checkpoint. Exits with a non-zero status if any tile is missing or corrupt. Does not write new tiles. Requires checksums to have been emitted during the original run (<code>--manifest-emit-checksums</code>).</p>
+    </dd>
+  </dl>
+
+  <h3>Retry and failure policy options</h3>
+  <dl class="flags">
+    <dt><code>--retry-max &lt;N&gt;</code></dt>
+    <dd>
+      <p>Maximum number of attempts for a single tile write before the failure policy is applied. <span class="default-val">Default: 0 (no retry)</span></p>
+    </dd>
+
+    <dt><code>--retry-backoff &lt;MS&gt;</code></dt>
+    <dd>
+      <p>Initial back-off delay in milliseconds between retry attempts. Each subsequent attempt doubles the delay (exponential back-off). <span class="default-val">Default: 100</span></p>
+    </dd>
+
+    <dt><code>--failure-policy &lt;POLICY&gt;</code></dt>
+    <dd>
+      <p>What to do when a tile write exhausts its retries. <span class="default-val">Default: fail-fast</span></p>
+      <p>Values: <code>fail-fast</code> (abort immediately), <code>retry-then-fail</code> (retry up to <code>--retry-max</code> times then abort), <code>retry-then-skip</code> (retry then record the tile as missing in the manifest and continue).</p>
+    </dd>
+  </dl>
+
+  <h3>Checksum options</h3>
+  <dl class="flags">
+    <dt><code>--manifest-emit-checksums</code></dt>
+    <dd>
+      <p>Compute a digest for each tile and embed it in the manifest JSON. Does not verify existing tiles; use <code>--verify</code> for that. Requires <code>--features checksum</code>.</p>
+    </dd>
+
+    <dt><code>--checksum-algo &lt;ALGO&gt;</code></dt>
+    <dd>
+      <p>Hash algorithm for tile digests. Only used with <code>--manifest-emit-checksums</code> or <code>--verify</code>. <span class="default-val">Default: blake3</span></p>
+      <p>Values: <code>blake3</code> (faster, 256-bit), <code>sha256</code> (wider tooling support).</p>
+    </dd>
+  </dl>
+
+  <h3>Deduplication options</h3>
+  <dl class="flags">
+    <dt><code>--dedupe-blanks</code></dt>
+    <dd>
+      <p>Store only one copy of the blank placeholder tile and point all other blank positions at it via a symlink or hardlink. Significantly reduces inode count on images with large uniform margins. Requires <code>--features dedupe</code>.</p>
+    </dd>
+
+    <dt><code>--dedupe-all</code></dt>
+    <dd>
+      <p>Extend deduplication to every tile, not just blanks. The engine hashes each encoded tile; duplicate content is stored once and the rest are links or manifest references. Implies <code>--manifest-emit-checksums</code>. Requires <code>--features dedupe</code>. Slower than <code>--dedupe-blanks</code> due to per-tile hashing.</p>
+    </dd>
+  </dl>
+
+  <h3>Tracing options</h3>
+  <dl class="flags">
+    <dt><code>--trace-level &lt;LEVEL&gt;</code></dt>
+    <dd>
+      <p>Emit structured tracing spans at the given verbosity level. Spans are named <code>libviprs::pipeline</code>, <code>libviprs::level</code>, and <code>libviprs::tile</code>. Attach any <code>tracing</code>-compatible subscriber (e.g. <code>tracing-opentelemetry</code>) to export spans to Jaeger, Tempo, or another collector. Requires <code>--features tracing</code> at compile time. <span class="default-val">Default: off</span></p>
+      <p>Values: <code>error</code>, <code>warn</code>, <code>info</code>, <code>debug</code>, <code>trace</code>.</p>
+    </dd>
+  </dl>
+
+  <h3>Geo-reference options</h3>
+  <dl class="flags">
+    <dt><code>--geo-origin &lt;LON,LAT&gt;</code></dt>
+    <dd>
+      <p>Geographic coordinate of the top-left pixel as <code>"longitude,latitude"</code>.</p>
+    </dd>
+
+    <dt><code>--geo-scale &lt;SX,SY&gt;</code></dt>
+    <dd>
+      <p>Degrees per pixel as <code>"scale_x,scale_y"</code>. Typically positive X (east) and negative Y (south). Together with <code>--geo-origin</code>, defines an affine transform that lets tile viewers overlay the pyramid on a world map.</p>
+    </dd>
+  </dl>
+
+  <div class="code-generator" id="cli-generator">
+    <h3>Generated CLI &amp; Rust code</h3>
+    <p class="summary">No flags selected. Check boxes above to assemble a CLI command and a complete Rust program.</p>
+
+    <h4>CLI command</h4>
+    <div class="code-wrap gen-cli">
+      <pre><code></code></pre>
+    </div>
+
+    <h4>Equivalent Rust program</h4>
+    <div class="code-wrap gen-rust">
+      <pre><code class="language-rust"></code></pre>
+    </div>
+
+    <div class="gen-actions">
+      <button type="button" class="gen-copy-btn" data-target="gen-cli">&#x2398; Copy CLI</button>
+      <button type="button" class="gen-copy-btn" data-target="gen-rust">&#x2398; Copy Rust</button>
+      <button type="button" class="reset-btn secondary">Reset all flags</button>
+    </div>
+
+    <p class="test-ref" style="font-size:0.8rem; color:var(--text-light); margin-top:1rem;">
+      Each flag links to a representative integration test in
+      <a href="https://github.com/libviprs/libviprs-tests/tree/main/tests" target="_blank" rel="noopener" style="color:var(--primary);">libviprs-tests</a>
+      that exercises the underlying Rust API. Edit the input/output paths in the generated program before running.
+    </p>
+  </div>
+
+  <!-- ---- info ---- -->
+  <h2 id="info">info</h2>
+  <p>Show metadata about a PDF or image file without generating tiles. For PDFs, displays page count, dimensions, and embedded image details. For images, displays pixel dimensions and format.</p>
+
+  <div class="cmd-base-setup">
+    <button type="button" class="cmd-base-setup-toggle" aria-expanded="false">Show Rust equivalent</button>
+    <div class="cmd-base-setup-body">
+      <div class="code-wrap">
+        <button class="copy-btn">&#x2398; Copy</button>
+        <pre><code class="language-rust">use libviprs::{pdf_info, decode_file};
+use std::path::Path;
+
+fn main() -> Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let path = Path::new("/path/to/your/input.pdf");
+
+    if path.extension().and_then(|e| e.to_str()) == Some("pdf") {
+        let info = pdf_info(path)?;
+        println!("PDF: {} pages", info.page_count);
+        for page in &amp;info.pages {
+            println!(
+                "  Page {}: {:.1} x {:.1} pts",
+                page.page_number, page.width_pts, page.height_pts,
+            );
+        }
+    } else {
+        let raster = decode_file(path)?;
+        println!(
+            "{}x{} {:?}",
+            raster.width(), raster.height(), raster.format(),
+        );
+    }
+    Ok(())
+}</code></pre>
+      </div>
+      <p class="test-ref">Reference tests:
+        <a href="https://github.com/libviprs/libviprs-tests/blob/main/tests/pdf_ops.rs#L8" target="_blank" rel="noopener">pdf_ops.rs &middot; <code>pdf_info_reads_page_count</code></a>
+        &middot;
+        <a href="https://github.com/libviprs/libviprs/blob/main/src/source.rs#L234" target="_blank" rel="noopener">libviprs/src/source.rs &middot; <code>generate_test_raster_dimensions</code></a> (decode flow).
+      </p>
+    </div>
+  </div>
+
+  <dl class="flags">
+    <dt><code>&lt;INPUT&gt;</code></dt>
+    <dd>
+      <p>Path to the PDF or image file to inspect. Useful before running <code>pyramid</code> to understand source dimensions, plan memory usage, and decide on DPI settings.</p>
+    </dd>
+  </dl>
+
+  <!-- ---- plan ---- -->
+  <h2 id="plan">plan</h2>
+  <p>Show the tile pyramid plan without generating any tiles. Displays the number of levels, total tiles, and per-level grid dimensions. Useful for capacity planning and understanding how tile parameters affect output.</p>
+
+  <div class="cmd-base-setup">
+    <button type="button" class="cmd-base-setup-toggle" aria-expanded="false">Show Rust equivalent</button>
+    <div class="cmd-base-setup-body">
+      <div class="code-wrap">
+        <button class="copy-btn">&#x2398; Copy</button>
+        <pre><code class="language-rust">use libviprs::{Layout, PyramidPlanner};
+
+fn main() -> Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Plan from explicit dimensions — no source file needed.
+    let planner = PyramidPlanner::new(
+        16820, 11888,        // width, height
+        256,                 // --tile-size
+        0,                   // --overlap
+        Layout::Google,      // --layout
+    )?
+    .with_centre(true);      // --centre
+
+    let plan = planner.plan();
+    let (canvas_w, canvas_h) = planner.canvas_dimensions();
+
+    println!("Canvas: {}x{}", canvas_w, canvas_h);
+    println!("Levels: {}, total tiles: {}",
+        plan.level_count(),
+        plan.total_tile_count(),
+    );
+    println!("Estimated peak memory: {:.1} MB",
+        planner.estimate_peak_memory() as f64 / (1024.0 * 1024.0));
+    Ok(())
+}</code></pre>
+      </div>
+      <p class="test-ref">Reference tests:
+        <a href="https://github.com/libviprs/libviprs/blob/main/src/planner.rs#L909" target="_blank" rel="noopener">libviprs/src/planner.rs &middot; <code>total_tile_count_sums_all_levels</code></a>
+        &middot;
+        <a href="https://github.com/libviprs/libviprs-tests/blob/main/tests/streaming_engine.rs#L435" target="_blank" rel="noopener">streaming_engine.rs &middot; <code>estimate_streaming_memory_reasonable</code></a> (peak-memory estimation).
+      </p>
+    </div>
+  </div>
+
+  <dl class="flags">
+    <dt><code>&lt;WIDTH_OR_INPUT&gt;</code></dt>
+    <dd>
+      <p>Either a pixel width (when paired with <code>--height</code>) or a path to an image/PDF file to read dimensions from.</p>
+    </dd>
+
+    <dt><code>--height &lt;PIXELS&gt;</code></dt>
+    <dd><p>Image height in pixels. Required when the first argument is a number.</p></dd>
+
+    <dt><code>--tile-size</code>, <code>--overlap</code>, <code>--layout</code>, <code>--centre</code></dt>
+    <dd><p>Same as in <code>pyramid</code>. Control how the plan is computed.</p></dd>
+
+    <dt><code>--dpi</code>, <code>--page</code></dt>
+    <dd><p>Used when the input is a PDF to resolve page dimensions to pixels.</p></dd>
+  </dl>
+
+  <!-- ---- test-image ---- -->
+  <h2 id="test-image">test-image</h2>
+  <p>Generate a synthetic RGB8 gradient test image. Useful for benchmarking, testing, and verifying the tile pipeline without needing real image data.</p>
+
+  <div class="cmd-base-setup">
+    <button type="button" class="cmd-base-setup-toggle" aria-expanded="false">Show Rust equivalent</button>
+    <div class="cmd-base-setup-body">
+      <div class="code-wrap">
+        <button class="copy-btn">&#x2398; Copy</button>
+        <pre><code class="language-rust">use libviprs::{generate_test_raster, sink::encode_png};
+use std::fs;
+
+fn main() -> Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let raster = generate_test_raster(1024, 1024)?;
+    let bytes  = encode_png(&amp;raster)?;
+    fs::write("/path/to/output.png", bytes)?;
+    Ok(())
+}</code></pre>
+      </div>
+      <p class="test-ref">Reference tests:
+        <a href="https://github.com/libviprs/libviprs/blob/main/src/source.rs#L234" target="_blank" rel="noopener">libviprs/src/source.rs &middot; <code>generate_test_raster_dimensions</code></a>
+        &middot;
+        <a href="https://github.com/libviprs/libviprs/blob/main/src/sink.rs#L1784" target="_blank" rel="noopener">libviprs/src/sink.rs &middot; <code>encode_png_gray8</code></a>.
+      </p>
+    </div>
+  </div>
+
+  <dl class="flags">
+    <dt><code>&lt;OUTPUT&gt;</code></dt>
+    <dd><p>Output file path (PNG).</p></dd>
+
+    <dt><code>--width &lt;PIXELS&gt;</code></dt>
+    <dd><p>Image width. <span class="default-val">Default: 1024</span></p></dd>
+
+    <dt><code>--height &lt;PIXELS&gt;</code></dt>
+    <dd><p>Image height. <span class="default-val">Default: 1024</span></p></dd>
+  </dl>
+</section>
+
+<!-- ================================================================== -->
+<!-- EXAMPLES                                                            -->
+<!-- ================================================================== -->
+
+<section>
+  <p class="man-section">Examples</p>
+
+  <h3>Basic pyramid generation</h3>
+
+  <h4>DeepZoom from an image (default settings)</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> photo.jpg tiles/</code></pre>
+  </div>
+  <p>Produces a DeepZoom pyramid at <code>tiles/</code> with a companion <code>tiles.dzi</code> manifest. Tiles are 256&times;256 PNG with no overlap. The monolithic engine holds the entire image in memory.</p>
+
+  <h4>XYZ layout with JPEG tiles</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> aerial.tiff map_tiles/ <span class="sh-flag">\
+    --layout</span> <span class="sh-value">xyz</span> <span class="sh-flag">--format</span> <span class="sh-value">jpeg</span> <span class="sh-flag">--quality</span> <span class="sh-value">90</span></code></pre>
+  </div>
+  <p>Outputs <code>{z}/{x}/{y}.jpeg</code> tiles for Leaflet or Mapbox. JPEG reduces tile size ~5&times; vs PNG for photographic content.</p>
+
+  <h4>Google Maps layout with centring</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> blueprint.png google_tiles/ <span class="sh-flag">\
+    --layout</span> <span class="sh-value">google</span> <span class="sh-flag">--centre</span></code></pre>
+  </div>
+  <p>Google layout uses power-of-2 tile grids. <code>--centre</code> places the image in the middle of the canvas with even padding.</p>
+
+  <h4>DeepZoom with overlap for OpenSeadragon</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> scan.png viewer_tiles/ <span class="sh-flag">\
+    --tile-size</span> <span class="sh-value">512</span> <span class="sh-flag">--overlap</span> <span class="sh-value">1</span></code></pre>
+  </div>
+  <p>512px tiles with 1px overlap. OpenSeadragon uses the overlap to blend adjacent tiles for seamless rendering at high zoom.</p>
+
+  <h3>PDF inputs</h3>
+
+  <h4>Scanned blueprint (raster extraction)</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> blueprint.pdf tiles/ <span class="sh-flag">--page</span> <span class="sh-value">2</span></code></pre>
+  </div>
+  <p>Extracts the embedded raster image from page 2 of the PDF. Fast and lossless &mdash; no rendering needed for scanned documents.</p>
+
+  <h4>Vector PDF rendering with PDFium</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> floorplan.pdf tiles/ <span class="sh-flag">\
+    --render</span> <span class="sh-flag">--dpi</span> <span class="sh-value">300</span></code></pre>
+  </div>
+  <p>Renders the vector PDF at 300 DPI using PDFium. Required for AutoCAD exports, text-heavy documents, and PDFs with paths/shapes instead of embedded images.</p>
+
+  <h4>Match page dimensions after extraction</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> scan.pdf tiles/ <span class="sh-flag">\
+    --match-page-size</span> <span class="sh-flag">--dpi</span> <span class="sh-value">150</span></code></pre>
+  </div>
+  <p>Extracts the embedded raster, then resizes it to match the PDF page dimensions at 150 DPI. Produces output consistent with libvips' default PDF handling.</p>
+
+  <h3>Blank tile optimization</h3>
+
+  <h4>Skip blank tiles on sparse images</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> whiteboard.png tiles/ <span class="sh-flag">--skip-blank</span>
+
+<span class="sh-output">Done: 341 tiles, 11 levels, peak memory 12.5 MB, 2.31s (287 blank tiles skipped)</span></code></pre>
+  </div>
+  <p>Replaces 287 uniform-color tiles with 1-byte placeholders. Total output drops from ~45 MB to ~8 MB on a typical whiteboard scan.</p>
+
+  <h3>Multi-threaded execution</h3>
+
+  <h4>Parallel tile extraction (monolithic engine)</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> large.png tiles/ <span class="sh-flag">\
+    --concurrency</span> <span class="sh-value">8</span> <span class="sh-flag">--buffer-size</span> <span class="sh-value">128</span></code></pre>
+  </div>
+  <p>8 worker threads extract tiles in parallel from the full-resolution canvas. Buffer of 128 tiles smooths out disk I/O variance. Best when the image fits comfortably in RAM.</p>
+
+  <h3>Memory-constrained processing</h3>
+
+  <h4>Streaming engine with explicit budget</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> huge_scan.png tiles/ <span class="sh-flag">\
+    --memory-budget</span> <span class="sh-value">128</span>
+
+<span class="sh-output">Streaming: budget 128.0 MB, strip_height=2048, estimated peak 98.4 MB</span>
+<span class="sh-output">Done: 4521 tiles, 15 levels, peak memory 97.2 MB, 14.8s</span></code></pre>
+  </div>
+  <p>Processes the image in 2048px-tall horizontal strips, keeping peak memory under 128 MB. The monolithic engine would need ~2 GB for this image.</p>
+
+  <h4>Auto-select streaming budget</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> huge_scan.png tiles/ <span class="sh-flag">--memory-budget</span> <span class="sh-value">0</span></code></pre>
+  </div>
+  <p>Budget is set to 1/4 of the estimated monolithic peak. The engine auto-selects: monolithic if the image is small, streaming otherwise. Best default for unknown image sizes.</p>
+
+  <h4>Hard memory limit (safety net)</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> huge.pdf tiles/ <span class="sh-flag">\
+    --memory-limit</span> <span class="sh-value">512</span> <span class="sh-flag">--memory-budget</span> <span class="sh-value">128</span> <span class="sh-flag">--render</span> <span class="sh-flag">--dpi</span> <span class="sh-value">300</span></code></pre>
+  </div>
+  <p>Exits with an error if the estimated monolithic peak exceeds 512 MB, then uses streaming with a 128 MB budget. Double protection for containers with hard memory limits.</p>
+
+  <h3>Parallel MapReduce engine</h3>
+
+  <h4>MapReduce with concurrent strip rendering</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> huge_scan.png tiles/ <span class="sh-flag">\
+    --memory-budget</span> <span class="sh-value">256</span> <span class="sh-flag">--parallel</span>
+
+<span class="sh-output">MapReduce: budget 256.0 MB, strip_height=2048, 4 in-flight strips, estimated peak 198.7 MB</span>
+<span class="sh-output">Done: 4521 tiles, 15 levels, peak memory 195.3 MB, 9.2s</span></code></pre>
+  </div>
+  <p>Renders 4 strips concurrently within the 256 MB budget. ~35% faster than sequential streaming on a 4-core machine. Output is byte-identical.</p>
+
+  <h4>MapReduce with per-strip tile workers</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> huge_scan.png tiles/ <span class="sh-flag">\
+    --memory-budget</span> <span class="sh-value">256</span> <span class="sh-flag">--parallel</span> <span class="sh-flag">--concurrency</span> <span class="sh-value">4</span></code></pre>
+  </div>
+  <p>Each strip also uses 4 tile-extraction workers for an additional level of parallelism. Best on systems with 8+ cores and fast storage.</p>
+
+  <h4>MapReduce with auto budget and blank skipping</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> blueprint.pdf tiles/ <span class="sh-flag">\
+    --memory-budget</span> <span class="sh-value">0</span> <span class="sh-flag">--parallel</span> <span class="sh-flag">--skip-blank</span> <span class="sh-flag">\
+    --layout</span> <span class="sh-value">google</span> <span class="sh-flag">--centre</span></code></pre>
+  </div>
+  <p>Full-featured pipeline: auto budget, parallel processing, blank tile optimization, Google layout with centring. The engine chooses the optimal strip height and in-flight count.</p>
+
+  <h3>Geo-referenced tiles</h3>
+
+  <h4>Geo-referenced DeepZoom pyramid</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> site_plan.png tiles/ <span class="sh-flag">\
+    --geo-origin</span> <span class="sh-value">"-73.9857,40.7484"</span> <span class="sh-flag">--geo-scale</span> <span class="sh-value">"0.00001,-0.00001"</span></code></pre>
+  </div>
+  <p>Maps the top-left pixel to (73.9857&deg;W, 40.7484&deg;N) with ~1.1m per pixel. Enables map viewers to overlay the pyramid on a world map.</p>
+
+  <h3>Inspection and planning</h3>
+
+  <h4>Inspect a PDF file</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs info</span> blueprint.pdf
+
+<span class="sh-output">PDF: blueprint.pdf</span>
+<span class="sh-output">Pages: 3</span>
+<span class="sh-output">  Page 1: 841.89 x 595.28 pt (A4 landscape)</span>
+<span class="sh-output">    Image: 3508 x 2480 px (JPEG, 1234567 bytes)</span>
+<span class="sh-output">  Page 2: 841.89 x 595.28 pt</span>
+<span class="sh-output">    Image: 3508 x 2480 px (JPEG, 987654 bytes)</span>
+<span class="sh-output">  Page 3: 841.89 x 595.28 pt</span>
+<span class="sh-output">    (no embedded raster — use --render)</span></code></pre>
+  </div>
+  <p>Shows page dimensions, embedded raster details, and whether PDFium rendering is needed.</p>
+
+  <h4>Preview the pyramid plan</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs plan</span> blueprint.pdf <span class="sh-flag">--tile-size</span> <span class="sh-value">256</span> <span class="sh-flag">--layout</span> <span class="sh-value">google</span> <span class="sh-flag">--centre</span></code></pre>
+  </div>
+  <p>Shows levels, tile counts, and canvas dimensions without generating any tiles. Use this to estimate output size and pick the right tile parameters.</p>
+
+  <h4>Plan from explicit dimensions</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs plan</span> 16820 <span class="sh-flag">--height</span> <span class="sh-value">11888</span> <span class="sh-flag">--layout</span> <span class="sh-value">google</span> <span class="sh-flag">--centre</span></code></pre>
+  </div>
+  <p>Plan using raw pixel dimensions instead of reading from a file.</p>
+
+  <h3>Test images</h3>
+
+  <h4>Generate a test image for benchmarking</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs test-image</span> gradient.png <span class="sh-flag">--width</span> <span class="sh-value">4096</span> <span class="sh-flag">--height</span> <span class="sh-value">4096</span></code></pre>
+  </div>
+  <p>Creates a 4096&times;4096 RGB8 gradient image. Useful for benchmarking the tile engine without needing real production images.</p>
+
+  <h4>Full pipeline test (generate + tile)</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs test-image</span> /tmp/test.png <span class="sh-flag">--width</span> <span class="sh-value">2048</span> <span class="sh-flag">--height</span> <span class="sh-value">2048</span>
+<span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> /tmp/test.png /tmp/tiles/ <span class="sh-flag">\
+    --memory-budget</span> <span class="sh-value">8</span> <span class="sh-flag">--parallel</span> <span class="sh-flag">--concurrency</span> <span class="sh-value">4</span> <span class="sh-flag">--skip-blank</span></code></pre>
+  </div>
+  <p>End-to-end smoke test: create a synthetic image, then tile it with every engine feature enabled.</p>
+
+  <h3>Stdin input</h3>
+
+  <h4>Pipe an image from another command</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> curl -s https://example.com/scan.png | <span class="sh-cmd">viprs pyramid</span> - tiles/</code></pre>
+  </div>
+  <p>Use <code>-</code> as the input to read from stdin. Works with any command that outputs image data.</p>
+
+  <h3>Object-storage sink</h3>
+
+  <h4>Write pyramid directly to S3</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> blueprint.pdf <span class="sh-flag">--sink</span> <span class="sh-value">s3://my-bucket/blueprints/site-a/</span> <span class="sh-flag">\
+    --format</span> <span class="sh-value">png</span> <span class="sh-flag">--manifest-emit-checksums</span></code></pre>
+  </div>
+  <p>Tiles are streamed to S3 without a local temp directory. Credentials are read from the standard AWS credential chain (<code>AWS_ACCESS_KEY_ID</code>, instance role, etc.). Requires compile-time <code>--features s3</code>.</p>
+
+  <h3>Packfile archive</h3>
+
+  <h4>Archive a pyramid into a single .tar.gz</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> scan.tiff <span class="sh-flag">--sink</span> <span class="sh-value">packfile://scan_tiles.tar.gz</span> <span class="sh-flag">\
+    --layout</span> <span class="sh-value">deep-zoom</span> <span class="sh-flag">--format</span> <span class="sh-value">png</span></code></pre>
+  </div>
+  <p>Outputs a single <code>scan_tiles.tar.gz</code> containing the full tile tree and the <code>.dzi</code> manifest. Requires compile-time <code>--features packfile</code>.</p>
+
+  <h3>Resumable job</h3>
+
+  <h4>Resume an interrupted run</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-comment"># First run (interrupted)</span>
+<span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> huge.pdf tiles/ <span class="sh-flag">--manifest-emit-checksums</span>
+<span class="sh-output">^C  # killed after 3200/4521 tiles</span>
+
+<span class="sh-comment"># Resume from checkpoint</span>
+<span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> huge.pdf tiles/ <span class="sh-flag">--resume --manifest-emit-checksums</span>
+<span class="sh-output">Resuming: 3200 tiles already written, 1321 remaining</span>
+<span class="sh-output">Done: 4521 tiles, 15 levels, 1321 new tiles written, 6.3s</span></code></pre>
+  </div>
+  <p>The checkpoint file <code>tiles/.libviprs-job.json</code> records each completed tile. On resume, only missing tiles are re-rendered.</p>
+
+  <h4>Verify a completed run</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> huge.pdf tiles/ <span class="sh-flag">--verify</span>
+<span class="sh-output">Verified 4521 tiles. All checksums match.</span></code></pre>
+  </div>
+  <p>Reads every tile and confirms it matches the stored digest. Non-zero exit if any tile is missing or corrupt.</p>
+
+  <h3>Retry and failure policy</h3>
+
+  <h4>Retry transient errors, skip permanently failing tiles</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> blueprint.pdf <span class="sh-flag">--sink</span> <span class="sh-value">s3://my-bucket/out/</span> <span class="sh-flag">\
+    --retry-max</span> <span class="sh-value">5</span> <span class="sh-flag">--retry-backoff</span> <span class="sh-value">500</span> <span class="sh-flag">\
+    --failure-policy</span> <span class="sh-value">retry-then-skip</span></code></pre>
+  </div>
+  <p>Each failing tile is retried up to 5 times with 500 ms initial back-off. If still failing, the tile is recorded as missing in the manifest and the job continues. Useful for long-running S3 uploads over unreliable links.</p>
+
+  <h3>Blank-tile tolerance</h3>
+
+  <h4>Collapse near-white tiles on a noisy scan</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> noisy_scan.pdf tiles/ <span class="sh-flag">--skip-blank --blank-tolerance</span> <span class="sh-value">2</span>
+
+<span class="sh-output">Done: 341 tiles, 11 levels, peak memory 12.1 MB, 2.18s (312 blank tiles skipped)</span></code></pre>
+  </div>
+  <p>Tiles where every pixel channel is within ±2 of the background value are treated as blank. Without <code>--blank-tolerance</code>, scanner noise would prevent most margin tiles from matching the exact background colour.</p>
+
+  <h3>Checksums and deduplication</h3>
+
+  <h4>Emit Blake3 checksums and deduplicate blank tiles</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> blueprint.pdf tiles/ <span class="sh-flag">\
+    --manifest-emit-checksums</span> <span class="sh-flag">--checksum-algo</span> <span class="sh-value">blake3</span> <span class="sh-flag">\
+    --dedupe-blanks</span></code></pre>
+  </div>
+  <p>The manifest records a Blake3 digest for each tile. A single copy of the blank placeholder is stored; all other blank tile paths are symlinks to it.</p>
+
+  <h4>Full deduplication with content hashing</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> blueprint.pdf tiles/ <span class="sh-flag">--dedupe-all</span></code></pre>
+  </div>
+  <p>Every tile is hashed after encoding. Duplicate content (common in tiled vector drawings) is stored once. Inode count can drop by 40&ndash;60% on typical blueprint pyramids.</p>
+
+  <h3>Tracing</h3>
+
+  <h4>Emit info-level spans</h4>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> blueprint.pdf tiles/ <span class="sh-flag">--trace-level</span> <span class="sh-value">info</span></code></pre>
+  </div>
+  <p>Emits <code>libviprs::pipeline</code>, <code>libviprs::level</code>, and <code>libviprs::tile</code> spans. Wire up a <code>tracing-opentelemetry</code> subscriber before calling <code>viprs</code> from a Rust driver, or export via the <code>OTEL_EXPORTER_OTLP_ENDPOINT</code> environment variable. Requires compile-time <code>--features tracing</code>.</p>
+</section>
+
+<!-- ================================================================== -->
+<!-- ENGINE COMPARISON                                                   -->
+<!-- ================================================================== -->
+
+<section>
+  <p class="man-section">Engine Comparison</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Scenario</th>
+        <th>Flags</th>
+        <th>Engine</th>
+        <th>Best for</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Small image, fast disk</td>
+        <td><em>(none)</em></td>
+        <td>Monolithic</td>
+        <td>Images that fit in RAM</td>
+      </tr>
+      <tr>
+        <td>Small image, multi-core</td>
+        <td><code>--concurrency 8</code></td>
+        <td>Monolithic (parallel tiles)</td>
+        <td>Throughput on multi-core</td>
+      </tr>
+      <tr>
+        <td>Large image, limited RAM</td>
+        <td><code>--memory-budget 128</code></td>
+        <td>Streaming</td>
+        <td>Memory-constrained containers</td>
+      </tr>
+      <tr>
+        <td>Large image, multi-core</td>
+        <td><code>--memory-budget 256 --parallel</code></td>
+        <td>MapReduce</td>
+        <td>Fast + memory-bounded</td>
+      </tr>
+      <tr>
+        <td>Large image, max throughput</td>
+        <td><code>--memory-budget 256 --parallel --concurrency 8</code></td>
+        <td>MapReduce (full parallel)</td>
+        <td>Dedicated build servers</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>All engines produce byte-identical output. Choose based on available memory and CPU cores.</p>
+</section>
+
+<!-- ================================================================== -->
+<!-- CARGO FEATURES                                                      -->
+<!-- ================================================================== -->
+
+<section>
+  <p class="man-section">Cargo Features</p>
+  <p>Optional capabilities are gated behind Cargo features. Pass them at build time:</p>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code><span class="sh-prompt">$</span> cargo install --path . <span class="sh-flag">--features</span> <span class="sh-value">s3,tracing,checksum,dedupe</span></code></pre>
+  </div>
+  <table>
+    <thead><tr><th>Feature</th><th>Default</th><th>Enables</th></tr></thead>
+    <tbody>
+      <tr><td><code>pdfium</code></td><td>no</td><td><code>--render</code> flag (dynamic libpdfium)</td></tr>
+      <tr><td><code>pdfium-static</code></td><td>no</td><td><code>--render</code> flag (static libpdfium, larger binary)</td></tr>
+      <tr><td><code>s3</code></td><td>no</td><td><code>--sink s3://…</code></td></tr>
+      <tr><td><code>tracing</code></td><td>no</td><td><code>--trace-level</code></td></tr>
+      <tr><td><code>packfile</code></td><td>no</td><td><code>--sink packfile://…</code></td></tr>
+      <tr><td><code>checksum</code></td><td>no</td><td><code>--manifest-emit-checksums</code>, <code>--checksum-algo</code>, <code>--verify</code></td></tr>
+      <tr><td><code>dedupe</code></td><td>no</td><td><code>--dedupe-blanks</code>, <code>--dedupe-all</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ================================================================== -->
+<!-- EXIT STATUS                                                         -->
+<!-- ================================================================== -->
+
+<section>
+  <p class="man-section">Exit Status</p>
+  <table>
+    <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>0</code></td><td>Success</td></tr>
+      <tr><td><code>1</code></td><td>Error (invalid args, file not found, memory limit exceeded, engine failure)</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ================================================================== -->
+<!-- SEE ALSO                                                            -->
+<!-- ================================================================== -->
+
+<section>
+  <p class="man-section">See Also</p>
+  <p>
+    <a href="../index.html" style="color:var(--primary);">libviprs home</a> &mdash;
+    <a href="https://docs.rs/libviprs" style="color:var(--primary);">API documentation</a> &mdash;
+    <a href="https://github.com/libviprs/libviprs" style="color:var(--primary);">GitHub repository</a> &mdash;
+    <a href="https://www.libvips.org/" style="color:var(--primary);">libvips</a> (the project that inspired libviprs)
+  </p>
+</section>
+
+</main>
+
+<footer>
+  <p>libviprs is MIT licensed. <a href="https://github.com/libviprs/libviprs">View on GitHub</a></p>
+</footer>
+
+<script src="js/cli.js" defer></script>
+</body>
+</html>

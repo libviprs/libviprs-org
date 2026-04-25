@@ -518,7 +518,7 @@
     <div class="hero-actions">
       <a href="https://github.com/libviprs/libviprs" class="btn-primary">GitHub</a>
       <a href="https://docs.rs/libviprs" class="btn-outline">Documentation</a>
-      <a href="cli.html" class="btn-outline">CLI Documentation</a>
+      <a href="cli/" class="btn-outline">CLI Documentation</a>
       <a href="benchmarks.html" class="btn-outline">Benchmarks</a>
       <a href="https://github.com/libviprs/libviprs-dep/releases" class="btn-outline">Downloads</a>
       <a href="https://github.com/libviprs/libviprs-dep/blob/main/MANUAL.md" class="btn-outline">Build Tools Manual</a>
@@ -530,7 +530,7 @@
 <main>
 
   <section>
-    <p>Takes blueprint PDFs and images, extracts raster data, optionally geo-references it, and generates tile pyramids (DeepZoom, XYZ, Google Maps) suitable for web-based viewers. Inspired by <a href="https://www.libvips.org/" style="color:var(--primary);">libvips</a>, built from scratch.</p>
+    <p>Takes blueprint PDFs and images, extracts raster data, optionally geo-references it, and generates <a href="cli/#pyramid" style="color:var(--primary);">tile pyramids</a> (DeepZoom, XYZ, Google Maps) suitable for web-based viewers. Inspired by <a href="https://www.libvips.org/" style="color:var(--primary);">libvips</a>, built from scratch.</p>
   </section>
 
   <a href="benchmarks.html" class="clipping">
@@ -543,27 +543,27 @@
     <h2>Features</h2>
     <ul>
       <li><strong>PDF extraction</strong> — extract embedded raster images from scanned blueprint PDFs via lopdf (pure Rust, no C dependencies)</li>
-      <li><strong>PDF rendering</strong> — render vector PDFs (AutoCAD exports, text, paths) via PDFium, with optional memory-budgeted rendering</li>
+      <li><strong>PDF rendering</strong> — render vector PDFs (AutoCAD exports, text, paths) via PDFium, with optional <a href="cli/#flag-memory-budget" style="color:var(--primary);">memory-budgeted rendering</a></li>
       <li><strong>Image decoding</strong> — JPEG, PNG, TIFF via the <code>image</code> crate</li>
-      <li><strong>Tile pyramid generation</strong> — multi-threaded engine with backpressure, configurable tile size and overlap; optional <strong>streaming mode</strong> processes images in horizontal strips for bounded peak memory</li>
+      <li><strong>Tile pyramid generation</strong> — multi-threaded engine with backpressure, configurable <a href="cli/#flag-tile-size" style="color:var(--primary);">tile size</a> and <a href="cli/#flag-overlap" style="color:var(--primary);">overlap</a>; optional <strong>streaming mode</strong> processes images in horizontal strips for bounded peak memory</li>
       <li><strong>True source-side PDF streaming</strong> — <code>PdfiumStripSource</code> renders one strip of a vector PDF at a time via PDFium's clipped matrix path, including correct <code>/Rotate</code> handling, so multi-gigapixel pages stay inside the configured memory budget</li>
-      <li><strong>Memory-budget policy</strong> — <code>StreamingConfig.budget_policy</code> selects <code>BudgetPolicy::Error</code> (fail loudly when a strip cannot fit) or <code>BudgetPolicy::AutoAdjust</code> (raise the budget to the smallest workable strip); the engine also pre-flights the budget against canvas geometry before any work starts and returns a typed <code>BudgetExceeded</code> error</li>
-      <li><strong>Layout formats</strong> — DeepZoom (<code>.dzi</code> + directory tree), XYZ (<code>z/x/y</code>), and Google Maps (<code>z/y/x</code>, power-of-2 grids)</li>
-      <li><strong>Centre support</strong> — centre image within the tile grid with even background padding on all sides</li>
+      <li><strong>Memory-budget policy</strong> — <code>StreamingConfig.budget_policy</code> selects <code>BudgetPolicy::Error</code> (fail loudly when a strip cannot fit) or <code>BudgetPolicy::AutoAdjust</code> (raise the budget to the smallest workable strip); the engine also pre-flights <a href="cli/#flag-memory-budget" style="color:var(--primary);">the budget</a> against canvas geometry before any work starts and returns a typed <code>BudgetExceeded</code> error</li>
+      <li><strong>Layout formats</strong> — <a href="cli/#flag-layout" style="color:var(--primary);">DeepZoom</a> (<code>.dzi</code> + directory tree), XYZ (<code>z/x/y</code>), and Google Maps (<code>z/y/x</code>, power-of-2 grids)</li>
+      <li><strong>Centre support</strong> — <a href="cli/#flag-centre" style="color:var(--primary);">centre image</a> within the tile grid with even background padding on all sides</li>
       <li><strong>Tile encoding</strong> — PNG, JPEG (configurable quality), or raw pixel output</li>
-      <li><strong>Blank tile optimization</strong> — emit full tiles or write 1-byte placeholders for uniform-color regions</li>
+      <li><strong>Blank tile optimization</strong> — emit full tiles or write 1-byte <a href="cli/#flag-skip-blank" style="color:var(--primary);">placeholders</a> for uniform-color regions</li>
       <li><strong>Edge tile background</strong> — configurable background color for padding partial tiles at image edges</li>
-      <li><strong>Geo-referencing</strong> — affine transform mapping pixel coordinates to geographic coordinates, GCP support</li>
+      <li><strong>Geo-referencing</strong> — <a href="cli/#flag-geo-origin" style="color:var(--primary);">affine transform</a> mapping pixel coordinates to geographic coordinates, GCP support</li>
       <li><strong>Observability</strong> — progress events, per-level callbacks, peak memory tracking</li>
-      <li><strong>Object-storage sinks</strong> — write tiles directly to S3-compatible buckets via <code>s3://</code> URIs; enabled with <code>--features s3</code></li>
+      <li><strong>Object-storage sinks</strong> — write tiles directly to <a href="cli/#flag-sink" style="color:var(--primary);">S3-compatible buckets</a> via <code>s3://</code> URIs; enabled with <code>--features s3</code></li>
       <li><strong>Manifest v1 + versioning</strong> — <code>ManifestV1</code> / <code>ManifestBuilder</code> emit a versioned JSON manifest alongside the pyramid; unknown fields are ignored for forward compatibility</li>
-      <li><strong>Blank-tile tolerance</strong> — <code>BlankTileStrategy::PlaceholderWithTolerance</code> collapses near-uniform tiles within a configurable per-channel delta, reducing output for slightly noisy scans</li>
-      <li><strong>Tracing spans</strong> — structured spans (<code>libviprs::pipeline</code>, <code>libviprs::level</code>, <code>libviprs::tile</code>) for OpenTelemetry-compatible collectors; enabled with <code>--features tracing</code></li>
-      <li><strong>Resumable jobs</strong> — <code>EngineBuilder::with_resume(ResumePolicy)</code> writes a checkpoint file and supports <code>Overwrite</code>, <code>Resume</code>, and <code>Verify</code> modes; interrupted runs restart from the last completed tile</li>
-      <li><strong>Retry + failure policies</strong> — per-tile retry with configurable back-off; <code>FailurePolicy::RetryThenSkip</code> marks a tile as missing rather than aborting the entire job</li>
-      <li><strong>Checksums</strong> — tile-level Blake3 or SHA-256 digests written into or verified from the manifest; controlled by <code>ChecksumMode</code> and <code>ChecksumAlgo</code></li>
-      <li><strong>Deduplication</strong> — identical tiles are stored once and referenced via symlink, hardlink, or manifest-only pointer; <code>DedupeStrategy::Blanks</code> targets only placeholder tiles; <code>DedupeStrategy::All</code> dedupes every tile</li>
-      <li><strong>Packfile archive sinks</strong> — write the whole pyramid into a <code>.tar</code>, <code>.tar.gz</code>, or <code>.zip</code> archive; enabled with <code>--features packfile</code></li>
+      <li><strong>Blank-tile tolerance</strong> — <code>BlankTileStrategy::PlaceholderWithTolerance</code> collapses near-uniform tiles within a configurable <a href="cli/#flag-blank-tolerance" style="color:var(--primary);">per-channel delta</a>, reducing output for slightly noisy scans</li>
+      <li><strong>Tracing spans</strong> — structured spans (<code>libviprs::pipeline</code>, <code>libviprs::level</code>, <code>libviprs::tile</code>) for <a href="cli/#flag-trace-level" style="color:var(--primary);">OpenTelemetry-compatible collectors</a>; enabled with <code>--features tracing</code></li>
+      <li><strong>Resumable jobs</strong> — <code>EngineBuilder::with_resume(ResumePolicy)</code> writes a checkpoint file and supports <a href="cli/#flag-overwrite" style="color:var(--primary);"><code>Overwrite</code></a>, <a href="cli/#flag-resume" style="color:var(--primary);"><code>Resume</code></a>, and <a href="cli/#flag-verify" style="color:var(--primary);"><code>Verify</code></a> modes; interrupted runs restart from the last completed tile</li>
+      <li><strong>Retry + failure policies</strong> — <a href="cli/#flag-retry-max" style="color:var(--primary);">per-tile retry</a> with configurable back-off; <code>FailurePolicy::RetryThenSkip</code> marks a tile as missing rather than aborting the entire job</li>
+      <li><strong>Checksums</strong> — tile-level <a href="cli/#flag-checksum-algo" style="color:var(--primary);">Blake3 or SHA-256</a> digests written into or verified from the manifest; controlled by <code>ChecksumMode</code> and <code>ChecksumAlgo</code></li>
+      <li><strong>Deduplication</strong> — identical tiles are stored once and referenced via symlink, hardlink, or manifest-only pointer; <a href="cli/#flag-dedupe-blanks" style="color:var(--primary);"><code>DedupeStrategy::Blanks</code></a> targets only placeholder tiles; <a href="cli/#flag-dedupe-all" style="color:var(--primary);"><code>DedupeStrategy::All</code></a> dedupes every tile</li>
+      <li><strong>Packfile archive sinks</strong> — write the whole pyramid into a <a href="cli/#flag-sink" style="color:var(--primary);"><code>.tar</code>, <code>.tar.gz</code>, or <code>.zip</code> archive</a>; enabled with <code>--features packfile</code></li>
       <li><strong>Extended EngineResult metrics</strong> — <code>bytes_read</code>, <code>bytes_written</code>, <code>retry_count</code>, <code>queue_pressure_peak</code>, <code>duration</code>, <code>stage_durations</code> for observability pipelines</li>
     </ul>
   </section>
@@ -617,7 +617,7 @@
         <tr><td><code>resize</code></td><td>Downscaling for pyramid levels</td></tr>
         <tr><td><code>engine</code></td><td>Multi-threaded tile extraction with backpressure</td></tr>
         <tr><td><code>streaming</code></td><td>Strip-based streaming engine for memory-bounded pyramid generation</td></tr>
-        <tr><td><code>streaming_mapreduce</code></td><td>Parallel MapReduce engine &mdash; concurrent strip rendering within a memory budget</td></tr>
+        <tr><td><code>streaming_mapreduce</code></td><td><a href="cli/#flag-parallel" style="color:var(--primary);">Parallel MapReduce engine</a> &mdash; concurrent strip rendering within a <a href="cli/#flag-memory-budget" style="color:var(--primary);">memory budget</a></td></tr>
         <tr><td><code>sink</code></td><td>Tile output (filesystem, memory, slow sink for testing)</td></tr>
         <tr><td><code>geo</code></td><td>Affine geo-transform, GCP solving, bounding box</td></tr>
         <tr><td><code>observe</code></td><td>Progress events, memory tracking</td></tr>
@@ -673,7 +673,7 @@
       </tbody>
     </table>
 
-    <p>The caller sets a memory budget; the engine maximises strip height within that budget to balance memory and throughput. When the budget is large enough for the full canvas, the monolithic engine is used automatically — no code changes needed.</p>
+    <p>The caller sets a <a href="cli/#flag-memory-budget" style="color:var(--primary);">memory budget</a>; the engine maximises strip height within that budget to balance memory and throughput. When the budget is large enough for the full canvas, the monolithic engine is used automatically — no code changes needed.</p>
     <p>For vector PDFs, <code>PdfiumStripSource</code> renders one strip at a time directly from the PDF using PDFium's clipped matrix path (with full <code>/Rotate</code> support), so the full page bitmap is never materialised. <code>BudgetPolicy::Error</code> fails loudly if the chosen budget cannot fit the smallest workable strip; <code>BudgetPolicy::AutoAdjust</code> raises the budget and continues. The engine also pre-flights the budget against canvas geometry before allocating, surfacing a typed <code>BudgetExceeded</code> error rather than running until OOM.</p>
   </section>
 
@@ -716,7 +716,7 @@
     .<span class="fn">run</span>()
     .<span class="fn">unwrap</span>();</code></pre>
     </div>
-    <p>CLI equivalent: <code>--blank-tolerance 2</code></p>
+    <p>CLI equivalent: <a href="cli/#flag-blank-tolerance" style="color:var(--primary);"><code>--blank-tolerance 2</code></a></p>
 
     <h3>Tracing spans (<code>--features tracing</code>)</h3>
     <p>When the <code>tracing</code> feature is enabled, the engine emits structured spans compatible with any <code>tracing</code>-subscriber, including OpenTelemetry exporters. Span names: <code>libviprs::pipeline</code>, <code>libviprs::level</code>, <code>libviprs::tile</code>.</p>
@@ -724,7 +724,7 @@
       <pre><code><span class="cm"># Cargo.toml</span>
 libviprs = { version = <span class="str">"0.3"</span>, features = [<span class="str">"tracing"</span>] }</code></pre>
     </div>
-    <p>CLI: <code>--trace-level info</code> (values: <code>error</code>, <code>warn</code>, <code>info</code>, <code>debug</code>, <code>trace</code>).</p>
+    <p>CLI: <a href="cli/#flag-trace-level" style="color:var(--primary);"><code>--trace-level info</code></a> (values: <code>error</code>, <code>warn</code>, <code>info</code>, <code>debug</code>, <code>trace</code>).</p>
 
     <h3>Resumable jobs</h3>
     <p><code>EngineBuilder::with_resume(ResumePolicy)</code> writes a checkpoint file (<code>.libviprs-job.json</code>) at the output root after each tile. A re-run with <code>ResumePolicy::resume()</code> skips already-written tiles; <code>ResumePolicy::verify()</code> re-reads them and asserts their checksums.</p>
@@ -736,7 +736,7 @@ libviprs = { version = <span class="str">"0.3"</span>, features = [<span class="
     .<span class="fn">run</span>()
     .<span class="fn">unwrap</span>();</code></pre>
     </div>
-    <p>CLI: <code>--resume</code> / <code>--overwrite</code> / <code>--verify</code></p>
+    <p>CLI: <a href="cli/#flag-resume" style="color:var(--primary);"><code>--resume</code></a> / <a href="cli/#flag-overwrite" style="color:var(--primary);"><code>--overwrite</code></a> / <a href="cli/#flag-verify" style="color:var(--primary);"><code>--verify</code></a></p>
 
     <h3>Retry + failure policies</h3>
     <p>Tile writes that fail transiently (network blip, lock contention) can be retried automatically. <code>FailurePolicy::RetryThenSkip</code> records the missing tile in the manifest instead of aborting the job.</p>
@@ -749,7 +749,7 @@ libviprs = { version = <span class="str">"0.3"</span>, features = [<span class="
     .<span class="fn">run</span>()
     .<span class="fn">unwrap</span>();</code></pre>
     </div>
-    <p>CLI: <code>--retry-max 3 --retry-backoff 200 --failure-policy retry-then-fail</code></p>
+    <p>CLI: <a href="cli/#flag-retry-max" style="color:var(--primary);"><code>--retry-max 3 --retry-backoff 200 --failure-policy retry-then-fail</code></a></p>
 
     <h3>Checksums</h3>
     <p>The engine can compute a digest for every tile and embed it in the manifest (<code>EmitOnly</code>) or verify existing digests on re-run (<code>Verify</code>).</p>
@@ -761,7 +761,7 @@ libviprs = { version = <span class="str">"0.3"</span>, features = [<span class="
     .<span class="fn">with_checksums</span>(<span class="ty">ChecksumAlgo</span>::<span class="ty">Blake3</span>)
     .<span class="fn">with_checksum_mode</span>(<span class="ty">ChecksumMode</span>::<span class="ty">EmitOnly</span>);</code></pre>
     </div>
-    <p>CLI: <code>--manifest-emit-checksums --checksum-algo blake3</code></p>
+    <p>CLI: <a href="cli/#flag-manifest-emit-checksums" style="color:var(--primary);"><code>--manifest-emit-checksums</code></a> <a href="cli/#flag-checksum-algo" style="color:var(--primary);"><code>--checksum-algo blake3</code></a></p>
 
     <h3>Deduplication</h3>
     <p>Identical tile content is stored once. The engine tries symlink first, then hardlink, then falls back to a manifest-only reference (for sinks that do not support links, such as S3).</p>
@@ -780,7 +780,7 @@ libviprs = { version = <span class="str">"0.3"</span>, features = [<span class="
     .<span class="fn">run</span>()
     .<span class="fn">unwrap</span>();</code></pre>
     </div>
-    <p>CLI: <code>--dedupe-blanks</code> / <code>--dedupe-all</code></p>
+    <p>CLI: <a href="cli/#flag-dedupe-blanks" style="color:var(--primary);"><code>--dedupe-blanks</code></a> / <a href="cli/#flag-dedupe-all" style="color:var(--primary);"><code>--dedupe-all</code></a></p>
 
     <h3>Packfile archive sinks (<code>--features packfile</code>)</h3>
     <p>Archive the entire pyramid into a single file instead of a directory tree. Useful for cold storage, artifact upload, or reproducible builds.</p>
@@ -850,7 +850,7 @@ viprs pyramid blueprint.pdf <span class="sh-flag">--sink</span> <span class="str
     <table>
       <thead><tr><th>Crate / Repo</th><th>Description</th></tr></thead>
       <tbody>
-        <tr><td><code>libviprs-cli</code></td><td>Command-line interface (<code>viprs</code> binary) &mdash; <a href="cli.html" style="color:var(--primary);">CLI reference</a></td></tr>
+        <tr><td><code>libviprs-cli</code></td><td>Command-line interface (<code>viprs</code> binary) &mdash; <a href="cli/" style="color:var(--primary);">CLI reference</a></td></tr>
         <tr><td><code>libviprs-tests</code></td><td>Integration tests and fixtures</td></tr>
         <tr><td><code>libviprs-dep</code></td><td>Prebuilt native dependencies (PDFium today) &mdash; <a href="https://github.com/libviprs/libviprs-dep/blob/main/MANUAL.md" style="color:var(--primary);">build manual</a> &middot; <a href="https://github.com/libviprs/libviprs-dep/releases" style="color:var(--primary);">releases</a></td></tr>
       </tbody>
