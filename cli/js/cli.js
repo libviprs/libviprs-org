@@ -1038,6 +1038,15 @@
         : (prog.count + ' flag' + (prog.count === 1 ? '' : 's') + ' selected. Edit input/output paths in the program below.');
     }
 
+    // Floating copy button: only show once at least one flag is checked.
+    // The button is `position: fixed` (lives in the viewport corner), so
+    // showing it when there's nothing meaningful to copy would just be
+    // visual noise.
+    var floatingCopy = document.getElementById('genRustCopyFloating');
+    if (floatingCopy) {
+      floatingCopy.classList.toggle('is-active', prog.count > 0);
+    }
+
     // Refresh every per-flag preview so cross-flag references (e.g. quality
     // affecting the format snippet) stay in sync.
     pyramidDts().forEach(function (dt) {
