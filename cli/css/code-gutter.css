@@ -140,40 +140,119 @@
 }
 
 /* --- the code side ------------------------------------------------------ */
-.code-wrap.gen-rust {
-  position: relative;          /* anchor for the highlight overlay        */
-  flex: 1 1 auto;
-  min-width: 0;                /* allow <pre> to shrink/scroll properly   */
-}
-
-/* --- highlight overlay (driven by JS-set custom properties) ------------ */
 /*
- * When the JS adds .is-highlighting to .code-with-gutter and sets
- *   --hl-color, --hl-from, --hl-to
- * we paint a translucent strip across the matching code lines.
+ * The right side of .code-with-gutter is a <div class="code-rows gen-rust">
+ * containing one <div class="code-row" data-line="N"> per source line.
+ * Each row holds a <span class="line-num"> and a <code class="line-content">.
  *
- * The overlay is the ::after of .gen-rust (no extra DOM needed).
+ * Highlighting is now done by per-row class toggling (.is-highlighted)
+ * rather than a single ::after overlay — the JS sets --hl-color on the
+ * #genRustRows container and toggles .is-highlighted on the matching rows.
  *
- * Top offset accounts for <pre>'s 1rem padding-top.
+ * Line-height alignment with the gutter is preserved by keeping
+ *   font-size: 0.85rem; line-height: 1.5  =>  1.275rem per row
+ * which matches --gutter-line-h declared on .code-with-gutter.
  */
-.code-with-gutter .gen-rust::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc((var(--hl-from, 1) - 1) * var(--gutter-line-h, 1.275rem) + 1rem);
-  height: calc(
-    (var(--hl-to, 1) - var(--hl-from, 1) + 1) * var(--gutter-line-h, 1.275rem)
-  );
-  background: var(--hl-color, transparent);
-  opacity: 0;
-  pointer-events: none;
-  border-radius: 2px;
-  transition: opacity 120ms ease;
+.code-rows.gen-rust,
+.code-rows {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;                /* allow the column to shrink/scroll       */
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem 0 1rem 0.5rem; /* top/bottom mirror old <pre>; left = breathing room */
+  overflow-x: auto;
+  /* Default highlight tint when --hl-color isn't set on the container.    */
+  --row-hl: rgba(255, 255, 255, 0.18);
 }
 
-.code-with-gutter.is-highlighting .gen-rust::after {
-  opacity: 0.18;
+/* --- one row per source line ------------------------------------------- */
+.code-row {
+  display: flex;
+  align-items: center;
+  min-height: var(--gutter-line-h, 1.275rem);
+  font-family: "Source Code Pro", "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  transition: background 80ms ease;
+}
+
+.code-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="dark"] .code-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* --- the line-number column ------------------------------------------- */
+.line-num {
+  flex: 0 0 auto;
+  min-width: 2.5rem;
+  padding-right: 0.85rem;
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--text-light, #888);
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- the syntax-highlighted code on each row -------------------------- */
+.line-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* Inherit the row's font; preserve indentation exactly. */
+  font: inherit;
+  white-space: pre;
+  background: transparent;
+}
+
+/* --- highlighted row (JS toggles .is-highlighted) --------------------- */
+.code-row.is-highlighted {
+  background: color-mix(in srgb, var(--hl-color, white) 22%, transparent);
+}
+
+.code-row.is-highlighted:hover {
+  /* highlight should still win over the hover tint */
+  background: color-mix(in srgb, var(--hl-color, white) 30%, transparent);
+}
+
+/* --- floating copy button -------------------------------------------- */
+.copy-floating {
+  position: absolute;
+  bottom: 0.85rem;
+  right: 0.85rem;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  color: var(--text-light);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  transition: background 120ms ease, color 120ms ease, transform 120ms ease,
+              box-shadow 120ms ease;
+}
+
+.copy-floating:hover {
+  background: var(--primary);
+  color: var(--white);
+  transform: translateY(-1px);
+}
+
+.copy-floating:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.copy-floating:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 /* --- dark theme tweaks -------------------------------------------------- */
@@ -185,11 +264,6 @@
   background: #0f1117;
   color: #e7e9ef;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55), 0 1px 2px rgba(0, 0, 0, 0.35);
-}
-
-[data-theme="dark"] .code-with-gutter.is-highlighting .gen-rust::after {
-  /* dark backgrounds swallow translucent overlays — give it a bit more pop */
-  opacity: 0.24;
 }
 
 /* --- mobile ------------------------------------------------------------- */
@@ -216,7 +290,8 @@
 @media (prefers-reduced-motion: reduce) {
   .bar-segment,
   .provenance-tooltip,
-  .code-with-gutter .gen-rust::after {
+  .code-row,
+  .copy-floating {
     transition: none;
   }
 }

@@ -977,16 +977,50 @@
 
   function generatorEl()  { return document.getElementById('cli-generator'); }
   function genCliCode()   { var g = generatorEl(); return g && g.querySelector('.gen-cli pre code'); }
-  function genRustCode()  { var g = generatorEl(); return g && g.querySelector('.gen-rust pre code'); }
+  function genRustCode()  { return document.getElementById('genRustRows'); }
+
+  // Render the full rust program as one DOM row per line, so the gutter can
+  // align flag-attribution markers to individual lines. The base-setup mirror
+  // (#pyramid-base-code) keeps using paintCodeEl — it's a single <pre><code>.
+  function renderRustRows(rowsEl, rustLines) {
+    if (!rowsEl) return;
+    rowsEl.innerHTML = '';
+    (rustLines || []).forEach(function (line, i) {
+      var row = document.createElement('div');
+      row.className = 'code-row';
+      row.setAttribute('role', 'listitem');
+      row.dataset.line = String(i + 1);
+
+      var num = document.createElement('span');
+      num.className = 'line-num';
+      num.setAttribute('aria-hidden', 'true');
+      num.textContent = String(i + 1);
+
+      var code = document.createElement('code');
+      code.className = 'line-content language-rust';
+      // highlightRust returns HTML with <span class="r-…"> tokens.
+      code.innerHTML = highlightRust(line.text || '');
+
+      row.appendChild(num);
+      row.appendChild(code);
+      rowsEl.appendChild(row);
+    });
+  }
   function summaryEl()    { var g = generatorEl(); return g && g.querySelector('.summary'); }
   function baseCodeEl()   { return document.getElementById('pyramid-base-code'); }
 
+  // Cached copy of the most recent prog.rust string. The floating copy button
+  // reads this instead of re-running renderFullProgram() on every click — the
+  // string is regenerated on every flag toggle anyway via updateGenerator().
+  var lastRustText = '';
+
   function updateGenerator() {
     var prog = renderFullProgram();
-    var rustOut = genRustCode();
+    var rowsEl = genRustCode();
     var cliOut = genCliCode();
     var summary = summaryEl();
-    if (rustOut) paintCodeEl(rustOut, prog.rust);
+    lastRustText = prog.rust;
+    if (rowsEl) renderRustRows(rowsEl, prog.rustLines);
     // Hand the per-line attribution to CodeGutter (loaded as a separate
     // script). Wrapped so a gutter bug never breaks the generator panel.
     try {
@@ -1034,6 +1068,23 @@
         }).catch(function () { /* silent */ });
       });
     });
+
+    // Floating copy button on the gen-rust row stack. Reads from the cached
+    // lastRustText (kept fresh by updateGenerator) and swaps the <i> icon
+    // class for ~1.5 s on success.
+    var rustCopyFloating = document.getElementById('genRustCopyFloating');
+    if (rustCopyFloating) {
+      rustCopyFloating.addEventListener('click', function () {
+        if (!navigator.clipboard) return;
+        navigator.clipboard.writeText(lastRustText || '').then(function () {
+          var icon = rustCopyFloating.querySelector('i');
+          if (!icon) return;
+          var prevClass = icon.className;
+          icon.className = 'fa-solid fa-check';
+          setTimeout(function () { icon.className = prevClass; }, 1500);
+        }).catch(function () { /* silent */ });
+      });
+    }
 
     // Reset all flags.
     var reset = g.querySelector('.reset-btn');

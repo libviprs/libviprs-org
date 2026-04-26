@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="css/cli.css">
   <link rel="stylesheet" href="css/code-gutter.css">
   <link rel="stylesheet" href="../topbar.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
   <script src="../topbar.js" defer></script>
 </head>
 <body>
@@ -401,14 +402,16 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
     <h4>Equivalent Rust program</h4>
     <div class="code-with-gutter">
       <div class="provenance-gutter" id="genRustGutter" aria-label="Code provenance"></div>
-      <div class="code-wrap gen-rust">
-        <pre><code class="language-rust"></code></pre>
-      </div>
+      <div class="code-rows gen-rust" id="genRustRows" role="list" aria-label="Generated Rust program"></div>
+      <button type="button" class="copy-floating" id="genRustCopyFloating"
+              aria-label="Copy generated Rust program to clipboard"
+              title="Copy to clipboard">
+        <i class="fa-regular fa-copy" aria-hidden="true"></i>
+      </button>
     </div>
 
     <div class="gen-actions">
       <button type="button" class="gen-copy-btn" data-target="gen-cli">&#x2398; Copy CLI</button>
-      <button type="button" class="gen-copy-btn" data-target="gen-rust">&#x2398; Copy Rust</button>
       <button type="button" class="reset-btn secondary">Reset all flags</button>
     </div>
 
