@@ -116,10 +116,16 @@
 
    Translate in from -50% so `left` = centre of the hovered column. */
 .provenance-tooltip {
-  position: absolute;
+  /* Fixed to the viewport so it can follow the mouse cursor exactly,
+     regardless of where the gutter element sits on the page or how
+     much it has scrolled. JS sets `top` / `left` to the cursor's
+     viewport-relative coordinates on every mousemove inside the
+     gutter; the transform pulls the tooltip up + centres it
+     horizontally so it sits *above* the cursor with a small gap. */
+  position: fixed;
   top: 0;
   left: 0;
-  z-index: 5;
+  z-index: 1100;            /* above the topbar (z-index 1000) */
 
   display: flex;
   align-items: center;
@@ -145,8 +151,9 @@
 
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18), 0 1px 3px rgba(0, 0, 0, 0.12);
 
-  /* Centre the tooltip on the column — JS sets left = column-centre. */
-  transform: translateX(-50%) translateY(0.35rem);
+  /* Place the tooltip's bottom-centre at (left, top), then lift by an
+     extra 0.6 rem so the arrow sits cleanly above the pointer. */
+  transform: translate(-50%, calc(-100% - 0.6rem));
 }
 
 .provenance-tooltip[hidden] { display: none; }
@@ -182,15 +189,15 @@
   font-weight: 500;
 }
 
-/* Small triangle pointing up at the hovered column. */
+/* Small triangle pointing down at the cursor (tooltip sits above it). */
 .provenance-tooltip::before {
   content: '';
   position: absolute;
-  bottom: 100%;
+  top: 100%;
   left: 50%;
   transform: translateX(-50%);
   border: 5px solid transparent;
-  border-bottom-color: var(--tooltip-color, var(--primary, #be6e34));
+  border-top-color: var(--tooltip-color, var(--primary, #be6e34));
 }
 
 /* --- the code side ------------------------------------------------------ */
