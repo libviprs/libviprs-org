@@ -39,6 +39,14 @@
     });
 
     gutter.appendChild(buildTooltip());
+
+    // Hide the tooltip when the mouse leaves the gutter as a whole, not
+    // when leaving individual columns — this keeps the tooltip up while the
+    // mouse moves between adjacent columns instead of flicker-hiding.
+    gutter.addEventListener('mouseleave', function () {
+      var t = gutter.querySelector('#' + TIP_ID);
+      if (t) t.hidden = true;
+    });
   }
 
   function computeSegments(lines, flag) {
@@ -97,12 +105,12 @@
       col.appendChild(btn);
     });
 
-    // Tooltip: show on hover anywhere in the column.
+    // Tooltip pops up immediately on column entry. We don't hide on
+    // column leave — the gutter-level mouseleave (set up in update())
+    // handles that, so moving between adjacent columns simply re-aims
+    // the tooltip without flickering off and back on.
     col.addEventListener('mouseenter', function () {
       showTooltip(col, flag, lineCount);
-    });
-    col.addEventListener('mouseleave', function () {
-      hideTooltip(col);
     });
 
     // Click delegation for bar segments inside this column.
@@ -128,11 +136,35 @@
     return col;
   }
 
+  // Tooltip is one shared element re-aimed and re-coloured per column.
+  // Structured markup (icon + body) so CSS can colour the parts via the
+  // flag's --tooltip-color custom property.
   function buildTooltip() {
     var tip = document.createElement('div');
     tip.className = 'provenance-tooltip';
     tip.id = TIP_ID;
     tip.hidden = true;
+    tip.setAttribute('role', 'tooltip');
+
+    var icon = document.createElement('span');
+    icon.className = 'tooltip-icon';
+    // FontAwesome 6 free "circle-info" mark.
+    var fa = document.createElement('i');
+    fa.className = 'fa-solid fa-circle-info';
+    fa.setAttribute('aria-hidden', 'true');
+    icon.appendChild(fa);
+
+    var body = document.createElement('div');
+    body.className = 'tooltip-body';
+    var name = document.createElement('strong');
+    name.className = 'tooltip-flag-name';
+    var meta = document.createElement('span');
+    meta.className = 'tooltip-meta';
+    body.appendChild(name);
+    body.appendChild(meta);
+
+    tip.appendChild(icon);
+    tip.appendChild(body);
     return tip;
   }
 
@@ -141,21 +173,24 @@
     if (!gutter) return;
     var tip = gutter.querySelector('#' + TIP_ID);
     if (!tip) return;
-    tip.textContent =
-      '--' + flag + '  ·  ' + lineCount + ' line' + (lineCount === 1 ? '' : 's') + '';
+
+    var name = tip.querySelector('.tooltip-flag-name');
+    var meta = tip.querySelector('.tooltip-meta');
+    if (name) name.textContent = '--' + flag;
+    if (meta)
+      meta.textContent = lineCount + ' line' + (lineCount === 1 ? '' : 's');
+
+    // Colour the tooltip from the column's --flag-color.
+    var color = getComputedStyle(col).getPropertyValue('--flag-color').trim();
+    if (color) tip.style.setProperty('--tooltip-color', color);
+
     tip.hidden = false;
-    // Position relative to the gutter; align with the hovered column.
+    // Aim at the centre of the hovered column, sitting just below the gutter
+    // so the colored accent strip on top is visible.
     var gRect = gutter.getBoundingClientRect();
     var cRect = col.getBoundingClientRect();
     tip.style.left = cRect.left - gRect.left + cRect.width / 2 + 'px';
     tip.style.top = '0px';
-  }
-
-  function hideTooltip(col) {
-    var gutter = col.parentNode;
-    if (!gutter) return;
-    var tip = gutter.querySelector('#' + TIP_ID);
-    if (tip) tip.hidden = true;
   }
 
   // Add `.is-highlighted` to every `.code-row` whose source line owns `flag`.

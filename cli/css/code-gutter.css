@@ -108,35 +108,89 @@
   filter: brightness(0.92);
 }
 
-/* --- the tooltip -------------------------------------------------------- */
+/* --- the tooltip --------------------------------------------------------
+   One shared tooltip re-aimed per column. Tinted with the flag's colour
+   via the inline `--tooltip-color` JS sets when showing it. Pops up
+   immediately — no fade-in — so hover feels responsive. The native
+   [hidden] attribute (set/cleared by the JS) handles show/hide.
+
+   Translate in from -50% so `left` = centre of the hovered column. */
 .provenance-tooltip {
   position: absolute;
-  /* JS sets `top` / `left` to position near the hovered column.
-     Defaults below work as a sane resting place.                          */
   top: 0;
-  left: calc(100% + 0.5rem);
+  left: 0;
   z-index: 5;
 
-  max-width: 16rem;
-  padding: 0.3rem 0.55rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+
+  max-width: 18rem;
+  padding: 0.45rem 0.7rem 0.45rem 0.55rem;
   border-radius: 6px;
-  font-size: 0.75rem;
+  border-left: 4px solid var(--tooltip-color, var(--primary, #be6e34));
+
+  /* Soft tint of the flag colour against the page background. */
+  background: color-mix(
+    in srgb,
+    var(--tooltip-color, var(--primary, #be6e34)) 14%,
+    var(--bg, #fafaf8)
+  );
+  color: var(--text, #2d2d2d);
+
+  font-size: 0.78rem;
   line-height: 1.35;
   white-space: nowrap;
   pointer-events: none;
 
-  background: var(--surface-2, #1f2330);
-  color: var(--text-on-surface-2, #f5f6fa);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18), 0 1px 2px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18), 0 1px 3px rgba(0, 0, 0, 0.12);
 
-  opacity: 0;
-  transform: translateY(-2px);
-  transition: opacity 100ms ease, transform 100ms ease;
+  /* Centre the tooltip on the column — JS sets left = column-centre. */
+  transform: translateX(-50%) translateY(0.35rem);
 }
 
-.provenance-gutter:hover .provenance-tooltip:not([hidden]) {
-  opacity: 1;
-  transform: translateY(0);
+.provenance-tooltip[hidden] { display: none; }
+
+.provenance-tooltip .tooltip-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  font-size: 0.95rem;
+  color: var(--tooltip-color, var(--primary, #be6e34));
+}
+
+.provenance-tooltip .tooltip-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+}
+
+.provenance-tooltip .tooltip-flag-name {
+  font-family: "Source Code Pro", "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--primary-dark, #6d2c0f);
+}
+
+.provenance-tooltip .tooltip-meta {
+  font-size: 0.7rem;
+  color: var(--text-light, #555);
+  font-weight: 500;
+}
+
+/* Small triangle pointing up at the hovered column. */
+.provenance-tooltip::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-bottom-color: var(--tooltip-color, var(--primary, #be6e34));
 }
 
 /* --- the code side ------------------------------------------------------ */
@@ -311,9 +365,22 @@
 }
 
 [data-theme="dark"] .provenance-tooltip {
-  background: #0f1117;
-  color: #e7e9ef;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55), 0 1px 2px rgba(0, 0, 0, 0.35);
+  /* Stronger tint against the dark page bg, deeper shadow. */
+  background: color-mix(
+    in srgb,
+    var(--tooltip-color, var(--primary, #d4894e)) 22%,
+    #1a1a1a
+  );
+  color: var(--text, #e0e0e0);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="dark"] .provenance-tooltip .tooltip-flag-name {
+  color: var(--text, #f0f0f0);
+}
+
+[data-theme="dark"] .provenance-tooltip .tooltip-meta {
+  color: var(--text-light, #aaa);
 }
 
 /* --- mobile ------------------------------------------------------------- */
