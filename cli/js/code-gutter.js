@@ -3,11 +3,17 @@
 
   var TIP_ID = 'provenanceTooltip';
   var GUTTER_ID = 'genRustGutter';
+  var ROWS_ID = 'genRustRows';
 
   // Cache the most recent prog so a late-loading gutter can still rebuild
   // (e.g. if cli.js fires update() before this script's DOM lookups would
   // succeed, or if a stylesheet swap re-creates the gutter element).
   var lastProg = null;
+
+  // Module-scope tracker for the currently-active highlighted flag, so we can
+  // implement toggle-off (re-click clears) and swap-without-flicker (clicking
+  // a different flag's segment) behaviour.
+  var activeHighlightFlag = null;
 
   function update(prog) {
     if (prog) lastProg = prog;
@@ -15,9 +21,9 @@
     var gutter = document.getElementById(GUTTER_ID);
     if (!gutter || !p || !p.rustLines) return;
 
-    // Clear any stale highlight state on the wrapper.
-    var wrap = gutter.closest('.code-with-gutter');
-    if (wrap) clearHighlight(wrap);
+    // The row DOM is rebuilt on each render, but defensively tear down any
+    // active highlight + the --hl-color custom property on the rows host.
+    clearHighlight();
 
     gutter.style.gridTemplateRows =
       'repeat(' + p.rustLines.length + ', var(--gutter-line-h, 1.5em))';
@@ -104,19 +110,18 @@
       var seg = e.target.closest('.bar-segment');
       if (!seg) return;
       e.stopPropagation();
-      var wrap = col.closest('.code-with-gutter');
-      if (!wrap) return;
-      var from = Number(seg.getAttribute('data-from-line'));
-      var to = Number(seg.getAttribute('data-to-line'));
-      var alreadyActive =
-        wrap.classList.contains('is-highlighting') &&
-        wrap.classList.contains('is-highlighting-' + flag) &&
-        Number(wrap.style.getPropertyValue('--hl-from')) === from &&
-        Number(wrap.style.getPropertyValue('--hl-to')) === to;
-      if (alreadyActive) {
-        clearHighlight(wrap);
+      var colEl = seg.closest('.gutter-col');
+      if (!colEl) return;
+      var clickedFlag = colEl.dataset.flag;
+      if (!clickedFlag) return;
+      if (activeHighlightFlag === clickedFlag) {
+        // Re-click on the same flag: toggle off.
+        clearHighlight();
       } else {
-        applyHighlight(wrap, flag, from, to);
+        // Different (or first) flag: swap directly. applyHighlight clears any
+        // previously-highlighted rows in-place to avoid an intermediate flicker.
+        var color = getComputedStyle(colEl).getPropertyValue('--flag-color').trim();
+        applyHighlight(clickedFlag, color);
       }
     });
 
@@ -137,7 +142,7 @@
     var tip = gutter.querySelector('#' + TIP_ID);
     if (!tip) return;
     tip.textContent =
-      '--' + flag + '  ·  ' + lineCount + ' line' + (lineCount === 1 ? '' : 's');
+      '--' + flag + '  ·  ' + lineCount + ' line' + (lineCount === 1 ? '' : 's') + '';
     tip.hidden = false;
     // Position relative to the gutter; align with the hovered column.
     var gRect = gutter.getBoundingClientRect();
@@ -153,31 +158,59 @@
     if (tip) tip.hidden = true;
   }
 
-  function applyHighlight(wrap, flag, from, to) {
-    // Strip any previous flag-specific class.
-    Array.prototype.slice.call(wrap.classList).forEach(function (cls) {
-      if (cls.indexOf('is-highlighting-') === 0) wrap.classList.remove(cls);
-    });
-    wrap.classList.add('is-highlighting');
-    wrap.classList.add('is-highlighting-' + flag);
-    wrap.style.setProperty('--hl-from', String(from));
-    wrap.style.setProperty('--hl-to', String(to));
-  }
+  // Add `.is-highlighted` to every `.code-row` whose source line owns `flag`.
+  // Sets `--hl-color` on `#genRustRows` so the CSS rule
+  //   .code-row.is-highlighted { background: color-mix(in srgb, var(--hl-color) 20%, transparent); }
+  // (or any equivalent low-opacity rule) picks up the right colour.
+  // Performs an in-place swap (clear-then-set) so re-targeting between flags
+  // doesn't flash an unhighlighted intermediate state.
+  function applyHighlight(flag, color) {
+    var rows = document.getElementById(ROWS_ID);
+    if (!rows || !lastProg || !lastProg.rustLines) return;
 
-  function clearHighlight(wrap) {
-    Array.prototype.slice.call(wrap.classList).forEach(function (cls) {
-      if (cls === 'is-highlighting' || cls.indexOf('is-highlighting-') === 0) {
-        wrap.classList.remove(cls);
+    // Clear any rows currently highlighted from a previous flag.
+    var prev = rows.querySelectorAll('.code-row.is-highlighted');
+    for (var j = 0; j < prev.length; j++) {
+      prev[j].classList.remove('is-highlighted');
+    }
+
+    var lines = lastProg.rustLines;
+    for (var i = 0; i < lines.length; i++) {
+      var entry = lines[i];
+      if (entry && entry.flags && entry.flags.indexOf(flag) !== -1) {
+        var row = document.querySelector(
+          '.code-row[data-line="' + (i + 1) + '"]'
+        );
+        if (row) row.classList.add('is-highlighted');
       }
-    });
-    wrap.style.removeProperty('--hl-from');
-    wrap.style.removeProperty('--hl-to');
+    }
+
+    if (color) {
+      rows.style.setProperty('--hl-color', color);
+    } else {
+      rows.style.removeProperty('--hl-color');
+    }
+    activeHighlightFlag = flag;
   }
 
+  function clearHighlight() {
+    var rows = document.getElementById(ROWS_ID);
+    if (rows) {
+      var hi = rows.querySelectorAll('.code-row.is-highlighted');
+      for (var i = 0; i < hi.length; i++) {
+        hi[i].classList.remove('is-highlighted');
+      }
+      rows.style.removeProperty('--hl-color');
+    }
+    activeHighlightFlag = null;
+  }
+
+  // Click outside any code row or gutter bar segment clears the highlight.
   document.addEventListener('click', function (e) {
-    if (e.target.closest && e.target.closest('.bar-segment')) return; // handled in column listener
-    var wrap = document.querySelector('.code-with-gutter.is-highlighting');
-    if (wrap) clearHighlight(wrap);
+    if (!e.target.closest) return;
+    if (e.target.closest('.bar-segment')) return; // handled by column listener
+    if (e.target.closest('.code-row')) return; // clicks inside code preserve state
+    if (activeHighlightFlag !== null) clearHighlight();
   });
 
   // If the DOM is still loading and cli.js has already pushed a prog before
