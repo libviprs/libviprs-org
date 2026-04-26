@@ -405,7 +405,8 @@
       v = (value == null || value === '') ? (flag.default != null ? flag.default : '') : value;
     }
     params.v = v;
-    if (flag.param) params[flag.param] = v;
+    var pk = flag.param_name || flag.param;
+    if (pk) params[pk] = v;
     // Pull any sibling defaults the snippet might want (e.g. {dpi}, {page}).
     if (otherDefaults) {
       for (var k in otherDefaults) {
@@ -571,17 +572,18 @@
     // an output line — it normalises the `flags` argument and records both
     // the text and its attribution.
     var rustLines = [];
-    function pushLine(text, flags) {
+    function pushLine(text, flags, removed) {
       var f;
       if (flags == null) f = [];
       else if (Array.isArray(flags)) f = flags;
       else f = [flags];
-      rustLines.push({ text: text, flags: f });
+      rustLines.push({ text: text, flags: f, removed: !!removed });
     }
     function pushAttributed(items) {
-      // items: [{ text, flags }] — already-attributed lines (e.g. from a
-      // slot rendering pass).
-      items.forEach(function (it) { pushLine(it.text, it.flags); });
+      // items: [{ text, flags, removed? }] — already-attributed lines from
+      // a slot rendering pass. `removed` propagates so override-displaced
+      // lines render as strikethrough ghosts and stay out of prog.rust.
+      items.forEach(function (it) { pushLine(it.text, it.flags, it.removed); });
     }
 
     // Snapshot the live state for every active flag (checkbox checked).
@@ -618,20 +620,26 @@
     // Build a {param-name: rendered-value} map across all active flags so
     // slot lines can refer to other flags' values (e.g. {quality} inside
     // the format slot when the format is jpeg).
+    // Param key: prefer `param_name` (the canonical field in
+    // snippets.generated.json) and fall back to `param` for legacy data.
+    function paramKey(def) { return def && (def.param_name || def.param); }
+
     var liveParams = {};
     active.forEach(function (a) {
-      if (a.def.param) {
-        liveParams[a.def.param] = a.def.options ? variantFor(a.value, liveParams) : a.value;
+      var k = paramKey(a.def);
+      if (k) {
+        liveParams[k] = a.def.options ? variantFor(a.value, liveParams) : a.value;
       }
     });
-    // Fold defaults for any inactive flag with a `param` so slot lines that
-    // reference (say) {tile_size} render even when the user didn't check
+    // Fold defaults for any inactive flag with a param so slot lines that
+    // reference (say) {tile-size} render even when the user didn't check
     // --tile-size.
     Object.keys(snippets.flags || {}).forEach(function (name) {
       var f = snippets.flags[name];
-      if (!f.param) return;
-      if (Object.prototype.hasOwnProperty.call(liveParams, f.param)) return;
-      liveParams[f.param] = f.options ? variantFor(f.default, liveParams) : (f.default != null ? f.default : '');
+      var k = paramKey(f);
+      if (!k) return;
+      if (Object.prototype.hasOwnProperty.call(liveParams, k)) return;
+      liveParams[k] = f.options ? variantFor(f.default, liveParams) : (f.default != null ? f.default : '');
     });
 
     var extraImports = {}; // populated below for sink override side-effects
@@ -640,30 +648,53 @@
     // attributed `{text, flags}` lines.
     var slotOrder = snippets.slot_order || [];
     var renderedSlots = []; // [[ {text, flags}, … ], …]
+    var activeNames = {};
+    active.forEach(function (a) { activeNames[a.name] = true; });
+
     slotOrder.forEach(function (slotName) {
       var slot = snippets.slots && snippets.slots[slotName];
       if (!slot) return;
+
+      // Gated slots only render when at least one of their gating flags
+      // is checked. Without this, slots like `memory-limit`, `geo`, and
+      // `tracing-init` would always emit their default-substituted code
+      // even when no related flag was selected — confusing for users
+      // who expect "no flags = minimum viable program".
+      if (slot.gated_by && slot.gated_by.length) {
+        var on = slot.gated_by.some(function (g) { return activeNames[g]; });
+        if (!on) return;
+      }
+
       var assigned = bySlot[slotName];
 
       // Override wins outright. If multiple, last one wins (deterministic
       // by source order; in practice we expect at most one override per slot).
+      // We also emit the *original* slot body as ghost lines (`removed: true`)
+      // so the user can see what the flag displaced. Ghost lines are rendered
+      // struck-through and excluded from prog.rust (and therefore from the
+      // copy-to-clipboard text).
       if (assigned && assigned.overrides.length) {
         var override = assigned.overrides[assigned.overrides.length - 1];
+        var ghostLines = (slot.lines || []).map(function (rawLine) {
+          return { text: substitute(rawLine, liveParams), flags: [override.name], removed: true };
+        });
         // Sink override is special-cased — see resolveSinkOverride.
         if (override.def.special === 'sink-override' || override.name === 'sink') {
           var sinkResult = resolveSinkOverride(override, snippets);
           if (sinkResult) {
-            renderedSlots.push(sinkResult.body.split('\n').map(function (ln) {
-              return { text: ln, flags: ['sink'] };
-            }));
+            var sinkLines = sinkResult.body.split('\n').map(function (ln) {
+              return { text: ln, flags: ['sink'], removed: false };
+            });
+            renderedSlots.push(ghostLines.concat(sinkLines));
             sinkResult.imports.forEach(function (imp) { extraImports[imp] = true; });
             return;
           }
         }
         var overrideText = substitute(override.def.fragment || '', mergeParams(liveParams, paramsForFlag(override.def, override.value)));
-        renderedSlots.push(overrideText.split('\n').map(function (ln) {
-          return { text: ln, flags: [override.name] };
-        }));
+        var overrideLines = overrideText.split('\n').map(function (ln) {
+          return { text: ln, flags: [override.name], removed: false };
+        });
+        renderedSlots.push(ghostLines.concat(overrideLines));
         return;
       }
 
@@ -750,7 +781,13 @@
     // '\n', matching the original template's `'}\n'`.
     pushLine('', []);
 
-    var rust = rustLines.map(function (l) { return l.text; }).join('\n');
+    // prog.rust is the canonical clipboard / copy-to-paste string — it
+    // EXCLUDES ghost lines (`removed: true`) so the user pastes only the
+    // program that actually runs. The full rustLines array (including
+    // ghosts) is what the row renderer iterates over for visual output.
+    var rust = rustLines
+      .filter(function (l) { return !l.removed; })
+      .map(function (l) { return l.text; }).join('\n');
 
     // CLI command.
     var parts = ['viprs pyramid input.pdf tiles/'];
@@ -988,6 +1025,11 @@
     (rustLines || []).forEach(function (line, i) {
       var row = document.createElement('div');
       row.className = 'code-row';
+      // Override-displaced lines are kept visible as struck-through
+      // "ghosts" so the user can see what the flag replaced. They are
+      // excluded from prog.rust so the clipboard text reflects the
+      // actual program.
+      if (line.removed) row.classList.add('is-removed');
       row.setAttribute('role', 'listitem');
       row.dataset.line = String(i + 1);
 
