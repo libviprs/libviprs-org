@@ -185,12 +185,22 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
 
   <h3>Arguments</h3>
   <dl class="flags">
-    <dt><code>&lt;INPUT&gt;</code></dt>
+    <dt class="arg-row">
+      <span class="arg-name"><code>&lt;INPUT&gt;</code></span>
+      <input type="text" class="arg-value" id="genArgInput"
+             placeholder="input.pdf" aria-label="Input file path"
+             autocomplete="off" spellcheck="false">
+    </dt>
     <dd>
       <p>Path to a PDF, PNG, JPEG, or TIFF file. Use <code>"-"</code> for stdin (pipe a file directly into viprs). PDF inputs are either raster-extracted (default) or vector-rendered (with <code>--render</code>).</p>
     </dd>
 
-    <dt><code>&lt;OUTPUT&gt;</code></dt>
+    <dt class="arg-row">
+      <span class="arg-name"><code>&lt;OUTPUT&gt;</code></span>
+      <input type="text" class="arg-value" id="genArgOutput"
+             placeholder="tiles/" aria-label="Output directory path"
+             autocomplete="off" spellcheck="false">
+    </dt>
     <dd>
       <p>Directory where tiles are written. Created automatically. DeepZoom also writes a <code>.dzi</code> manifest alongside.</p>
     </dd>
@@ -393,24 +403,6 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
   <div class="code-generator" id="cli-generator">
     <h3>Generated CLI &amp; Rust code</h3>
     <p class="summary">No flags selected. Check boxes above to assemble a CLI command and a complete Rust program.</p>
-
-    <h4>Arguments</h4>
-    <div class="gen-args">
-      <label class="gen-arg">
-        <span class="gen-arg-label"><code>&lt;INPUT&gt;</code></span>
-        <input type="text" id="genArgInput"
-               placeholder="input.pdf"
-               aria-label="Input file path"
-               autocomplete="off" spellcheck="false">
-      </label>
-      <label class="gen-arg">
-        <span class="gen-arg-label"><code>&lt;OUTPUT&gt;</code></span>
-        <input type="text" id="genArgOutput"
-               placeholder="tiles/"
-               aria-label="Output directory path"
-               autocomplete="off" spellcheck="false">
-      </label>
-    </div>
 
     <h4>CLI command</h4>
     <div class="code-wrap gen-cli">
