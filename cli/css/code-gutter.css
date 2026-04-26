@@ -1,0 +1,222 @@
+/* ----------------------------------------------------------------------------
+ * code-gutter.css
+ *
+ * Provenance gutter for the "Generated Rust program" code box on /cli/.
+ *
+ * The gutter is a thin column of colored "bar segments" rendered to the left
+ * of a <pre><code> block. Each bar segment maps to one or more lines in the
+ * generated Rust program and corresponds to a single CLI flag whose value
+ * influenced those lines. Hovering a column reveals a tooltip; clicking a
+ * segment lets the JS lay a translucent overlay across the relevant lines
+ * via the custom properties --hl-color, --hl-from, --hl-to.
+ *
+ * Highlight overlay strategy: we use a single ::after pseudo-element on the
+ * .gen-rust container (no extra DOM required from the JS — it just toggles
+ * the .is-highlighting class and sets the three custom properties on
+ * .code-with-gutter).
+ *
+ * Line-height alignment with existing cli.css:
+ *   <pre> uses font-size: 0.85rem and line-height: 1.5
+ *     => one rendered code line = 0.85rem * 1.5 = 1.275rem
+ *   <pre> uses padding: 1rem 1.25rem
+ *     => the first code line starts 1rem below the <pre>'s top edge.
+ * We mirror both numbers so the gutter rows land exactly on the code rows:
+ *   --gutter-line-h: 1.275rem;  padding-top: 1rem;
+ * ------------------------------------------------------------------------- */
+
+/* --- container: gutter on the left, code on the right ------------------- */
+.code-with-gutter {
+  --gutter-line-h: 1.275rem;   /* 0.85rem * 1.5 — see header note         */
+  --gutter-slot-w: 4px;        /* per-column slot width                   */
+  --gutter-bar-w: 1px;         /* default bar thickness                   */
+  --gutter-bar-w-hover: 3px;   /* thickened bar on column hover           */
+  --gutter-pad-top: 1rem;      /* matches <pre>'s padding-top             */
+
+  display: flex;
+  align-items: stretch;
+  position: relative;          /* anchor for the highlight overlay        */
+  gap: 0.35rem;
+}
+
+/* --- the gutter itself -------------------------------------------------- */
+.provenance-gutter {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: var(--gutter-slot-w);
+  /* grid-template-rows is supplied inline by the JS:
+     repeat(N, var(--gutter-line-h, 1.5em))                                */
+  gap: 0;
+  padding-top: var(--gutter-pad-top);
+  position: relative;          /* tooltip is positioned relative to this  */
+  flex: 0 0 auto;
+}
+
+/* --- one column per CLI flag ------------------------------------------- */
+.gutter-col {
+  display: grid;
+  /* inherit grid-template-rows from parent so child rows align            */
+  grid-template-rows: subgrid;
+  grid-row: 1 / -1;
+  justify-items: center;
+  align-items: stretch;
+  position: relative;
+}
+
+/* Fallback for browsers without subgrid support: stretch full height and
+   rely on the inline `grid-row: A / B` on each segment.                   */
+@supports not (grid-template-rows: subgrid) {
+  .gutter-col {
+    grid-template-rows: inherit;
+  }
+}
+
+/* --- the visible colored bar ------------------------------------------- */
+.bar-segment {
+  /* reset native button styling */
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  outline: none;
+
+  /* the bar */
+  display: block;
+  width: var(--gutter-bar-w);
+  justify-self: center;
+  align-self: stretch;
+  background: var(--flag-color, currentColor);
+  border-radius: 1px;
+  cursor: pointer;
+  transition: width 120ms ease, opacity 120ms ease, filter 120ms ease;
+}
+
+.bar-segment:focus-visible {
+  /* subtle accessibility ring without the default chunky focus background */
+  outline: 2px solid var(--flag-color, currentColor);
+  outline-offset: 1px;
+}
+
+.bar-segment:hover,
+.gutter-col:hover .bar-segment {
+  width: var(--gutter-bar-w-hover);
+}
+
+.bar-segment:active {
+  filter: brightness(0.92);
+}
+
+/* --- the tooltip -------------------------------------------------------- */
+.provenance-tooltip {
+  position: absolute;
+  /* JS sets `top` / `left` to position near the hovered column.
+     Defaults below work as a sane resting place.                          */
+  top: 0;
+  left: calc(100% + 0.5rem);
+  z-index: 5;
+
+  max-width: 16rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  white-space: nowrap;
+  pointer-events: none;
+
+  background: var(--surface-2, #1f2330);
+  color: var(--text-on-surface-2, #f5f6fa);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18), 0 1px 2px rgba(0, 0, 0, 0.12);
+
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 100ms ease, transform 100ms ease;
+}
+
+.provenance-gutter:hover .provenance-tooltip:not([hidden]) {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* --- the code side ------------------------------------------------------ */
+.code-wrap.gen-rust {
+  position: relative;          /* anchor for the highlight overlay        */
+  flex: 1 1 auto;
+  min-width: 0;                /* allow <pre> to shrink/scroll properly   */
+}
+
+/* --- highlight overlay (driven by JS-set custom properties) ------------ */
+/*
+ * When the JS adds .is-highlighting to .code-with-gutter and sets
+ *   --hl-color, --hl-from, --hl-to
+ * we paint a translucent strip across the matching code lines.
+ *
+ * The overlay is the ::after of .gen-rust (no extra DOM needed).
+ *
+ * Top offset accounts for <pre>'s 1rem padding-top.
+ */
+.code-with-gutter .gen-rust::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc((var(--hl-from, 1) - 1) * var(--gutter-line-h, 1.275rem) + 1rem);
+  height: calc(
+    (var(--hl-to, 1) - var(--hl-from, 1) + 1) * var(--gutter-line-h, 1.275rem)
+  );
+  background: var(--hl-color, transparent);
+  opacity: 0;
+  pointer-events: none;
+  border-radius: 2px;
+  transition: opacity 120ms ease;
+}
+
+.code-with-gutter.is-highlighting .gen-rust::after {
+  opacity: 0.18;
+}
+
+/* --- dark theme tweaks -------------------------------------------------- */
+[data-theme="dark"] .bar-segment {
+  filter: brightness(1.15);
+}
+
+[data-theme="dark"] .provenance-tooltip {
+  background: #0f1117;
+  color: #e7e9ef;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55), 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="dark"] .code-with-gutter.is-highlighting .gen-rust::after {
+  /* dark backgrounds swallow translucent overlays — give it a bit more pop */
+  opacity: 0.24;
+}
+
+/* --- mobile ------------------------------------------------------------- */
+@media (max-width: 720px) {
+  .code-with-gutter {
+    --gutter-slot-w: 3px;
+    --gutter-bar-w-hover: 2px;
+    gap: 0.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Not enough horizontal room — drop the gutter entirely.
+     The code remains fully readable; provenance is a progressive enhancement. */
+  .code-with-gutter {
+    display: block;
+  }
+  .code-with-gutter .provenance-gutter {
+    display: none;
+  }
+}
+
+/* --- reduced motion ----------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .bar-segment,
+  .provenance-tooltip,
+  .code-with-gutter .gen-rust::after {
+    transition: none;
+  }
+}

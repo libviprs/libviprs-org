@@ -12,6 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Code+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/cli.css">
+  <link rel="stylesheet" href="css/code-gutter.css">
   <link rel="stylesheet" href="../topbar.css">
   <script src="../topbar.js" defer></script>
 </head>
@@ -398,8 +399,11 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
     </div>
 
     <h4>Equivalent Rust program</h4>
-    <div class="code-wrap gen-rust">
-      <pre><code class="language-rust"></code></pre>
+    <div class="code-with-gutter">
+      <div class="provenance-gutter" id="genRustGutter" aria-label="Code provenance"></div>
+      <div class="code-wrap gen-rust">
+        <pre><code class="language-rust"></code></pre>
+      </div>
     </div>
 
     <div class="gen-actions">
@@ -980,5 +984,6 @@ fn main() -> Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 </footer>
 
 <script src="js/cli.js" defer></script>
+<script src="js/code-gutter.js" defer></script>
 </body>
 </html>
