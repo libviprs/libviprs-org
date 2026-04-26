@@ -233,6 +233,14 @@
   display: flex;
   align-items: center;
   min-height: var(--gutter-line-h, 1.275rem);
+  /* Without this, the row sizes to the visible area of the scroll
+     container, but `.line-content { white-space: pre }` lets the text
+     overflow it. The hover/highlight background then only paints up to
+     the visible edge — most obvious on mobile where lines wrap past
+     the screen. `max-content` makes each row stretch to fit its own
+     text; block layout in `.code-rows` then gives every row the width
+     of the widest row, so highlights span end-to-end consistently. */
+  min-width: max-content;
   font-family: "Source Code Pro", "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
   font-size: 0.85rem;
   line-height: 1.5;
