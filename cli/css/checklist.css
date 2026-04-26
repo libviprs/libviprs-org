@@ -1,0 +1,280 @@
+/* ============================================================
+   Slide-over checklist drawer + scroll-jump FAB.
+   The drawer lives at the viewport's right edge with a tab handle
+   sticking out on its left side. Closed by default; the tab click
+   toggles it. checklist.js auto-opens it whenever an item flips
+   from incomplete → complete (unless the user manually closed it).
+
+   The scroll-jump button is a sibling FAB next to the copy-to-
+   clipboard button. It uses an IntersectionObserver on the
+   generated rust block to flip its chevron direction: down when
+   the rust block is off-screen (click → jump to it), up when it's
+   in view (click → jump back to the last selected flag's <dt>).
+   ============================================================ */
+
+:root {
+  --checklist-w: 22rem;
+  --checklist-tab-w: 2.4rem;
+  --checklist-z: 900;          /* below topbar (1000) */
+  --fab-size: 2.6rem;
+  --fab-gap: 0.6rem;
+}
+
+/* ----- drawer --------------------------------------------------------- */
+.checklist-drawer {
+  position: fixed;
+  top: 6rem;
+  bottom: 6rem;
+  right: 0;
+  width: var(--checklist-w);
+  max-width: calc(100vw - 2rem);
+  display: flex;
+  align-items: stretch;
+  z-index: var(--checklist-z);
+  pointer-events: none;        /* handled per-child */
+
+  /* Closed: drawer body is shifted off-screen by its own width minus the
+     tab so only the tab sticks out. Open: translate(0). */
+  transform: translateX(calc(100% - var(--checklist-tab-w)));
+  transition: transform 280ms cubic-bezier(0.2, 0.7, 0.25, 1);
+}
+.checklist-drawer.is-open { transform: translateX(0); }
+
+.checklist-tab,
+.checklist-body { pointer-events: auto; }
+
+/* ----- tab handle (left edge of drawer) ------------------------------- */
+.checklist-tab {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--checklist-tab-w);
+  height: 100%;
+  background: var(--primary, #be6e34);
+  color: var(--white, #fff);
+  border: none;
+  border-radius: 8px 0 0 8px;
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.85rem 0;
+  font-family: inherit;
+  transition: background 150ms ease;
+}
+.checklist-tab:hover { background: var(--primary-dark, #6d2c0f); }
+.checklist-tab i { font-size: 1.05rem; }
+.checklist-tab .tab-label {
+  /* Vertical text — rotated, monospace, small. */
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.checklist-tab .tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  padding: 0 0.35rem;
+  background: var(--white, #fff);
+  color: var(--primary-dark, #6d2c0f);
+  border-radius: 1rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.checklist-tab .tab-badge[data-progress="0"] { display: none; }
+
+/* ----- drawer body --------------------------------------------------- */
+.checklist-body {
+  flex: 1 1 auto;
+  margin-left: var(--checklist-tab-w);
+  background: var(--bg, #fafaf8);
+  color: var(--text, #2d2d2d);
+  border: 1px solid var(--border, #e0dcd4);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  box-shadow: -4px 6px 18px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.checklist-body header {
+  padding: 0.85rem 1rem 0.65rem;
+  border-bottom: 1px solid var(--border, #e0dcd4);
+}
+.checklist-body header h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--primary-dark, #6d2c0f);
+  letter-spacing: 0.5px;
+}
+.checklist-body header .checklist-summary {
+  margin: 0.2rem 0 0;
+  font-size: 0.75rem;
+  color: var(--text-light, #555);
+}
+
+.checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem 0.5rem 0.85rem;
+  overflow-y: auto;
+  flex: 1 1 auto;
+}
+
+.checklist-item {
+  display: grid;
+  grid-template-columns: 1.5rem 1fr;
+  grid-template-rows: auto auto;
+  gap: 0.15rem 0.5rem;
+  align-items: start;
+  padding: 0.6rem 0.6rem;
+  border-radius: 4px;
+  transition: background 200ms ease;
+}
+
+.checklist-item .checklist-mark {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: 1rem;
+  color: var(--text-light, #888);
+  transition: color 200ms ease;
+}
+
+.checklist-item.is-done .checklist-mark { color: #1f9d55; }      /* green */
+
+.checklist-item .checklist-text {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text, #2d2d2d);
+  transition: color 200ms ease, text-decoration-color 200ms ease;
+}
+.checklist-item.is-done .checklist-text {
+  color: var(--text-light, #888);
+  text-decoration: line-through;
+  text-decoration-color: rgba(0, 0, 0, 0.25);
+}
+
+.checklist-item .checklist-detail {
+  grid-column: 2;
+  grid-row: 2;
+  font-size: 0.75rem;
+  color: var(--text-light, #888);
+  line-height: 1.4;
+}
+.checklist-item .checklist-detail code {
+  background: var(--code-bg, #f0ede8);
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  font-size: 0.75rem;
+}
+
+/* Pulse highlight on the item that just transitioned to done. */
+.checklist-item.just-completed {
+  background: color-mix(in srgb, #1f9d55 16%, transparent);
+  animation: just-completed-pulse 2.5s ease-out;
+}
+@keyframes just-completed-pulse {
+  0%   { background: color-mix(in srgb, #1f9d55 35%, transparent); }
+  100% { background: color-mix(in srgb, #1f9d55  0%, transparent); }
+}
+
+/* ----- dark theme ---------------------------------------------------- */
+[data-theme="dark"] .checklist-body {
+  background: #1a1a1a;
+  color: var(--text);
+  border-color: #3a3a3a;
+  box-shadow: -4px 6px 18px rgba(0, 0, 0, 0.55);
+}
+[data-theme="dark"] .checklist-item.is-done .checklist-mark { color: #58c97a; }
+[data-theme="dark"] .checklist-item.just-completed {
+  background: color-mix(in srgb, #58c97a 22%, transparent);
+}
+
+/* ----- mobile -------------------------------------------------------- */
+@media (max-width: 700px) {
+  .checklist-drawer {
+    --checklist-w: 88vw;
+    top: 5rem;
+    bottom: 5rem;
+  }
+}
+
+/* ============================================================
+   Scroll-jump FAB — sibling of the copy-floating button.
+   Same .is-active gate as copy-floating; cli.js toggles both
+   together when prog.count > 0.
+   ============================================================ */
+.scroll-jump-floating {
+  position: fixed;
+  bottom: 1rem;
+  right: calc(1rem + var(--fab-size) + var(--fab-gap));
+  width: var(--fab-size);
+  height: var(--fab-size);
+  border-radius: 50%;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  transition: background 120ms ease, color 120ms ease, transform 120ms ease,
+              box-shadow 120ms ease;
+  z-index: 50;
+  padding: 0;
+}
+.scroll-jump-floating.is-active { display: inline-flex; }
+
+.scroll-jump-floating:hover {
+  background: var(--primary);
+  color: var(--white);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.22);
+}
+.scroll-jump-floating:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+.scroll-jump-floating:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* The chevron icon flips via CSS based on a class the JS toggles. */
+.scroll-jump-floating .fa-chevron-down,
+.scroll-jump-floating .fa-chevron-up {
+  font-size: 0.95rem;
+  transition: transform 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .checklist-drawer,
+  .checklist-item.just-completed,
+  .scroll-jump-floating,
+  .scroll-jump-floating .fa-chevron-down,
+  .scroll-jump-floating .fa-chevron-up {
+    transition: none;
+    animation: none;
+  }
+}

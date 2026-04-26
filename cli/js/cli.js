@@ -1159,13 +1159,42 @@
         : (prog.count + ' flag' + (prog.count === 1 ? '' : 's') + ' selected. Edit input/output paths in the program below.');
     }
 
-    // Floating copy button: only show once at least one flag is checked.
-    // The button is `position: fixed` (lives in the viewport corner), so
-    // showing it when there's nothing meaningful to copy would just be
-    // visual noise.
+    // Floating copy button + scroll-jump FAB: only show once at least one
+    // flag is checked. Both are position:fixed and useless before there's
+    // anything distinctive in the panel.
     var floatingCopy = document.getElementById('genRustCopyFloating');
-    if (floatingCopy) {
-      floatingCopy.classList.toggle('is-active', prog.count > 0);
+    if (floatingCopy) floatingCopy.classList.toggle('is-active', prog.count > 0);
+
+    var scrollJump = document.getElementById('scrollJumpFloating');
+    if (scrollJump) scrollJump.classList.toggle('is-active', prog.count > 0);
+
+    // Push the latest state to the slide-over checklist (no-op if the
+    // module didn't load).
+    if (window.Checklist && typeof window.Checklist.update === 'function') {
+      try {
+        var inputEl = document.getElementById('genArgInput');
+        var outputEl = document.getElementById('genArgOutput');
+        var checked = {};
+        prog.activeFlags.forEach(function (n) { checked[n] = true; });
+        window.Checklist.update({
+          inputPath: (inputEl && inputEl.value.trim()) || '',
+          outputPath: (outputEl && outputEl.value.trim()) || '',
+          flagsCount: prog.count,
+          hasRender: !!checked['render'],
+          hasSinkOverride: !!checked['sink'],
+          formatIsJpeg: (function () {
+            var dts = pyramidDts();
+            for (var i = 0; i < dts.length; i++) {
+              if (dts[i]._flagName === 'format' && dts[i]._flagValue) {
+                return dts[i]._flagValue.value === 'jpeg';
+              }
+            }
+            return false;
+          })(),
+          dpiSet: !!checked['dpi'],
+          qualitySet: !!checked['quality'],
+        });
+      } catch (e) { /* keep generator alive even if checklist throws */ }
     }
 
     // Refresh every per-flag preview so cross-flag references (e.g. quality

@@ -13,6 +13,7 @@
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Code+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/cli.css">
   <link rel="stylesheet" href="css/code-gutter.css">
+  <link rel="stylesheet" href="css/checklist.css">
   <link rel="stylesheet" href="../topbar.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
   <script src="../topbar.js" defer></script>
@@ -418,7 +419,32 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
         <i class="fa-regular fa-copy" aria-hidden="true"></i>
         <span class="copy-tooltip" role="tooltip">Copy generated Rust to clipboard</span>
       </button>
+      <button type="button" class="scroll-jump-floating" id="scrollJumpFloating"
+              aria-label="Jump to the generated Rust code">
+        <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+      </button>
     </div>
+
+    <!-- Slide-over checklist drawer — pinned to the viewport's right
+         edge. Tab on its left side toggles open/closed; checklist.js
+         auto-opens it on a fresh item completion (unless the user
+         has manually closed it). -->
+    <aside class="checklist-drawer" id="checklistDrawer" aria-hidden="true"
+           aria-labelledby="checklistTabLabel">
+      <button class="checklist-tab" id="checklistTab" type="button"
+              aria-controls="checklistDrawer" aria-label="Toggle checklist">
+        <i class="fa-solid fa-list-check" aria-hidden="true"></i>
+        <span class="tab-badge" id="checklistBadge" data-progress="0">0</span>
+        <span class="tab-label" id="checklistTabLabel">Checklist</span>
+      </button>
+      <div class="checklist-body">
+        <header>
+          <h3>Required to run</h3>
+          <p class="checklist-summary" id="checklistSummary">Set the input + output paths to run the command.</p>
+        </header>
+        <ul class="checklist" id="checklistList" role="list"></ul>
+      </div>
+    </aside>
 
     <div class="gen-actions">
       <button type="button" class="gen-copy-btn" data-target="gen-cli">&#x2398; Copy CLI</button>
@@ -998,5 +1024,6 @@ fn main() -> Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 
 <script src="js/cli.js" defer></script>
 <script src="js/code-gutter.js" defer></script>
+<script src="js/checklist.js" defer></script>
 </body>
 </html>
