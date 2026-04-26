@@ -394,6 +394,35 @@
     });
   }
 
+  // Return the flag names that this raw template line is attributed to, by
+  // looking at every `{name}` placeholder in the line and resolving each
+  // back to the flag whose `param_name` matches. Used to color the
+  // provenance gutter on slot-base lines (where the rendered text after
+  // substitution carries no flag-identifying token).
+  function flagsForRawLine(rawLine, snippets) {
+    if (!rawLine || !snippets || !snippets.flags) return [];
+    var flags = [];
+    var seen = {};
+    var re = /\{([a-zA-Z_][a-zA-Z0-9_-]*)\}/g;
+    var m;
+    while ((m = re.exec(rawLine)) !== null) {
+      var paramName = m[1];
+      // Find the flag whose param_name (or legacy `param`) matches.
+      var match = null;
+      Object.keys(snippets.flags).some(function (flagName) {
+        var f = snippets.flags[flagName];
+        var pk = f && (f.param_name || f.param);
+        if (pk === paramName) { match = flagName; return true; }
+        return false;
+      });
+      if (match && !seen[match]) {
+        seen[match] = 1;
+        flags.push(match);
+      }
+    }
+    return flags;
+  }
+
   // Compute the substitution context for a flag: { paramName: rendered-value }.
   // For enum flags, the rendered value is a Rust variant (e.g. Layout::Xyz).
   function paramsForFlag(flag, value, otherDefaults) {
@@ -699,10 +728,19 @@
       }
 
       // Base body (slot.lines), with placeholder substitution and per-line
-      // attribution.
+      // attribution. We attribute by scanning the *raw* line for `{name}`
+      // placeholders before substitution — looking up which flag uses each
+      // param name. This is template-correct: a line like `    {tile-size},`
+      // belongs to whichever flag has `param_name: "tile-size"`. After
+      // substitution the placeholder becomes a literal value, so a regex
+      // run over the substituted text wouldn't be able to attribute it.
       var bodyLines = (slot.lines || []).map(function (rawLine) {
+        var flags = flagsForRawLine(rawLine, snippets);
+        // Fall back to the legacy regex-based attribution if no placeholder
+        // matched — keeps old hand-authored slot bodies (e.g. literal CLI
+        // source) working in case the JSON drifts.
+        if (!flags.length) flags = attributeBaseLine(slotName, rawLine);
         var text = substitute(rawLine, liveParams);
-        var flags = attributeBaseLine(slotName, text);
         return { text: text, flags: flags };
       });
 
