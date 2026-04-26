@@ -308,8 +308,11 @@
    copy). */
 .copy-floating {
   position: fixed;
-  bottom: 1rem;
-  right: 1rem;
+  /* iOS Safari overlays a URL bar at the bottom — without env() the FAB
+     sits under it. max() guarantees at least 1rem of visual padding on
+     desktop where the inset is 0. */
+  bottom: max(1rem, env(safe-area-inset-bottom, 1rem));
+  right: max(1rem, env(safe-area-inset-right, 1rem));
   width: 2.6rem;
   height: 2.6rem;
   border-radius: 50%;
@@ -419,13 +422,14 @@
 }
 
 @media (max-width: 480px) {
-  /* Not enough horizontal room — drop the gutter entirely.
-     The code remains fully readable; provenance is a progressive enhancement. */
+  /* Tight on horizontal real estate, but keep the gutter — it's the only
+     visual cue tying generated lines to the flags that produced them.
+     Compress slot width and gap so the code panel still gets enough room. */
   .code-with-gutter {
-    display: block;
-  }
-  .code-with-gutter .provenance-gutter {
-    display: none;
+    --gutter-slot-w: 2px;
+    --gutter-bar-w: 1px;
+    --gutter-bar-w-hover: 2px;
+    gap: 0.2rem;
   }
 }
 
