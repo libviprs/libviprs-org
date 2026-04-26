@@ -98,6 +98,41 @@
     codeEl.innerHTML = highlightRust(source);
   }
 
+  // ---------------------------------------------------------------------------
+  // Generator argument inputs (<INPUT> / <OUTPUT> at the top of the panel)
+  // ---------------------------------------------------------------------------
+
+  function readGeneratorArgs() {
+    function readField(id, fallback) {
+      var el = document.getElementById(id);
+      var v = el && el.value != null ? el.value.trim() : '';
+      return v.length ? v : fallback;
+    }
+    return {
+      input: readField('genArgInput', 'input.pdf'),
+      output: readField('genArgOutput', 'tiles/'),
+    };
+  }
+
+  // Escape characters that would break a Rust string literal: backslashes
+  // and double quotes. Newlines are unlikely in a path but escaped for safety.
+  function escapeRustStr(s) {
+    return String(s)
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .replace(/\n/g, '\\n');
+  }
+
+  // Quote a path for the CLI line. If the value contains whitespace or shell
+  // metacharacters, wrap it in single quotes (and escape any embedded
+  // single quote). Plain paths are passed through unchanged.
+  function shellQuote(s) {
+    var v = String(s);
+    if (!v.length) return "''";
+    if (/^[A-Za-z0-9_./-]+$/.test(v)) return v;
+    return "'" + v.replace(/'/g, "'\\''") + "'";
+  }
+
   function paintStaticRustBlocks() {
     document.querySelectorAll('code.language-rust').forEach(function (el) {
       // Skip blocks the interactive layer manages — we paint those at update
@@ -795,12 +830,18 @@
     });
 
     // Emit the full program through pushLine so rustLines mirrors prog.rust.
+    // Read user-supplied input/output paths from the generator panel's
+    // <INPUT>/<OUTPUT> fields. Empty fields fall back to the same
+    // placeholder string both panels show, so the output is always a
+    // runnable program.
+    var args = readGeneratorArgs();
+
     pushLine('use libviprs::{' + imports.join(', ') + '};', []);
     pushLine('use std::path::PathBuf;', []);
     pushLine('', []);
     pushLine('fn main() -> Result<(), Box<dyn std::error::Error>> {', []);
-    pushLine('    let input = PathBuf::from("/path/to/your/input.pdf");', []);
-    pushLine('    let output = PathBuf::from("./tiles");', []);
+    pushLine('    let input = PathBuf::from("' + escapeRustStr(args.input) + '");', []);
+    pushLine('    let output = PathBuf::from("' + escapeRustStr(args.output) + '");', []);
     // Mirror the original template's spacing exactly:
     //   …let output = …;\n          (always)
     //   \nINNER\n                    (only if INNER non-empty)
@@ -827,8 +868,8 @@
       .filter(function (l) { return !l.removed; })
       .map(function (l) { return l.text; }).join('\n');
 
-    // CLI command.
-    var parts = ['viprs pyramid input.pdf tiles/'];
+    // CLI command — same input/output paths as the Rust block.
+    var parts = ['viprs pyramid ' + shellQuote(args.input) + ' ' + shellQuote(args.output)];
     active.forEach(function (a) {
       if (!a.def.cli) return;
       parts.push(substitute(a.def.cli, { v: a.value, value: a.value }));
@@ -1143,6 +1184,15 @@
   function initGeneratorActions() {
     var g = generatorEl();
     if (!g) return;
+
+    // Argument inputs: re-render whenever <INPUT>/<OUTPUT> change so the
+    // CLI line + Rust block reflect the user's chosen paths immediately.
+    ['genArgInput', 'genArgOutput'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('input', updateGenerator);
+      el.addEventListener('change', updateGenerator);
+    });
 
     // Per-target copy buttons.
     g.querySelectorAll('.gen-copy-btn').forEach(function (btn) {
