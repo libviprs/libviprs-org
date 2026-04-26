@@ -53,6 +53,7 @@
         detail: 'Path to a PDF or image — e.g. <code>./scan.pdf</code>',
         done: inputSet,
         applies: true,
+        target: { selector: '#genArgInput', focus: true },
       },
       {
         id: 'output',
@@ -60,6 +61,7 @@
         detail: 'Where tiles will be written — e.g. <code>./tiles</code>',
         done: outputSet,
         applies: true,
+        target: { selector: '#genArgOutput', focus: true },
       },
       {
         id: 'one-flag',
@@ -67,6 +69,8 @@
         detail: 'Tile size, format, layout, etc. — defaults work, but customise for production',
         done: state.flagsCount > 0,
         applies: true,
+        // List of flags — jump to the first row.
+        target: { selector: 'dl.flags dt.flag-row' },
       },
       {
         id: 'render-dpi',
@@ -74,6 +78,7 @@
         detail: '<code>--render</code> rasterises a vector PDF; pair with <code>--dpi</code> to control resolution',
         done: !!state.dpiSet,
         applies: !!state.hasRender,
+        target: { selector: '#flag-dpi' },
       },
       {
         id: 'sink-feature',
@@ -81,6 +86,7 @@
         detail: 'Build with <code>--features s3</code> or <code>--features packfile</code> when using <code>--sink</code>',
         done: false,           // can't verify cargo flags from the page, so this stays "todo"
         applies: !!state.hasSinkOverride,
+        target: { selector: '#flag-sink' },
       },
       {
         id: 'jpeg-quality',
@@ -88,6 +94,7 @@
         detail: '<code>--quality</code> only matters when <code>--format jpeg</code> is set',
         done: !!state.qualitySet,
         applies: !!state.formatIsJpeg,
+        target: { selector: '#flag-quality', focus: true },
       },
     ];
 
@@ -112,10 +119,27 @@
 
     list.innerHTML = items.map(function (item) {
       var icon = item.done ? 'fa-solid fa-circle-check' : 'fa-regular fa-circle';
+      var hasJump = !!(item.target && item.target.selector);
+      // Heading + mark are wrapped in a button when there's a jump target so
+      // they're keyboard-focusable and announce as a control. The detail row
+      // stays plain text underneath.
+      var heading = hasJump
+        ? (
+            '<button type="button" class="checklist-jump"' +
+            ' data-target="' + escapeHtml(item.target.selector) + '"' +
+            ' data-focus="' + (item.target.focus ? '1' : '0') + '"' +
+            ' aria-label="Jump to: ' + escapeHtml(item.label) + '">' +
+            '  <span class="checklist-mark"><i class="' + icon + '" aria-hidden="true"></i></span>' +
+            '  <span class="checklist-text">' + escapeHtml(item.label) + '</span>' +
+            '</button>'
+          )
+        : (
+            '<span class="checklist-mark"><i class="' + icon + '" aria-hidden="true"></i></span>' +
+            '<span class="checklist-text">' + escapeHtml(item.label) + '</span>'
+          );
       return (
         '<li class="checklist-item' + (item.done ? ' is-done' : '') + '" data-id="' + item.id + '">' +
-        '  <span class="checklist-mark"><i class="' + icon + '" aria-hidden="true"></i></span>' +
-        '  <span class="checklist-text">' + escapeHtml(item.label) + '</span>' +
+        heading +
         '  <span class="checklist-detail">' + item.detail + '</span>' +
         '</li>'
       );
@@ -155,10 +179,57 @@
     drawer.setAttribute('aria-hidden', open ? 'false' : 'true');
   }
 
+  // Scroll a checklist target into view, then (when meaningful) focus the
+  // primary input so the user can start typing immediately. For dt.flag-row
+  // targets we expand the row and focus its value input if present.
+  function jumpToTarget(selector, focus) {
+    if (!selector) return;
+    var el = document.querySelector(selector);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Bare inputs: focus directly.
+    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+      // Wait one tick so the smooth scroll doesn't fight with focus().
+      setTimeout(function () { try { el.focus({ preventScroll: true }); el.select && el.select(); } catch (_) {} }, 350);
+      return;
+    }
+    // Flag rows: expand them and pick the matching input/checkbox.
+    if (el.classList && el.classList.contains('flag-row')) {
+      el.classList.add('expanded');
+      // Pulse hint so the user can see where they landed.
+      el.classList.add('checklist-flash');
+      setTimeout(function () { el.classList.remove('checklist-flash'); }, 1600);
+      if (focus) {
+        setTimeout(function () {
+          var inner = el.querySelector('.flag-value, input[type="text"], input[type="number"], select');
+          if (inner) {
+            try { inner.focus({ preventScroll: true }); inner.select && inner.select(); } catch (_) {}
+            return;
+          }
+          var check = el.querySelector('.flag-check');
+          if (check) { try { check.focus({ preventScroll: true }); } catch (_) {} }
+        }, 350);
+      }
+    }
+  }
+
   function initChecklist() {
     var drawer = document.getElementById(DRAWER_ID);
     var tab = document.getElementById(TAB_ID);
     if (!drawer || !tab) return;
+
+    // Delegated handler: each item heading is rendered as <button.checklist-jump>.
+    // Re-renders blow away the inner DOM, so listening on the list keeps it
+    // alive without re-binding.
+    var list = drawer.querySelector('#' + LIST_ID);
+    if (list) {
+      list.addEventListener('click', function (e) {
+        var btn = e.target && e.target.closest && e.target.closest('.checklist-jump');
+        if (!btn) return;
+        e.preventDefault();
+        jumpToTarget(btn.dataset.target, btn.dataset.focus === '1');
+      });
+    }
 
     tab.addEventListener('click', function () {
       var wasOpen = drawer.classList.contains('is-open');
