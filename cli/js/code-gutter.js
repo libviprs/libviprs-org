@@ -47,6 +47,24 @@
       var t = gutter.querySelector('#' + TIP_ID);
       if (t) t.hidden = true;
     });
+
+    // Tooltip follows the cursor while it's inside the gutter so it always
+    // appears above the mouse pointer (rather than pinned to a column's
+    // bounding box).
+    gutter.addEventListener('mousemove', function (e) {
+      var t = gutter.querySelector('#' + TIP_ID);
+      if (!t || t.hidden) return;
+      aimTooltipAt(t, e.clientX, e.clientY);
+    });
+  }
+
+  // Position the tooltip just above (and centred on) the cursor. The CSS
+  // `transform: translate(-50%, calc(-100% - 0.6rem))` does the visual
+  // shift so this function only needs to set viewport-relative
+  // top/left.
+  function aimTooltipAt(tip, x, y) {
+    tip.style.left = x + 'px';
+    tip.style.top = y + 'px';
   }
 
   function computeSegments(lines, flag) {
@@ -105,12 +123,13 @@
       col.appendChild(btn);
     });
 
-    // Tooltip pops up immediately on column entry. We don't hide on
-    // column leave — the gutter-level mouseleave (set up in update())
-    // handles that, so moving between adjacent columns simply re-aims
-    // the tooltip without flickering off and back on.
-    col.addEventListener('mouseenter', function () {
-      showTooltip(col, flag, lineCount);
+    // Tooltip pops up immediately on column entry and follows the cursor
+    // (mousemove handler in update()). We don't hide on column leave —
+    // the gutter-level mouseleave handles that — so moving between
+    // adjacent columns simply re-aims the tooltip's content without
+    // flickering off and back on.
+    col.addEventListener('mouseenter', function (e) {
+      showTooltip(col, flag, lineCount, e);
     });
 
     // Click delegation for bar segments inside this column.
@@ -168,7 +187,7 @@
     return tip;
   }
 
-  function showTooltip(col, flag, lineCount) {
+  function showTooltip(col, flag, lineCount, mouseEvent) {
     var gutter = col.parentNode;
     if (!gutter) return;
     var tip = gutter.querySelector('#' + TIP_ID);
@@ -185,12 +204,17 @@
     if (color) tip.style.setProperty('--tooltip-color', color);
 
     tip.hidden = false;
-    // Aim at the centre of the hovered column, sitting just below the gutter
-    // so the colored accent strip on top is visible.
-    var gRect = gutter.getBoundingClientRect();
-    var cRect = col.getBoundingClientRect();
-    tip.style.left = cRect.left - gRect.left + cRect.width / 2 + 'px';
-    tip.style.top = '0px';
+
+    // Aim at the cursor on first reveal so the tooltip never flashes
+    // somewhere irrelevant before the gutter-level mousemove handler
+    // catches up. If the mouseenter event isn't available (e.g.
+    // synthesized hover on touch), fall back to the column's centre.
+    if (mouseEvent && typeof mouseEvent.clientX === 'number') {
+      aimTooltipAt(tip, mouseEvent.clientX, mouseEvent.clientY);
+    } else {
+      var cRect = col.getBoundingClientRect();
+      aimTooltipAt(tip, cRect.left + cRect.width / 2, cRect.top + 6);
+    }
   }
 
   // Add `.is-highlighted` to every `.code-row` whose source line owns `flag`.
