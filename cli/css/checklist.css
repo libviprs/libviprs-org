@@ -279,8 +279,11 @@ dl.flags dt.flag-row.checklist-flash {
    ============================================================ */
 .scroll-jump-floating {
   position: fixed;
-  bottom: 1rem;
-  right: calc(1rem + var(--fab-size) + var(--fab-gap));
+  /* Match copy-floating: lift above iOS Safari's bottom URL bar via
+     safe-area-inset-bottom. The right offset stacks this FAB to the
+     left of copy-floating, so we feed the same inset into the calc. */
+  bottom: max(1rem, env(safe-area-inset-bottom, 1rem));
+  right: calc(max(1rem, env(safe-area-inset-right, 1rem)) + var(--fab-size) + var(--fab-gap));
   width: var(--fab-size);
   height: var(--fab-size);
   border-radius: 50%;
