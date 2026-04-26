@@ -397,36 +397,78 @@
 
   <section>
     <h2>Quick Start</h2>
+    <p style="margin-top:-0.3rem;"><strong>Try it interactively:</strong> the <a href="cli/" style="color:var(--primary);">CLI &amp; API generator</a> lets you tick flags and copy a tailored version of this snippet — see the <a href="cli/#pyramid-base-setup" style="color:var(--primary);">pyramid base setup</a> and toggle features in the <a href="cli/#cli-generator" style="color:var(--primary);">generator panel</a>.</p>
     <div class="code-wrap">
     <button class="copy-btn" id="copyBtn">&#x2398; Copy</button>
     <pre><code><span class="kw">use</span> <span class="mod">libviprs</span>::{
-    <span class="ty">extract_page_image</span>, <span class="ty">BlankTileStrategy</span>, <span class="ty">EngineBuilder</span>,
-    <span class="ty">FsSink</span>, <span class="ty">Layout</span>, <span class="ty">PyramidPlanner</span>, <span class="ty">TileFormat</span>,
+    <span class="ty">extract_page_image</span>,
+    <span class="ty">BlankTileStrategy</span>,
+    <span class="ty">EngineBuilder</span>,
+    <span class="ty">EngineKind</span>,
+    <span class="ty">FsSink</span>,
+    <span class="ty">Layout</span>,
+    <span class="ty">PyramidPlanner</span>,
+    <span class="ty">TileFormat</span>,
 };
 <span class="kw">use</span> <span class="mod">std</span>::<span class="mod">path</span>::<span class="ty">Path</span>;
 
-<span class="cm">// Extract raster from a scanned blueprint PDF</span>
-<span class="kw">let</span> raster = <span class="fn">extract_page_image</span>(<span class="ty">Path</span>::<span class="fn">new</span>(<span class="str">"blueprint.pdf"</span>), <span class="num">1</span>).<span class="fn">unwrap</span>();
-
-<span class="cm">// Plan the pyramid</span>
-<span class="kw">let</span> planner = <span class="ty">PyramidPlanner</span>::<span class="fn">new</span>(
-    raster.<span class="fn">width</span>(), raster.<span class="fn">height</span>(),
-    <span class="num">256</span>, <span class="num">0</span>, <span class="ty">Layout</span>::<span class="ty">DeepZoom</span>,
+<span class="cm">// ──────────────────────────────────────────────────────────────────────</span>
+<span class="cm">// 1. Decode the source.</span>
+<span class="cm">//    extract_page_image pulls the embedded raster out of a scanned PDF;</span>
+<span class="cm">//    use libviprs::decode_file for plain image inputs (PNG/JPEG/TIFF).</span>
+<span class="cm">// ──────────────────────────────────────────────────────────────────────</span>
+<span class="kw">let</span> raster = <span class="fn">extract_page_image</span>(
+    <span class="ty">Path</span>::<span class="fn">new</span>(<span class="str">"blueprint.pdf"</span>),  <span class="cm">// input path (PDF here; any image works too)</span>
+    <span class="num">1</span>,                           <span class="cm">// 1-based PDF page number</span>
 ).<span class="fn">unwrap</span>();
+
+<span class="cm">// ──────────────────────────────────────────────────────────────────────</span>
+<span class="cm">// 2. Plan the pyramid.</span>
+<span class="cm">//    PyramidPlanner computes per-level dimensions, tile counts, and</span>
+<span class="cm">//    canvas size — no pixels are touched yet.</span>
+<span class="cm">// ──────────────────────────────────────────────────────────────────────</span>
+<span class="kw">let</span> planner = <span class="ty">PyramidPlanner</span>::<span class="fn">new</span>(
+    raster.<span class="fn">width</span>(),    <span class="cm">// source width in pixels</span>
+    raster.<span class="fn">height</span>(),   <span class="cm">// source height in pixels</span>
+    <span class="num">256</span>,               <span class="cm">// tile size (DeepZoom default; 512 for HiDPI)</span>
+    <span class="num">0</span>,                 <span class="cm">// pixel overlap between adjacent tiles</span>
+    <span class="ty">Layout</span>::<span class="ty">DeepZoom</span>,  <span class="cm">// tile naming convention (also: Xyz, Google)</span>
+).<span class="fn">unwrap</span>();
+
 <span class="kw">let</span> plan = planner.<span class="fn">plan</span>();
 
-<span class="cm">// Generate tiles to disk</span>
-<span class="kw">let</span> sink = <span class="ty">FsSink</span>::<span class="fn">new</span>(<span class="str">"output_tiles"</span>, plan.<span class="fn">clone</span>())
-    .<span class="fn">with_format</span>(<span class="ty">TileFormat</span>::<span class="ty">Png</span>);
-<span class="kw">let</span> result = <span class="ty">EngineBuilder</span>::<span class="fn">new</span>(&amp;raster, plan, sink)
-    .<span class="fn">with_concurrency</span>(<span class="num">4</span>)
-    .<span class="fn">with_blank_strategy</span>(<span class="ty">BlankTileStrategy</span>::<span class="ty">Placeholder</span>)
-    .<span class="fn">run</span>()
-    .<span class="fn">unwrap</span>();
+<span class="cm">// ──────────────────────────────────────────────────────────────────────</span>
+<span class="cm">// 3. Configure where the tiles get written.</span>
+<span class="cm">//    FsSink writes to a local directory; libviprs also ships</span>
+<span class="cm">//    ObjectStoreSink (S3) and PackfileSink (.tar/.tar.gz/.zip).</span>
+<span class="cm">// ──────────────────────────────────────────────────────────────────────</span>
+<span class="kw">let</span> sink = <span class="ty">FsSink</span>::<span class="fn">new</span>(
+    <span class="str">"output_tiles"</span>,  <span class="cm">// output directory (created if missing)</span>
+    plan.<span class="fn">clone</span>(),    <span class="cm">// pyramid plan tile paths are derived from</span>
+)
+.<span class="fn">with_format</span>(<span class="ty">TileFormat</span>::<span class="ty">Png</span>);  <span class="cm">// also: TileFormat::Jpeg { quality: u8 } | Raw</span>
+
+<span class="cm">// ──────────────────────────────────────────────────────────────────────</span>
+<span class="cm">// 4. Run the engine.</span>
+<span class="cm">//    EngineKind::Auto picks monolithic / streaming / mapreduce based on</span>
+<span class="cm">//    the source kind and any with_memory_budget value supplied.</span>
+<span class="cm">// ──────────────────────────────────────────────────────────────────────</span>
+<span class="kw">let</span> result = <span class="ty">EngineBuilder</span>::<span class="fn">new</span>(
+    &amp;raster,  <span class="cm">// source raster from step 1</span>
+    plan,     <span class="cm">// pyramid plan from step 2</span>
+    sink,     <span class="cm">// tile sink from step 3</span>
+)
+.<span class="fn">with_engine</span>(<span class="ty">EngineKind</span>::<span class="ty">Auto</span>)                        <span class="cm">// auto-select engine</span>
+.<span class="fn">with_concurrency</span>(<span class="num">4</span>)                                   <span class="cm">// worker threads for tile extraction</span>
+.<span class="fn">with_blank_strategy</span>(<span class="ty">BlankTileStrategy</span>::<span class="ty">Placeholder</span>)   <span class="cm">// collapse uniform tiles into 1-byte placeholders</span>
+.<span class="fn">run</span>()
+.<span class="fn">unwrap</span>();
 
 <span class="mc">println!</span>(
     <span class="str">"{} tiles across {} levels ({} blank tiles skipped)"</span>,
-    result.tiles_produced, result.levels_processed, result.tiles_skipped,
+    result.tiles_produced,    <span class="cm">// total tile files written</span>
+    result.levels_processed,  <span class="cm">// number of pyramid levels</span>
+    result.tiles_skipped,     <span class="cm">// tiles emitted as blank placeholders</span>
 );</code></pre>
     </div>
   </section>
