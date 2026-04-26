@@ -265,6 +265,25 @@
   background: transparent;
 }
 
+/* --- ghost row: override-displaced code shown as a strikethrough so the
+       user can see what the flag replaced. These rows do NOT appear in
+       prog.rust, so the clipboard text matches the actual program. ----- */
+.code-row.is-removed .line-content {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  color: var(--text-light, #888);
+  opacity: 0.55;
+}
+
+.code-row.is-removed .line-num {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+.code-row.is-removed:hover .line-content {
+  opacity: 0.7;
+}
+
 /* --- highlighted row (JS toggles .is-highlighted) --------------------- */
 .code-row.is-highlighted {
   background: color-mix(in srgb, var(--hl-color, white) 22%, transparent);

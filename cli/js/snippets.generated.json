@@ -1,394 +1,6 @@
 {
+  "version": 1,
   "command": "pyramid",
-  "flags": {
-    "blank-tolerance": {
-      "fragment": "",
-      "imports_when_active": [],
-      "kind": "append",
-      "slot": "engine-config",
-      "test": {
-        "file": "phase3_blank_tolerance.rs",
-        "fn": "engine_with_tolerance_writes_placeholder_for_near_white_tiles",
-        "line": 248,
-        "repo": "libviprs-tests"
-      }
-    },
-    "buffer-size": {
-      "fragment": "        .with_buffer_size(args.buffer_size)",
-      "imports_when_active": [],
-      "kind": "appendChain",
-      "slot": "engine-config",
-      "test": {
-        "file": "builder_engine_surface.rs",
-        "fn": "builder_honours_with_buffer_size",
-        "line": 119,
-        "repo": "libviprs-tests"
-      }
-    },
-    "centre": {
-      "fragment": "        Ok(p) => p.with_centre(args.centre),",
-      "imports_when_active": [],
-      "kind": "append",
-      "slot": "planner",
-      "test": {
-        "file": "google_centre_pyramid.rs",
-        "fn": "google_centre_portrait_plan_structure",
-        "line": 107,
-        "repo": "libviprs-tests"
-      }
-    },
-    "checksum-algo": {
-      "fragment": "            sink = sink.with_checksums(ChecksumMode::EmitOnly, checksum_algo);",
-      "imports_when_active": [],
-      "kind": "param",
-      "param_name": "checksum-algo",
-      "slot": "sink-fs",
-      "test": {
-        "file": "phase3_checksum.rs",
-        "fn": "emit_only_populates_manifest_checksums",
-        "line": 223,
-        "repo": "libviprs-tests"
-      }
-    },
-    "concurrency": {
-      "fragment": "        .with_concurrency(args.concurrency)",
-      "imports_when_active": [],
-      "kind": "appendChain",
-      "slot": "engine-config",
-      "test": {
-        "file": "builder_engine_surface.rs",
-        "fn": "builder_honours_with_concurrency",
-        "line": 100,
-        "repo": "libviprs-tests"
-      }
-    },
-    "dedupe-all": {
-      "fragment": "        engine_config = engine_config.with_dedupe_strategy(ds);",
-      "imports_when_active": [],
-      "kind": "append",
-      "slot": "engine-config",
-      "test": {
-        "file": "phase3_dedupe_blanks.rs",
-        "fn": "all_mode_dedupes_identical_non_blank_tiles",
-        "line": 467,
-        "repo": "libviprs-tests"
-      }
-    },
-    "dedupe-blanks": {
-      "fragment": "",
-      "imports_when_active": [],
-      "kind": "append",
-      "slot": "engine-config",
-      "test": {
-        "file": "phase3_dedupe_blanks.rs",
-        "fn": "blanks_dedupe_manifest_lists_references",
-        "line": 364,
-        "repo": "libviprs-tests"
-      }
-    },
-    "dpi": {
-      "fragment": "",
-      "imports_when_active": [],
-      "kind": "param",
-      "param_name": "dpi",
-      "slot": "load-source",
-      "test": {
-        "file": "pdfium_integration.rs",
-        "fn": "libviprs_pdfium_render_paths",
-        "line": 34,
-        "repo": "libviprs-tests"
-      }
-    },
-    "failure-policy": {
-      "fragment": "        .with_failure_policy(failure_policy);",
-      "imports_when_active": [],
-      "kind": "param",
-      "param_name": "failure-policy",
-      "slot": "engine-config",
-      "test": {
-        "file": "builder_resume_retry.rs",
-        "fn": "builder_with_failure_policy_accepts_every_variant",
-        "line": 145,
-        "repo": "libviprs-tests"
-      }
-    },
-    "format": {
-      "fragment": "            .with_format(tile_format);",
-      "imports_when_active": [],
-      "kind": "param",
-      "param_name": "format",
-      "slot": "sink-fs",
-      "test": {
-        "file": "builder_sink_fs.rs",
-        "fn": "with_format_overrides_default",
-        "line": 62,
-        "repo": "libviprs-tests"
-      }
-    },
-    "geo-origin": {
-      "fragment": "        GeoCoord::new(origin.0, origin.1),",
-      "imports_when_active": [],
-      "kind": "param",
-      "param_name": "geo-origin",
-      "slot": "geo",
-      "test": {
-        "file": "pdf_to_pyramid.rs",
-        "fn": "pdf_to_georeferenced_pyramid_memory",
-        "line": 17,
-        "repo": "libviprs-tests"
-      }
-    },
-    "geo-scale": {
-      "fragment": "        scale.0,",
-      "imports_when_active": [],
-      "kind": "param",
-      "param_name": "geo-scale",
-      "slot": "geo",
-      "test": {
-        "file": "pdf_to_pyramid.rs",
-        "fn": "pdf_to_georeferenced_pyramid_memory",
-        "line": 17,
-        "repo": "libviprs-tests"
-      }
-    },
-    "layout": {
-      "fragment": "        layout,",
-      "imports_when_active": [],
-      "kind": "param",
-      "param_name": "layout",
-      "slot": "planner",
-      "test": {
-        "file": "google_centre_pyramid.rs",
-        "fn": "google_centre_portrait_plan_structure",
-        "line": 107,
-        "repo": "libviprs-tests"
-      }
-    },
-    "manifest-emit-checksums": {
-      "fragment": "            sink = sink.with_manifest(mb);",
-      "imports_when_active": [],
-      "kind": "append",
-      "slot": "sink-fs",
-      "test": {
-        "file": "builder_sink_fs.rs",
-        "fn": "compose_format_checksums_manifest_resume",
-        "line": 110,
-        "repo": "libviprs-tests"
-      }
-    },
-    "match-page-size": {
-      "fragment": "",
-      "imports_when_active": [],
-      "kind": "append",
-      "slot": "load-source",
-      "test": {
-        "file": "pdf_to_pyramid.rs",
-        "fn": "pdf_to_georeferenced_pyramid_memory",
-        "line": 17,
-        "repo": "libviprs-tests"
-      }
-    },
-    "memory-budget": {
-      "fragment": "            .with_memory_budget(bytes)",
-      "imports_when_active": [],
-      "kind": "appendChain",
-      "slot": "engine-builder",
-      "test": {
-        "file": "builder_engine_streaming.rs",
-        "fn": "with_memory_budget_drives_strip_height",
-        "line": 92,
-        "repo": "libviprs-tests"
-      }
-    },
-    "memory-limit": {
-      "fragment": "",
-      "imports_when_active": [],
-      "kind": "param",
-      "param_name": "memory-limit",
-      "slot": "memory-limit",
-      "test": {
-        "file": "streaming_engine.rs",
-        "fn": "estimate_streaming_memory_reasonable",
-        "line": 435,
-        "repo": "libviprs-tests"
-      }
-    },
-    "overlap": {
-      "fragment": "        args.overlap,",
-      "imports_when_active": [],
-      "kind": "param",
-      "param_name": "overlap",
-      "slot": "planner",
-      "test": {
-        "file": "builder_sink_fs.rs",
-        "fn": "two_arg_new_defaults_to_png",
-        "line": 47,
-        "repo": "libviprs-tests"
-      }
-    },
-    "overwrite": {
-      "fragment": "",
-      "imports_when_active": [],
-      "kind": "appendChain",
-      "slot": "engine-builder",
-      "test": {
-        "file": "builder_resume_matrix.rs",
-        "fn": "monolithic_overwrite_with_raster_source",
-        "line": 94,
-        "repo": "libviprs-tests"
-      }
-    },
-    "page": {
-      "fragment": "",
-      "imports_when_active": [],
-      "kind": "param",
-      "param_name": "page",
-      "slot": "load-source",
-      "test": {
-        "file": "pdf_ops.rs",
-        "fn": "extract_page_image_from_blueprint",
-        "line": 31,
-        "repo": "libviprs-tests"
-      }
-    },
-    "parallel": {
-      "fragment": "        .with_engine(engine_kind)",
-      "imports_when_active": [],
-      "kind": "appendChain",
-      "slot": "engine-builder",
-      "test": {
-        "file": "builder_match_composition.rs",
-        "fn": "engine_kind_through_match",
-        "line": 100,
-        "repo": "libviprs-tests"
-      }
-    },
-    "quality": {
-      "fragment": "",
-      "imports_when_active": [],
-      "kind": "param",
-      "param_name": "quality",
-      "slot": "sink-fs",
-      "test": {
-        "file": "builder_sink_fs.rs",
-        "fn": "with_format_overrides_default",
-        "line": 62,
-        "repo": "libviprs-tests"
-      }
-    },
-    "render": {
-      "fragment": "",
-      "imports_when_active": [],
-      "kind": "override",
-      "slot": "load-source",
-      "test": {
-        "file": "pdfium_integration.rs",
-        "fn": "libviprs_pdfium_render_paths",
-        "line": 34,
-        "repo": "libviprs-tests"
-      }
-    },
-    "resume": {
-      "fragment": "",
-      "imports_when_active": [],
-      "kind": "appendChain",
-      "slot": "engine-builder",
-      "test": {
-        "file": "builder_resume_matrix.rs",
-        "fn": "monolithic_resume_with_raster_source",
-        "line": 110,
-        "repo": "libviprs-tests"
-      }
-    },
-    "retry-backoff": {
-      "fragment": "",
-      "imports_when_active": [],
-      "kind": "param",
-      "param_name": "retry-backoff",
-      "slot": "engine-config",
-      "test": {
-        "file": "phase3_retry.rs",
-        "fn": "retries_on_transient_errors",
-        "line": 256,
-        "repo": "libviprs-tests"
-      }
-    },
-    "retry-max": {
-      "fragment": "",
-      "imports_when_active": [],
-      "kind": "param",
-      "param_name": "retry-max",
-      "slot": "engine-config",
-      "test": {
-        "file": "phase3_retry.rs",
-        "fn": "retries_on_transient_errors",
-        "line": 256,
-        "repo": "libviprs-tests"
-      }
-    },
-    "sink": {
-      "fragment": "",
-      "imports_when_active": [],
-      "kind": "override",
-      "slot": "sink-s3",
-      "test": {
-        "file": "phase3_packfile.rs",
-        "fn": "tar_sink_produces_valid_archive",
-        "line": 177,
-        "repo": "libviprs-tests"
-      }
-    },
-    "skip-blank": {
-      "fragment": "        .with_blank_tile_strategy(blank_strategy)",
-      "imports_when_active": [],
-      "kind": "append",
-      "slot": "engine-config",
-      "test": {
-        "file": "blank_tile_strategy.rs",
-        "fn": "placeholder_solid_white_matches_expected",
-        "line": 201,
-        "repo": "libviprs-tests"
-      }
-    },
-    "tile-size": {
-      "fragment": "        args.tile_size,",
-      "imports_when_active": [],
-      "kind": "param",
-      "param_name": "tile-size",
-      "slot": "planner",
-      "test": {
-        "file": "blank_tile_strategy.rs",
-        "fn": "emit_solid_white_matches_expected",
-        "line": 138,
-        "repo": "libviprs-tests"
-      }
-    },
-    "trace-level": {
-      "fragment": "            .with_env_filter(EnvFilter::new(_level))",
-      "imports_when_active": [],
-      "kind": "param",
-      "param_name": "trace-level",
-      "slot": "tracing-init",
-      "test": {
-        "file": "phase3_tracing.rs",
-        "fn": "emits_pipeline_span",
-        "line": 371,
-        "repo": "libviprs-tests"
-      }
-    },
-    "verify": {
-      "fragment": "",
-      "imports_when_active": [],
-      "kind": "appendChain",
-      "slot": "engine-builder",
-      "test": {
-        "file": "builder_resume_matrix.rs",
-        "fn": "monolithic_verify_with_raster_source",
-        "line": 134,
-        "repo": "libviprs-tests"
-      }
-    }
-  },
   "imports_base": [
     "EngineBuilder",
     "EngineConfig",
@@ -410,299 +22,643 @@
     "finish"
   ],
   "slots": {
-    "engine-builder": {
-      "imports_when_active": [
-        "EngineBuilder",
-        "EngineKind",
-        "CollectingObserver",
-        "BudgetPolicy",
-        "ResumePolicy"
-      ],
+    "tracing-init": {
+      "imports_when_active": [],
       "lines": [
-        "    let mut builder = EngineBuilder::new(raster, plan.clone(), sink)",
-        "        .with_engine(engine_kind)",
-        "        .with_observer(observer)",
-        "        .with_concurrency(engine_config.concurrency)",
-        "        .with_buffer_size(engine_config.buffer_size)",
-        "        .with_background_rgb(engine_config.background_rgb)",
-        "        .with_blank_strategy(engine_config.blank_tile_strategy)",
-        "        .with_failure_policy(engine_config.failure_policy.clone());",
-        "    if let Some(ds) = engine_config.dedupe_strategy {",
-        "        builder = builder.with_dedupe(ds);",
-        "    }",
-        "    if let Some(bytes) = memory_budget {",
-        "        builder = builder",
-        "            .with_memory_budget(bytes)",
-        "            .with_budget_policy(BudgetPolicy::Error);",
-        "    }",
-        "",
-        "    match builder.run() {",
-        "        Ok(r) => r,",
-        "        Err(e) => {",
-        "            eprintln!(\"Error generating pyramid: {e}\");",
-        "            process::exit(1);",
-        "        }",
-        "    }"
-      ]
-    },
-    "engine-config": {
-      "imports_when_active": [
-        "EngineConfig",
-        "BlankTileStrategy",
-        "FailurePolicy",
-        "DedupeStrategy",
-        "RetryPolicy"
+        "tracing_subscriber::fmt()",
+        "    .with_env_filter(EnvFilter::new(\"{trace-level}\"))",
+        "    .init();"
       ],
-      "lines": [
-        "    let mut engine_config = EngineConfig::default()",
-        "        .with_concurrency(args.concurrency)",
-        "        .with_buffer_size(args.buffer_size)",
-        "        .with_blank_tile_strategy(blank_strategy)",
-        "        .with_failure_policy(failure_policy);",
-        "",
-        "    if let Some(ds) = dedupe_strategy {",
-        "        engine_config = engine_config.with_dedupe_strategy(ds);",
-        "    }"
-      ]
-    },
-    "finish": {
-      "imports_when_active": [
-        "libviprs::EngineResult"
-      ],
-      "lines": [
-        "    let elapsed = start.elapsed();",
-        "    let mut summary = format!(",
-        "        \"Done: {} tiles, {} levels, peak memory {:.1} MB, {:.2}s\",",
-        "        result.tiles_produced,",
-        "        result.levels_processed,",
-        "        result.peak_memory_bytes as f64 / (1024.0 * 1024.0),",
-        "        elapsed.as_secs_f64()",
-        "    );",
-        "    if result.tiles_skipped > 0 {",
-        "        summary.push_str(&format!(\" ({} blank tiles skipped)\", result.tiles_skipped));",
-        "    }",
-        "    eprintln!(\"{summary}\");",
-        "    eprintln!(\"Output: {}\", output.display());"
-      ]
-    },
-    "geo": {
-      "imports_when_active": [
-        "GeoTransform",
-        "GeoCoord"
-      ],
-      "lines": [
-        "    let origin_str = args.geo_origin.as_ref()?;",
-        "    let scale_str = args.geo_scale.as_ref()?;",
-        "",
-        "    let origin = parse_coord_pair(origin_str, \"geo-origin\");",
-        "    let scale = parse_coord_pair(scale_str, \"geo-scale\");",
-        "",
-        "    Some(GeoTransform::from_origin_and_scale(",
-        "        GeoCoord::new(origin.0, origin.1),",
-        "        scale.0,",
-        "        scale.1,",
-        "    ))"
+      "gated_by": [
+        "trace-level"
       ]
     },
     "load-source": {
-      "imports_when_active": [
-        "Raster",
-        "extract_page_image",
-        "render_page_pdfium",
-        "decode_file"
-      ],
+      "imports_when_active": [],
       "lines": [
-        "    if ext == \"pdf\" {",
-        "        if args.render {",
-        "            // Use PDFium to render the page (vector PDFs)",
-        "            eprintln!(",
-        "                \"Rendering PDF page {} at {} DPI (pdfium)...\",",
-        "                args.page, args.dpi",
-        "            );",
-        "            match render_page_pdfium(&path, args.page, args.dpi) {",
-        "                Ok(r) => r,",
-        "                Err(e) => {",
-        "                    eprintln!(\"Error rendering PDF with pdfium: {e}\");",
-        "                    eprintln!(",
-        "                        \"Hint: ensure libpdfium is installed. Run without --render to extract embedded images instead.\"",
-        "                    );",
-        "                    process::exit(1);",
-        "                }",
-        "            }",
-        "        } else {",
-        "            // Extract embedded raster image (scanned PDFs)",
-        "            eprintln!(\"Extracting image from PDF page {}...\", args.page);",
-        "            let raster = match extract_page_image(&path, args.page) {",
-        "                Ok(r) => r,",
-        "                Err(e) => {",
-        "                    eprintln!(\"Error extracting image from PDF: {e}\");",
-        "                    eprintln!(",
-        "                        \"Hint: use --render for vector PDFs that don't contain embedded images.\"",
-        "                    );",
-        "                    process::exit(1);",
-        "                }",
-        "            };",
-        "",
-        "            // Optionally resize to match PDF page dimensions at the given DPI",
-        "            if args.match_page_size {",
-        "                let page_dims = match libviprs::pdf_info(&path) {",
-        "                    Ok(info) => {",
-        "                        let page_info = info.pages.iter().find(|p| p.page_number == args.page);",
-        "                        match page_info {",
-        "                            Some(p) => {",
-        "                                let scale = args.dpi as f64 / 72.0;",
-        "                                let w = (p.width_pts * scale) as u32;",
-        "                                let h = (p.height_pts * scale) as u32;",
-        "                                (w, h)",
-        "                            }",
-        "                            None => {",
-        "                                eprintln!(\"Page {} not found in PDF\", args.page);",
-        "                                process::exit(1);",
-        "                            }",
-        "                        }",
-        "                    }",
-        "                    Err(e) => {",
-        "                        eprintln!(\"Error reading PDF info for page sizing: {e}\");",
-        "                        process::exit(1);",
-        "                    }",
-        "                };",
-        "",
-        "                if page_dims.0 != raster.width() || page_dims.1 != raster.height() {",
-        "                    eprintln!(",
-        "                        \"Resizing {}x{} → {}x{} (matching page at {} DPI)\",",
-        "                        raster.width(),",
-        "                        raster.height(),",
-        "                        page_dims.0,",
-        "                        page_dims.1,",
-        "                        args.dpi",
-        "                    );",
-        "                    match libviprs::resize::downscale_to(&raster, page_dims.0, page_dims.1) {",
-        "                        Ok(r) => r,",
-        "                        Err(e) => {",
-        "                            eprintln!(\"Error resizing raster: {e}\");",
-        "                            process::exit(1);",
-        "                        }",
-        "                    }",
-        "                } else {",
-        "                    raster",
-        "                }",
-        "            } else {",
-        "                raster",
-        "            }",
-        "        }",
-        "    } else {",
-        "        eprintln!(\"Decoding {}...\", path.display());",
-        "        match libviprs::decode_file(&path) {",
-        "            Ok(r) => r,",
-        "            Err(e) => {",
-        "                eprintln!(\"Error decoding image: {e}\");",
-        "                process::exit(1);",
-        "            }",
-        "        }",
-        "    }"
+        "let raster = if input.extension().and_then(|e| e.to_str()) == Some(\"pdf\") {",
+        "    libviprs::extract_page_image(&input, {page})?",
+        "} else {",
+        "    decode_file(&input)?",
+        "};"
+      ]
+    },
+    "planner": {
+      "imports_when_active": [],
+      "lines": [
+        "let planner = PyramidPlanner::new(",
+        "    raster.width(),",
+        "    raster.height(),",
+        "    {tile-size},",
+        "    {overlap},",
+        "    Layout::{layout},",
+        ")?;",
+        "let plan = planner.plan();"
       ]
     },
     "memory-limit": {
       "imports_when_active": [],
       "lines": [
-        "    if args.memory_limit > 0 {",
-        "        let limit_bytes = args.memory_limit * 1024 * 1024;",
-        "        if peak_memory > limit_bytes {",
-        "            eprintln!(",
-        "                \"Error: estimated peak memory ({:.1} MB) exceeds --memory-limit ({} MB)\",",
-        "                peak_memory as f64 / (1024.0 * 1024.0),",
-        "                args.memory_limit",
-        "            );",
-        "            eprintln!(\"Hint: reduce --dpi or image dimensions to lower memory usage\");",
-        "            process::exit(1);",
-        "        }",
-        "    }"
+        "let limit = {memory-limit}u64 * 1024 * 1024;",
+        "if planner.estimate_peak_memory() > limit {",
+        "    return Err(\"estimated peak memory exceeds --memory-limit\".into());",
+        "}"
+      ],
+      "gated_by": [
+        "memory-limit"
       ]
     },
-    "planner": {
+    "geo": {
       "imports_when_active": [
-        "PyramidPlanner",
-        "Layout"
+        "GeoCoord",
+        "GeoTransform"
       ],
       "lines": [
-        "    let planner = match PyramidPlanner::new(",
-        "        w,",
-        "        h,",
-        "        args.tile_size,",
-        "        args.overlap,",
-        "        layout,",
-        "    ) {",
-        "        Ok(p) => p.with_centre(args.centre),",
-        "        Err(e) => {",
-        "            eprintln!(\"Error creating pyramid plan: {e}\");",
-        "            process::exit(1);",
-        "        }",
-        "    };"
+        "let _geo = GeoTransform::from_origin_and_scale(",
+        "    GeoCoord::new({geo-origin}),",
+        "    {geo-scale},",
+        ");"
+      ],
+      "gated_by": [
+        "geo-origin",
+        "geo-scale"
       ]
     },
-    "sink-fs": {
-      "imports_when_active": [
-        "FsSink",
-        "TileFormat",
-        "ChecksumMode",
-        "ChecksumAlgo",
-        "ManifestBuilder"
-      ],
+    "sink": {
+      "imports_when_active": [],
       "lines": [
-        "        let mut sink = FsSink::new(&base_dir, plan.clone())",
-        "            .with_format(tile_format);",
-        "        if let Some(mb) = manifest_builder {",
-        "            sink = sink.with_manifest(mb);",
-        "        }",
-        "        if args.manifest_emit_checksums {",
-        "            sink = sink.with_checksums(ChecksumMode::EmitOnly, checksum_algo);",
-        "        }",
-        "        if let Some(ds) = build_dedupe_strategy(&args) {",
-        "            sink = sink.with_dedupe(ds);",
-        "        }",
-        "        if args.resume {",
-        "            sink = sink.with_resume(true);",
-        "        }"
+        "let sink = FsSink::new(&output, plan.clone())",
+        "    .with_format(TileFormat::{format});"
       ]
     },
-    "sink-packfile": {
-      "imports_when_active": [
-        "PackfileSink",
-        "PackfileFormat",
-        "TileFormat"
-      ],
+    "engine-config": {
+      "imports_when_active": [],
       "lines": [
-        "        let sink = match PackfileSink::new(_path, fmt, _plan.clone(), _tile_format) {",
-        "            Ok(s) => s,",
-        "            Err(e) => {",
-        "                eprintln!(\"Error creating packfile sink: {e}\");",
-        "                process::exit(1);",
-        "            }",
-        "        };"
+        "let config = EngineConfig::default();"
       ]
     },
-    "sink-s3": {
-      "imports_when_active": [
-        "ObjectStoreSink"
-      ],
+    "engine-builder": {
+      "imports_when_active": [],
       "lines": [
-        "        // TODO Phase 3: parse bucket/prefix from _rest, build ObjectStoreConfig,",
-        "        // construct ObjectStoreSink, run generate_pyramid_resumable or",
-        "        // generate_pyramid_observed as appropriate.",
-        "        eprintln!(\"Error: s3:// sink is not yet fully wired (Phase 3 TODO).\");",
-        "        process::exit(2);"
+        "let result = EngineBuilder::new(&raster, plan.clone(), &sink)",
+        "    .with_config(config)",
+        "    .run()?;"
       ]
     },
-    "tracing-init": {
-      "imports_when_active": [
-        "tracing_subscriber::EnvFilter"
-      ],
+    "finish": {
+      "imports_when_active": [],
       "lines": [
-        "        tracing_subscriber::fmt()",
-        "            .with_env_filter(EnvFilter::new(_level))",
-        "            .init();"
+        "eprintln!(",
+        "    \"Done: {{}} tiles, {{}} levels, peak {{:.1}} MB\",",
+        "    result.tiles_produced,",
+        "    result.levels_processed,",
+        "    result.peak_memory_bytes as f64 / (1024.0 * 1024.0),",
+        ");"
       ]
     }
   },
-  "version": 1
+  "flags": {
+    "tile-size": {
+      "kind": "param",
+      "param_name": "tile-size",
+      "slot": "planner",
+      "default": "256",
+      "type": "int",
+      "cli": "--tile-size {v}",
+      "imports_when_active": [],
+      "test": {
+        "file": "blank_tile_strategy.rs",
+        "fn": "emit_solid_white_matches_expected",
+        "line": 138,
+        "repo": "libviprs-tests"
+      },
+      "fragment": ""
+    },
+    "overlap": {
+      "kind": "param",
+      "param_name": "overlap",
+      "slot": "planner",
+      "default": "0",
+      "type": "int",
+      "cli": "--overlap {v}",
+      "imports_when_active": [],
+      "test": {
+        "file": "builder_sink_fs.rs",
+        "fn": "two_arg_new_defaults_to_png",
+        "line": 47,
+        "repo": "libviprs-tests"
+      },
+      "fragment": ""
+    },
+    "layout": {
+      "kind": "param",
+      "param_name": "layout",
+      "slot": "planner",
+      "default": "deep-zoom",
+      "type": "enum",
+      "options": [
+        "deep-zoom",
+        "xyz",
+        "google"
+      ],
+      "cli": "--layout {v}",
+      "imports_when_active": [],
+      "test": {
+        "file": "google_centre_pyramid.rs",
+        "fn": "google_centre_portrait_plan_structure",
+        "line": 107,
+        "repo": "libviprs-tests"
+      },
+      "fragment": ""
+    },
+    "centre": {
+      "kind": "append",
+      "slot": "planner",
+      "default": false,
+      "type": "bool",
+      "cli": "--centre",
+      "fragment": "let planner = planner.with_centre(true);",
+      "imports_when_active": [],
+      "test": {
+        "file": "google_centre_pyramid.rs",
+        "fn": "google_centre_portrait_plan_structure",
+        "line": 107,
+        "repo": "libviprs-tests"
+      }
+    },
+    "page": {
+      "kind": "param",
+      "param_name": "page",
+      "slot": "load-source",
+      "default": "1",
+      "type": "int",
+      "cli": "--page {v}",
+      "imports_when_active": [],
+      "test": {
+        "file": "pdf_ops.rs",
+        "fn": "extract_page_image_from_blueprint",
+        "line": 31,
+        "repo": "libviprs-tests"
+      },
+      "fragment": ""
+    },
+    "dpi": {
+      "kind": "append",
+      "slot": "load-source",
+      "default": "72",
+      "type": "int",
+      "cli": "--dpi {v}",
+      "imports_when_active": [],
+      "test": {
+        "file": "pdfium_integration.rs",
+        "fn": "libviprs_pdfium_render_paths",
+        "line": 34,
+        "repo": "libviprs-tests"
+      },
+      "fragment": "// PDF rendering DPI: {v} (used with --render and --match-page-size)"
+    },
+    "render": {
+      "kind": "override",
+      "slot": "load-source",
+      "default": false,
+      "type": "bool",
+      "cli": "--render",
+      "fragment": "let raster = libviprs::pdf::render_page_pdfium(&input, {page}, {dpi})?;",
+      "imports_when_active": [],
+      "test": {
+        "file": "pdfium_integration.rs",
+        "fn": "libviprs_pdfium_render_paths",
+        "line": 34,
+        "repo": "libviprs-tests"
+      }
+    },
+    "match-page-size": {
+      "kind": "append",
+      "slot": "load-source",
+      "default": false,
+      "type": "bool",
+      "cli": "--match-page-size",
+      "fragment": "let info = libviprs::pdf_info(&input)?;\nlet page = info.pages.iter().find(|p| p.page_number == {page}).unwrap();\nlet scale = {dpi}.0_f64 / 72.0;\nlet target_w = (page.width_pts * scale) as u32;\nlet target_h = (page.height_pts * scale) as u32;\nlet raster = libviprs::resize::downscale_to(&raster, target_w, target_h)?;",
+      "imports_when_active": [],
+      "test": {
+        "file": "pdf_to_pyramid.rs",
+        "fn": "pdf_to_georeferenced_pyramid_memory",
+        "line": 17,
+        "repo": "libviprs-tests"
+      }
+    },
+    "memory-limit": {
+      "kind": "param",
+      "param_name": "memory-limit",
+      "slot": "memory-limit",
+      "default": "512",
+      "type": "int",
+      "cli": "--memory-limit {v}",
+      "imports_when_active": [],
+      "test": {
+        "file": "streaming_engine.rs",
+        "fn": "estimate_streaming_memory_reasonable",
+        "line": 435,
+        "repo": "libviprs-tests"
+      },
+      "fragment": ""
+    },
+    "geo-origin": {
+      "kind": "param",
+      "param_name": "geo-origin",
+      "slot": "geo",
+      "default": "-73.9857, 40.7484",
+      "type": "str",
+      "cli": "--geo-origin \"{v}\"",
+      "imports_when_active": [
+        "GeoCoord",
+        "GeoTransform"
+      ],
+      "test": {
+        "file": "pdf_to_pyramid.rs",
+        "fn": "pdf_to_georeferenced_pyramid_memory",
+        "line": 17,
+        "repo": "libviprs-tests"
+      },
+      "fragment": ""
+    },
+    "geo-scale": {
+      "kind": "param",
+      "param_name": "geo-scale",
+      "slot": "geo",
+      "default": "0.00001, -0.00001",
+      "type": "str",
+      "cli": "--geo-scale \"{v}\"",
+      "imports_when_active": [
+        "GeoCoord",
+        "GeoTransform"
+      ],
+      "test": {
+        "file": "pdf_to_pyramid.rs",
+        "fn": "pdf_to_georeferenced_pyramid_memory",
+        "line": 17,
+        "repo": "libviprs-tests"
+      },
+      "fragment": ""
+    },
+    "format": {
+      "kind": "param",
+      "param_name": "format",
+      "slot": "sink",
+      "default": "png",
+      "type": "enum",
+      "options": [
+        "png",
+        "jpeg",
+        "raw"
+      ],
+      "cli": "--format {v}",
+      "imports_when_active": [],
+      "test": {
+        "file": "builder_sink_fs.rs",
+        "fn": "with_format_overrides_default",
+        "line": 62,
+        "repo": "libviprs-tests"
+      },
+      "fragment": ""
+    },
+    "quality": {
+      "kind": "append",
+      "slot": "sink",
+      "default": "85",
+      "type": "int",
+      "cli": "--quality {v}",
+      "fragment": "// JPEG quality: {v} (used when --format jpeg)",
+      "imports_when_active": [],
+      "test": {
+        "file": "builder_sink_fs.rs",
+        "fn": "with_format_overrides_default",
+        "line": 62,
+        "repo": "libviprs-tests"
+      }
+    },
+    "manifest-emit-checksums": {
+      "kind": "append",
+      "slot": "sink",
+      "default": false,
+      "type": "bool",
+      "cli": "--manifest-emit-checksums",
+      "fragment": "let sink = sink\n    .with_manifest(ManifestBuilder::new().with_checksums(ChecksumAlgo::{checksum-algo}))\n    .with_checksums(ChecksumMode::EmitOnly, ChecksumAlgo::{checksum-algo});",
+      "imports_when_active": [
+        "ChecksumAlgo",
+        "ChecksumMode",
+        "ManifestBuilder"
+      ],
+      "test": {
+        "file": "builder_sink_fs.rs",
+        "fn": "compose_format_checksums_manifest_resume",
+        "line": 110,
+        "repo": "libviprs-tests"
+      }
+    },
+    "checksum-algo": {
+      "kind": "param",
+      "param_name": "checksum-algo",
+      "slot": "sink",
+      "default": "blake3",
+      "type": "enum",
+      "options": [
+        "blake3",
+        "sha256"
+      ],
+      "cli": "--checksum-algo {v}",
+      "imports_when_active": [
+        "ChecksumAlgo"
+      ],
+      "test": {
+        "file": "phase3_checksum.rs",
+        "fn": "emit_only_populates_manifest_checksums",
+        "line": 223,
+        "repo": "libviprs-tests"
+      },
+      "fragment": ""
+    },
+    "sink": {
+      "kind": "override",
+      "slot": "sink",
+      "default": "s3://my-bucket/prefix/",
+      "type": "str",
+      "cli": "--sink {v}",
+      "special": "sink-override",
+      "fragment": "// Custom sink \u2014 see resolveSinkOverride for s3:// and packfile:// dispatch.\n// Default: FsSink. With --sink s3://bucket/prefix \u2192 ObjectStoreSink.\n// With --sink packfile://path.tar(.gz|.zip) \u2192 PackfileSink.",
+      "imports_when_active": [],
+      "test": {
+        "file": "phase3_packfile.rs",
+        "fn": "tar_sink_produces_valid_archive",
+        "line": 177,
+        "repo": "libviprs-tests"
+      }
+    },
+    "concurrency": {
+      "kind": "appendChain",
+      "slot": "engine-config",
+      "default": "8",
+      "type": "int",
+      "cli": "--concurrency {v}",
+      "fragment": ".with_concurrency({v})",
+      "imports_when_active": [],
+      "test": {
+        "file": "builder_engine_surface.rs",
+        "fn": "builder_honours_with_concurrency",
+        "line": 100,
+        "repo": "libviprs-tests"
+      }
+    },
+    "buffer-size": {
+      "kind": "appendChain",
+      "slot": "engine-config",
+      "default": "64",
+      "type": "int",
+      "cli": "--buffer-size {v}",
+      "fragment": ".with_buffer_size({v})",
+      "imports_when_active": [],
+      "test": {
+        "file": "builder_engine_surface.rs",
+        "fn": "builder_honours_with_buffer_size",
+        "line": 119,
+        "repo": "libviprs-tests"
+      }
+    },
+    "skip-blank": {
+      "kind": "appendChain",
+      "slot": "engine-config",
+      "default": false,
+      "type": "bool",
+      "cli": "--skip-blank",
+      "imports_when_active": [
+        "BlankTileStrategy"
+      ],
+      "fragment": ".with_blank_tile_strategy(BlankTileStrategy::Placeholder)",
+      "test": {
+        "file": "blank_tile_strategy.rs",
+        "fn": "placeholder_solid_white_matches_expected",
+        "line": 201,
+        "repo": "libviprs-tests"
+      }
+    },
+    "blank-tolerance": {
+      "kind": "appendChain",
+      "slot": "engine-config",
+      "default": "2",
+      "type": "int",
+      "cli": "--blank-tolerance {v}",
+      "imports_when_active": [
+        "BlankTileStrategy"
+      ],
+      "fragment": ".with_blank_tile_strategy(BlankTileStrategy::PlaceholderWithTolerance {{ max_channel_delta: {v} }})",
+      "test": {
+        "file": "phase3_blank_tolerance.rs",
+        "fn": "engine_with_tolerance_writes_placeholder_for_near_white_tiles",
+        "line": 248,
+        "repo": "libviprs-tests"
+      }
+    },
+    "retry-max": {
+      "kind": "appendChain",
+      "slot": "engine-config",
+      "default": "3",
+      "type": "int",
+      "cli": "--retry-max {v}",
+      "imports_when_active": [
+        "FailurePolicy",
+        "RetryPolicy"
+      ],
+      "fragment": ".with_failure_policy(FailurePolicy::RetryThenFail(RetryPolicy::new({v}, std::time::Duration::from_millis(100))))",
+      "test": {
+        "file": "phase3_retry.rs",
+        "fn": "retries_on_transient_errors",
+        "line": 256,
+        "repo": "libviprs-tests"
+      }
+    },
+    "retry-backoff": {
+      "kind": "appendChain",
+      "slot": "engine-config",
+      "default": "100",
+      "type": "int",
+      "cli": "--retry-backoff {v}",
+      "imports_when_active": [
+        "FailurePolicy",
+        "RetryPolicy"
+      ],
+      "fragment": ".with_failure_policy(FailurePolicy::RetryThenFail(RetryPolicy::new(3, std::time::Duration::from_millis({v}))))",
+      "test": {
+        "file": "phase3_retry.rs",
+        "fn": "retries_on_transient_errors",
+        "line": 256,
+        "repo": "libviprs-tests"
+      }
+    },
+    "failure-policy": {
+      "kind": "appendChain",
+      "slot": "engine-config",
+      "default": "fail-fast",
+      "type": "enum",
+      "options": [
+        "fail-fast",
+        "retry-then-fail",
+        "retry-then-skip"
+      ],
+      "cli": "--failure-policy {v}",
+      "imports_when_active": [
+        "FailurePolicy",
+        "RetryPolicy"
+      ],
+      "fragment": ".with_failure_policy(FailurePolicy::{v}(RetryPolicy::new(3, std::time::Duration::from_millis(100))))",
+      "test": {
+        "file": "builder_resume_retry.rs",
+        "fn": "builder_with_failure_policy_accepts_every_variant",
+        "line": 145,
+        "repo": "libviprs-tests"
+      }
+    },
+    "memory-budget": {
+      "kind": "appendChain",
+      "slot": "engine-builder",
+      "default": "128",
+      "type": "int",
+      "cli": "--memory-budget {v}",
+      "imports_when_active": [
+        "streaming::BudgetPolicy"
+      ],
+      "fragment": ".with_memory_budget({v} * 1024 * 1024)\n.with_budget_policy(BudgetPolicy::Error)",
+      "test": {
+        "file": "builder_engine_streaming.rs",
+        "fn": "with_memory_budget_drives_strip_height",
+        "line": 92,
+        "repo": "libviprs-tests"
+      }
+    },
+    "parallel": {
+      "kind": "appendChain",
+      "slot": "engine-builder",
+      "default": false,
+      "type": "bool",
+      "cli": "--parallel",
+      "imports_when_active": [
+        "EngineKind"
+      ],
+      "fragment": ".with_engine(EngineKind::MapReduce)",
+      "test": {
+        "file": "builder_match_composition.rs",
+        "fn": "engine_kind_through_match",
+        "line": 100,
+        "repo": "libviprs-tests"
+      }
+    },
+    "dedupe-blanks": {
+      "kind": "appendChain",
+      "slot": "engine-builder",
+      "default": false,
+      "type": "bool",
+      "cli": "--dedupe-blanks",
+      "imports_when_active": [
+        "DedupeStrategy"
+      ],
+      "fragment": ".with_dedupe(DedupeStrategy::Blanks)",
+      "test": {
+        "file": "phase3_dedupe_blanks.rs",
+        "fn": "blanks_dedupe_manifest_lists_references",
+        "line": 364,
+        "repo": "libviprs-tests"
+      }
+    },
+    "dedupe-all": {
+      "kind": "appendChain",
+      "slot": "engine-builder",
+      "default": false,
+      "type": "bool",
+      "cli": "--dedupe-all",
+      "imports_when_active": [
+        "ChecksumAlgo",
+        "DedupeStrategy"
+      ],
+      "fragment": ".with_dedupe(DedupeStrategy::All {{ algo: ChecksumAlgo::{checksum-algo} }})",
+      "test": {
+        "file": "phase3_dedupe_blanks.rs",
+        "fn": "all_mode_dedupes_identical_non_blank_tiles",
+        "line": 467,
+        "repo": "libviprs-tests"
+      }
+    },
+    "resume": {
+      "kind": "appendChain",
+      "slot": "engine-builder",
+      "default": false,
+      "type": "bool",
+      "cli": "--resume",
+      "imports_when_active": [
+        "ResumePolicy"
+      ],
+      "fragment": ".with_resume(ResumePolicy::resume())",
+      "test": {
+        "file": "builder_resume_matrix.rs",
+        "fn": "monolithic_resume_with_raster_source",
+        "line": 110,
+        "repo": "libviprs-tests"
+      }
+    },
+    "overwrite": {
+      "kind": "appendChain",
+      "slot": "engine-builder",
+      "default": false,
+      "type": "bool",
+      "cli": "--overwrite",
+      "imports_when_active": [
+        "ResumePolicy"
+      ],
+      "fragment": ".with_resume(ResumePolicy::overwrite())",
+      "test": {
+        "file": "builder_resume_matrix.rs",
+        "fn": "monolithic_overwrite_with_raster_source",
+        "line": 94,
+        "repo": "libviprs-tests"
+      }
+    },
+    "verify": {
+      "kind": "appendChain",
+      "slot": "engine-builder",
+      "default": false,
+      "type": "bool",
+      "cli": "--verify",
+      "imports_when_active": [
+        "ResumePolicy"
+      ],
+      "fragment": ".with_resume(ResumePolicy::verify())",
+      "test": {
+        "file": "builder_resume_matrix.rs",
+        "fn": "monolithic_verify_with_raster_source",
+        "line": 134,
+        "repo": "libviprs-tests"
+      }
+    },
+    "trace-level": {
+      "kind": "param",
+      "param_name": "trace-level",
+      "slot": "tracing-init",
+      "default": "info",
+      "type": "enum",
+      "options": [
+        "error",
+        "warn",
+        "info",
+        "debug",
+        "trace"
+      ],
+      "cli": "--trace-level {v}",
+      "imports_when_active": [],
+      "test": {
+        "file": "phase3_tracing.rs",
+        "fn": "emits_pipeline_span",
+        "line": 371,
+        "repo": "libviprs-tests"
+      },
+      "fragment": ""
+    }
+  }
 }
