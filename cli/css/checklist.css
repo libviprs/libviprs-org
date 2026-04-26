@@ -157,6 +157,50 @@
   transition: color 200ms ease;
 }
 
+/* Heading-as-button: the mark + label become a single clickable target.
+   Reset native button chrome and re-flow the children into the same grid
+   cells the static span layout uses. */
+.checklist-item .checklist-jump {
+  grid-column: 1 / span 2;
+  grid-row: 1;
+  display: grid;
+  grid-template-columns: 1.5rem 1fr;
+  align-items: center;
+  gap: 0 0.5rem;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 150ms ease;
+}
+.checklist-item .checklist-jump .checklist-mark {
+  grid-column: 1;
+  grid-row: 1;
+}
+.checklist-item .checklist-jump .checklist-text {
+  grid-column: 2;
+  grid-row: 1;
+}
+.checklist-item .checklist-jump:hover .checklist-text {
+  color: var(--primary, #be6e34);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+.checklist-item .checklist-jump:focus-visible {
+  outline: 2px solid var(--primary, #be6e34);
+  outline-offset: 2px;
+}
+.checklist-item.is-done .checklist-jump:hover .checklist-text {
+  text-decoration: line-through underline;
+  text-decoration-color: var(--primary, #be6e34);
+}
+
 .checklist-item.is-done .checklist-mark { color: #1f9d55; }      /* green */
 
 .checklist-item .checklist-text {
@@ -195,6 +239,16 @@
 @keyframes just-completed-pulse {
   0%   { background: color-mix(in srgb, #1f9d55 35%, transparent); }
   100% { background: color-mix(in srgb, #1f9d55  0%, transparent); }
+}
+
+/* Brief glow on a flag row the checklist just jumped to, so the user sees
+   where they landed. Outside the drawer, applied by checklist.js. */
+dl.flags dt.flag-row.checklist-flash {
+  animation: checklist-flag-flash 1.6s ease-out;
+}
+@keyframes checklist-flag-flash {
+  0%   { background: color-mix(in srgb, var(--primary, #be6e34) 28%, transparent); }
+  100% { background: transparent; }
 }
 
 /* ----- dark theme ---------------------------------------------------- */
