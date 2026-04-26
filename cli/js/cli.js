@@ -20,6 +20,30 @@
   'use strict';
 
   // ---------------------------------------------------------------------------
+  // Flag → color map. Built lazily from the snippets JSON (the source of truth
+  // for the flag list). Stable: hue is derived from the flag's index in the
+  // sorted flag list, so the same flag always gets the same color across
+  // reloads. Exposed on `prog.flagColors` for consumers like CodeGutter.
+  // ---------------------------------------------------------------------------
+
+  var FLAG_COLORS = null; // populated by ensureFlagColors() once snippets load
+
+  function ensureFlagColors() {
+    if (FLAG_COLORS) return FLAG_COLORS;
+    var snippets = window.VIPRS_SNIPPETS;
+    if (!snippets || !snippets.flags) return {};
+    var FLAGS = snippets.flags;
+    var colors = {};
+    var keys = Object.keys(FLAGS);
+    keys.forEach(function (k, i) {
+      var hue = Math.round((i * 360 / keys.length) % 360);
+      colors[k] = 'hsl(' + hue + ', 65%, 55%)';
+    });
+    FLAG_COLORS = colors;
+    return FLAG_COLORS;
+  }
+
+  // ---------------------------------------------------------------------------
   // 0. Rust syntax highlighter — single-pass, no deps, HTML-safe.
   //    Token classes (.r-keyword, .r-type, .r-string, .r-number, .r-macro,
   //    .r-attr, .r-comment, .r-lifetime) are styled in cli.css and follow the
@@ -457,10 +481,108 @@
   // 6. Generator panel renderer
   // ---------------------------------------------------------------------------
 
-  // Returns { rust, cli, count } for the current flag selection.
+  // Flag attribution for a base-body slot line. Returns the array of flag
+  // names that "drove" this line into the output. Empty array means the line
+  // belongs to the slot's static scaffolding and isn't attributable to a
+  // particular flag — the caller (CodeGutter) renders no bar for those.
+  //
+  // Patterns are matched against the *substituted* line text so that any
+  // {placeholder} expansion that surfaces an `args.<flag>` reference still
+  // attributes correctly.
+  function attributeBaseLine(slotName, lineText) {
+    var f, seen, out;
+    switch (slotName) {
+      case 'tracing-init':
+        return ['trace-level'];
+      case 'memory-limit':
+        return ['memory-limit'];
+      case 'geo':
+        return ['geo-origin', 'geo-scale'];
+      case 'planner':
+        if (/args\.tile_size/.test(lineText)) return ['tile-size'];
+        if (/args\.overlap/.test(lineText)) return ['overlap'];
+        if (/^\s*layout,\s*$/.test(lineText)) return ['layout'];
+        if (/with_centre/.test(lineText)) return ['centre'];
+        return [];
+      case 'load-source':
+        f = [];
+        if (/args\.render|render_page_pdfium|Rendering PDF page|\(pdfium\)/.test(lineText)) f.push('render');
+        if (/args\.dpi|\bDPI\b|f64 \/ 72\.0/.test(lineText)) f.push('dpi');
+        if (/args\.page|page_number|PDF page \{\}/.test(lineText)) f.push('page');
+        if (/args\.match_page_size|page_dims|matching page|libviprs::resize::downscale_to|page_info|pdf_info\(&path\)|width_pts|height_pts|Resizing/.test(lineText)) {
+          f.push('match-page-size');
+        }
+        seen = {}; out = [];
+        f.forEach(function (x) { if (!seen[x]) { seen[x] = 1; out.push(x); } });
+        return out;
+      case 'sink-fs':
+        if (/manifest_emit_checksums|with_checksums.*checksum_algo/.test(lineText)) {
+          return ['manifest-emit-checksums', 'checksum-algo'];
+        }
+        if (/with_format|tile_format/.test(lineText)) return ['format'];
+        if (/with_manifest|manifest_builder/.test(lineText)) return ['manifest-emit-checksums'];
+        if (/build_dedupe_strategy|with_dedupe\(ds\)/.test(lineText)) return ['dedupe-blanks'];
+        if (/args\.resume|with_resume/.test(lineText)) return ['resume'];
+        return [];
+      case 'engine-config':
+        if (/with_concurrency/.test(lineText)) return ['concurrency'];
+        if (/with_buffer_size/.test(lineText)) return ['buffer-size'];
+        if (/with_blank_tile_strategy|blank_strategy/.test(lineText)) return ['skip-blank'];
+        if (/with_failure_policy|failure_policy/.test(lineText)) return ['failure-policy'];
+        if (/dedupe_strategy|with_dedupe_strategy/.test(lineText)) return ['dedupe-blanks'];
+        return [];
+      case 'engine-builder':
+        if (/with_engine\(engine_kind\)/.test(lineText)) return ['parallel'];
+        if (/with_concurrency/.test(lineText)) return ['concurrency'];
+        if (/with_buffer_size/.test(lineText)) return ['buffer-size'];
+        if (/with_blank_strategy|blank_tile_strategy/.test(lineText)) return ['skip-blank'];
+        if (/with_failure_policy/.test(lineText)) return ['failure-policy'];
+        if (/with_dedupe|dedupe_strategy/.test(lineText)) return ['dedupe-blanks'];
+        if (/memory_budget|with_memory_budget|BudgetPolicy/.test(lineText)) return ['memory-budget'];
+        return [];
+      case 'finish':
+      case 'sink-s3':
+      case 'sink-packfile':
+      default:
+        return [];
+    }
+  }
+
+  // Returns {
+  //   rust, cli, count,
+  //   rustLines: [{ text, flags }, …],
+  //   activeFlags: [name, …],     // order: FLAGS key order, then any extras
+  //   flagColors: { name: 'hsl(...)' },
+  // } for the current flag selection.
+  //
+  // `prog.rust` is byte-identical to what the previous string-only generator
+  // produced; `rustLines` is the per-line decomposition with flag attribution
+  // so consumers (e.g. CodeGutter) can paint a colored bar per line.
   function renderFullProgram() {
     var snippets = window.VIPRS_SNIPPETS;
-    if (!snippets) return { rust: '', cli: '', count: 0 };
+    if (!snippets) {
+      return {
+        rust: '', cli: '', count: 0,
+        rustLines: [], activeFlags: [], flagColors: ensureFlagColors()
+      };
+    }
+
+    // Per-line collector. `pushLine` is the single entry point for emitting
+    // an output line — it normalises the `flags` argument and records both
+    // the text and its attribution.
+    var rustLines = [];
+    function pushLine(text, flags) {
+      var f;
+      if (flags == null) f = [];
+      else if (Array.isArray(flags)) f = flags;
+      else f = [flags];
+      rustLines.push({ text: text, flags: f });
+    }
+    function pushAttributed(items) {
+      // items: [{ text, flags }] — already-attributed lines (e.g. from a
+      // slot rendering pass).
+      items.forEach(function (it) { pushLine(it.text, it.flags); });
+    }
 
     // Snapshot the live state for every active flag (checkbox checked).
     var dts = pyramidDts();
@@ -512,9 +634,12 @@
       liveParams[f.param] = f.options ? variantFor(f.default, liveParams) : (f.default != null ? f.default : '');
     });
 
-    // Render each slot in declared order.
+    var extraImports = {}; // populated below for sink override side-effects
+
+    // Render each slot in declared order. Each slot produces an array of
+    // attributed `{text, flags}` lines.
     var slotOrder = snippets.slot_order || [];
-    var renderedSlots = [];
+    var renderedSlots = []; // [[ {text, flags}, … ], …]
     slotOrder.forEach(function (slotName) {
       var slot = snippets.slots && snippets.slots[slotName];
       if (!slot) return;
@@ -528,17 +653,27 @@
         if (override.def.special === 'sink-override' || override.name === 'sink') {
           var sinkResult = resolveSinkOverride(override, snippets);
           if (sinkResult) {
-            renderedSlots.push(sinkResult.body);
+            renderedSlots.push(sinkResult.body.split('\n').map(function (ln) {
+              return { text: ln, flags: ['sink'] };
+            }));
             sinkResult.imports.forEach(function (imp) { extraImports[imp] = true; });
             return;
           }
         }
-        renderedSlots.push(substitute(override.def.fragment || '', mergeParams(liveParams, paramsForFlag(override.def, override.value))));
+        var overrideText = substitute(override.def.fragment || '', mergeParams(liveParams, paramsForFlag(override.def, override.value)));
+        renderedSlots.push(overrideText.split('\n').map(function (ln) {
+          return { text: ln, flags: [override.name] };
+        }));
         return;
       }
 
-      // Base body (slot.lines), with placeholder substitution.
-      var body = (slot.lines || []).map(function (line) { return substitute(line, liveParams); }).join('\n');
+      // Base body (slot.lines), with placeholder substitution and per-line
+      // attribution.
+      var bodyLines = (slot.lines || []).map(function (rawLine) {
+        var text = substitute(rawLine, liveParams);
+        var flags = attributeBaseLine(slotName, text);
+        return { text: text, flags: flags };
+      });
 
       // appendChain: each chain piece slots onto the trailing `;` of the
       // body. Practically: `EngineConfig::default();` becomes
@@ -548,21 +683,21 @@
       // We trim the last `;` (and any preceding whitespace), append the
       // chain pieces (each as `    .with_X(...)`), then re-emit `;`.
       if (assigned && assigned.chains.length) {
-        body = applyAppendChain(body, assigned.chains, liveParams);
+        bodyLines = applyAppendChainAttributed(bodyLines, assigned.chains, liveParams);
       }
 
       // append: simple line-level concatenation after the slot body.
       if (assigned && assigned.appends.length) {
-        var extras = assigned.appends.map(function (a) {
-          return substitute(a.def.fragment || '', mergeParams(liveParams, paramsForFlag(a.def, a.value)));
+        assigned.appends.forEach(function (a) {
+          var rendered = substitute(a.def.fragment || '', mergeParams(liveParams, paramsForFlag(a.def, a.value)));
+          rendered.split('\n').forEach(function (ln) {
+            bodyLines.push({ text: ln, flags: [a.name] });
+          });
         });
-        body = body + (body ? '\n' : '') + extras.join('\n');
       }
 
-      renderedSlots.push(body);
+      renderedSlots.push(bodyLines);
     });
-
-    var extraImports = {}; // populated above for sink override side-effects
 
     // Imports: union of imports_base + each active flag's imports_when_active.
     var importsSet = {};
@@ -573,23 +708,49 @@
     Object.keys(extraImports).forEach(function (s) { importsSet[s] = true; });
     var imports = Object.keys(importsSet).sort();
 
-    // Wrap inner body in main(). Indent every non-empty line by 4 spaces.
-    var inner = renderedSlots.filter(function (s) { return s && s.length; }).join('\n\n');
-    var indented = inner.split('\n').map(function (line) {
-      return line.length ? '    ' + line : line;
-    }).join('\n');
+    // Filter empty slots (so the join-with-blank-line spacing matches the
+    // previous string-based output exactly). Then interleave a blank line
+    // between non-empty slots — same as the old `join('\n\n')`.
+    var nonEmpty = renderedSlots.filter(function (s) {
+      return s && s.length && s.some(function (it) { return it.text && it.text.length; });
+    });
 
-    var rust =
-      'use libviprs::{' + imports.join(', ') + '};\n' +
-      'use std::path::PathBuf;\n' +
-      '\n' +
-      'fn main() -> Result<(), Box<dyn std::error::Error>> {\n' +
-      '    let input = PathBuf::from("/path/to/your/input.pdf");\n' +
-      '    let output = PathBuf::from("./tiles");\n' +
-      (indented ? '\n' + indented + '\n' : '') +
-      '\n' +
-      '    Ok(())\n' +
-      '}\n';
+    // Build the indented inner body with attribution carried through.
+    var innerLines = []; // [{ text, flags }] — already 4-space-indented where appropriate
+    nonEmpty.forEach(function (slotItems, idx) {
+      if (idx > 0) innerLines.push({ text: '', flags: [] }); // blank separator
+      slotItems.forEach(function (it) {
+        var t = it.text.length ? '    ' + it.text : it.text;
+        innerLines.push({ text: t, flags: it.flags });
+      });
+    });
+
+    // Emit the full program through pushLine so rustLines mirrors prog.rust.
+    pushLine('use libviprs::{' + imports.join(', ') + '};', []);
+    pushLine('use std::path::PathBuf;', []);
+    pushLine('', []);
+    pushLine('fn main() -> Result<(), Box<dyn std::error::Error>> {', []);
+    pushLine('    let input = PathBuf::from("/path/to/your/input.pdf");', []);
+    pushLine('    let output = PathBuf::from("./tiles");', []);
+    // Mirror the original template's spacing exactly:
+    //   …let output = …;\n          (always)
+    //   \nINNER\n                    (only if INNER non-empty)
+    //   \n                            (always — blank line before Ok)
+    //   Ok(())\n                     (always)
+    //   }\n                           (always — final newline)
+    if (innerLines.length) {
+      pushLine('', []);
+      pushAttributed(innerLines);
+    }
+    pushLine('', []);
+    pushLine('    Ok(())', []);
+    pushLine('}', []);
+    // Trailing newline: rustLines.map(text).join('\n') produces no trailing
+    // '\n' on its own. Append one empty entry so the joined string ends in
+    // '\n', matching the original template's `'}\n'`.
+    pushLine('', []);
+
+    var rust = rustLines.map(function (l) { return l.text; }).join('\n');
 
     // CLI command.
     var parts = ['viprs pyramid input.pdf tiles/'];
@@ -599,7 +760,25 @@
     });
     var cli = parts.join(' ');
 
-    return { rust: rust, cli: cli, count: active.length };
+    // activeFlags ordered by FLAGS key order (i.e. snippets.flags key order),
+    // so colors line up with the gutter's natural sort.
+    var flagsKeyOrder = Object.keys(snippets.flags || {});
+    var activeNames = {};
+    active.forEach(function (a) { activeNames[a.name] = true; });
+    var activeFlags = flagsKeyOrder.filter(function (n) { return activeNames[n]; });
+    // (Defensive) include any active name not present in FLAGS at the tail.
+    active.forEach(function (a) {
+      if (activeFlags.indexOf(a.name) === -1) activeFlags.push(a.name);
+    });
+
+    return {
+      rust: rust,
+      cli: cli,
+      count: active.length,
+      rustLines: rustLines,
+      activeFlags: activeFlags,
+      flagColors: ensureFlagColors()
+    };
   }
 
   function mergeParams(a, b) {
@@ -607,6 +786,99 @@
     for (var k in a) if (Object.prototype.hasOwnProperty.call(a, k)) out[k] = a[k];
     for (var k2 in b) if (Object.prototype.hasOwnProperty.call(b, k2)) out[k2] = b[k2];
     return out;
+  }
+
+  // Attributed twin of applyAppendChain. Operates on [{text, flags}] line
+  // arrays so chain pieces carry their owning flag's name into the gutter.
+  // Mirrors the string version's transformation byte-for-byte: locate the
+  // last `;` in the joined body, split there, re-emit each chain fragment
+  // as `    .with_X(...)`, then a closing `    ;` line.
+  function applyAppendChainAttributed(bodyLines, chains, params) {
+    if (!bodyLines || !bodyLines.length) {
+      var only = [];
+      chains.forEach(function (c) {
+        var rendered = substitute(c.def.fragment || '', mergeParams(params, paramsForFlag(c.def, c.value)));
+        rendered.split('\n').forEach(function (ln) {
+          only.push({ text: ln, flags: [c.name] });
+        });
+      });
+      return only;
+    }
+
+    // Find the last bodyLine containing `;`. We need to split at the same
+    // textual boundary as the string-mode applyAppendChain to preserve
+    // byte-for-byte equivalence.
+    var lastSemiIdx = -1;
+    var semiCol = -1;
+    for (var i = bodyLines.length - 1; i >= 0; i--) {
+      var col = bodyLines[i].text.lastIndexOf(';');
+      if (col !== -1) { lastSemiIdx = i; semiCol = col; break; }
+    }
+    if (lastSemiIdx === -1) {
+      // No `;` anywhere — append chains as plain lines.
+      var out = bodyLines.slice();
+      chains.forEach(function (c) {
+        var rendered = substitute(c.def.fragment || '', mergeParams(params, paramsForFlag(c.def, c.value)));
+        rendered.split('\n').forEach(function (ln) {
+          out.push({ text: ln, flags: [c.name] });
+        });
+      });
+      return out;
+    }
+
+    // Build the head: lines before lastSemiIdx, plus the prefix of the
+    // last-semi line up to (but not including) the `;`. Match the string
+    // mode's `replace(/\s+$/, '')` on the joined head — when the line has
+    // no non-ws content before `;`, drop it; otherwise trim trailing ws.
+    var headLines = bodyLines.slice(0, lastSemiIdx).map(function (it) {
+      return { text: it.text, flags: it.flags.slice() };
+    });
+    var lastLineText = bodyLines[lastSemiIdx].text;
+    var lastLineFlags = bodyLines[lastSemiIdx].flags;
+    var beforeSemi = lastLineText.slice(0, semiCol);
+    var afterSemi = lastLineText.slice(semiCol + 1);
+
+    // Mimic head = (prevText + '\n' + beforeSemi).replace(/\s+$/, '').
+    // If beforeSemi is whitespace-only, the trim eats it AND any preceding
+    // newline — i.e. drop the line entirely from head, then trim trailing ws
+    // off the new last line.
+    if (/^\s*$/.test(beforeSemi)) {
+      // drop lastSemiIdx line; trim trailing ws on the new last head line.
+      while (headLines.length && /^\s*$/.test(headLines[headLines.length - 1].text)) {
+        headLines.pop();
+      }
+      if (headLines.length) {
+        var tl = headLines[headLines.length - 1];
+        tl.text = tl.text.replace(/\s+$/, '');
+      }
+    } else {
+      headLines.push({ text: beforeSemi.replace(/\s+$/, ''), flags: lastLineFlags.slice() });
+    }
+
+    // Chain pieces.
+    var pieces = [];
+    chains.forEach(function (c) {
+      var rendered = substitute(c.def.fragment || '', mergeParams(params, paramsForFlag(c.def, c.value)));
+      // Each fragment is expected to be a single `.with_x(...)` call. Indent
+      // by four spaces relative to the start of the chained expression. The
+      // string-mode version applies `'    ' + rendered.replace(/^\s+/, '')`.
+      var stripped = rendered.replace(/^\s+/, '');
+      pieces.push({ text: '    ' + stripped, flags: [c.name] });
+    });
+
+    // Closing `    ;` line — base scaffolding, not attributable to a flag.
+    var closer = { text: '    ;' + afterSemi, flags: [] };
+
+    // Tail: any body lines that came AFTER the last-semi line. The string-
+    // mode applyAppendChain preserves these because it operates on the
+    // joined body and only splits at the final `;` character — content
+    // after that `;` (including subsequent newlines and lines) flows into
+    // the result unchanged.
+    var tailLines = bodyLines.slice(lastSemiIdx + 1).map(function (it) {
+      return { text: it.text, flags: it.flags.slice() };
+    });
+
+    return headLines.concat(pieces, [closer], tailLines);
   }
 
   // Splice append-chain pieces onto the tail of an existing slot body. The
@@ -715,6 +987,16 @@
     var cliOut = genCliCode();
     var summary = summaryEl();
     if (rustOut) paintCodeEl(rustOut, prog.rust);
+    // Hand the per-line attribution to CodeGutter (loaded as a separate
+    // script). Wrapped so a gutter bug never breaks the generator panel.
+    try {
+      if (window.CodeGutter && window.CodeGutter.update) {
+        window.CodeGutter.update(prog);
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[viprs cli] CodeGutter.update threw:', e);
+    }
     if (cliOut) cliOut.textContent = prog.cli;
     if (summary) {
       summary.textContent = prog.count === 0
