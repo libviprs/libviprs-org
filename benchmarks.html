@@ -159,12 +159,15 @@
     footer a:hover { text-decoration: underline; }
 
     /* ============================================================
-       Benchmark-specific richer-table styling. The bench data tables
-       deserve more horizontal real estate than the prose column gives
-       them, so .bench-wide escapes the 860px article cap. Every rule
-       below is fully brace-balanced — the file's older convention of
-       implicitly-closing CSS rules causes parse-error recovery to
-       drop nested grids (e.g. .engine-card .specs) on strict parsers.
+       Benchmark data tables — modeled on the UK Met Office's climate
+       averages table:
+         https://www.metoffice.gov.uk/research/climate/maps-and-data/uk-climate-averages/
+       Pattern: wrapper with overflow-scroll and tabindex+role for
+       keyboard access; table is set to a fixed minimum width so it
+       scrolls horizontally on narrow screens rather than cramping;
+       first column is sticky so the row label stays visible while
+       you scroll across; subtle scroll-shadow gradients on the
+       wrapper's edges hint at off-screen content.
        ============================================================ */
 
     .bench-wide {
@@ -175,139 +178,136 @@
       margin-top: 1.25rem;
       margin-bottom: 1.75rem;
     }
-    .bench-wide-caption {
-      max-width: var(--max-width);
-      margin: -0.5rem auto 0;
-      padding: 0 0.25rem;
-      text-align: center;
-      font-size: 0.78rem;
-      color: var(--text-light);
-      font-style: italic;
+
+    /* The scrolling region. tabindex+role+aria-labelledby make the
+       overflow keyboard-focusable and announce the wrapped table to
+       assistive tech. Per Adrian Roselli's pattern, the four-layer
+       gradient background fades in at the edges only when content
+       overflows — pure CSS scroll-shadow indicators. */
+    .bench-scroll[tabindex="0"][aria-labelledby][role="region"] {
+      overflow: auto;
+      background:
+        linear-gradient(to right, var(--bg) 30%, rgba(255,255,255,0)),
+        linear-gradient(to right, rgba(255,255,255,0), var(--bg) 70%) 0 100%,
+        radial-gradient(farthest-side at 0% 50%, rgba(0,0,0,0.18), rgba(0,0,0,0)),
+        radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,0.18), rgba(0,0,0,0)) 0 100%;
+      background-repeat: no-repeat;
+      background-color: var(--bg);
+      background-size: 4em 100%, 4em 100%, 1.4em 100%, 1.4em 100%;
+      background-position: 0 0, 100% 0, 0 0, 100% 0;
+      background-attachment: local, local, scroll, scroll;
     }
+
     .bench-table {
-      width: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
+      border-collapse: collapse;
+      width: max(60rem, 100%);
+      table-layout: fixed;
+      font-size: 0.88rem;
       margin: 0;
-      background: var(--white);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      overflow: hidden;
-      box-shadow: 0 4px 20px rgba(60, 30, 10, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-      font-size: 0.92rem;
     }
-    /* Subtle gradient header — pulls from primary palette without overwhelming
-       the data below. Uppercase mini-caps keep weight off the body rows. */
-    .bench-table thead th {
-      background: linear-gradient(180deg,
-        color-mix(in srgb, var(--primary) 12%, var(--code-bg)) 0%,
-        var(--code-bg) 100%);
-      color: var(--primary-dark);
-      font-size: 0.72rem;
-      text-transform: uppercase;
-      letter-spacing: 0.09em;
-      padding: 1rem 1.1rem;
+
+    .bench-table caption {
+      caption-side: top;
+      text-align: start;
+      font-size: 0.92rem;
       font-weight: 700;
+      color: var(--primary-dark);
+      padding: 0.85rem 0.85rem 0.65rem;
+      background: var(--bg);
       border-bottom: 1px solid var(--border);
-      white-space: nowrap;
-      text-align: left;
     }
-    .bench-table thead th:first-child { padding-left: 1.4rem; }
-    .bench-table thead th:last-child { padding-right: 1.4rem; }
-    .bench-table thead th.num-col { text-align: right; }
-    .bench-table tbody td {
-      padding: 0.95rem 1.1rem;
-      border-bottom: 1px solid var(--border);
-      vertical-align: middle;
-      color: var(--text);
-      background: transparent;
-      font-size: 0.92rem;
-      line-height: 1.5;
-    }
-    .bench-table tbody td:first-child { padding-left: 1.4rem; }
-    .bench-table tbody td:last-child { padding-right: 1.4rem; }
-    .bench-table tbody tr:last-child td { border-bottom: 0; }
-    /* Zebra striping — soft warm tint matches the page palette */
-    .bench-table tbody tr:nth-child(even) td {
-      background: color-mix(in srgb, var(--primary) 3%, transparent);
-    }
-    .bench-table tbody tr:hover td {
-      background: color-mix(in srgb, var(--primary) 8%, transparent);
-    }
-    .bench-table tbody td code {
+
+    /* Header row — flat warm-grey from the palette, bottom-bordered
+       like the reference. No gradient, no uppercase. */
+    .bench-table thead th {
       background: var(--code-bg);
-      padding: 0.15rem 0.45rem;
-      border-radius: 4px;
+      color: var(--text);
+      font-weight: 700;
+      text-align: end;
+      vertical-align: bottom;
+      padding: 0.55rem 0.85rem;
+      border: 1px solid var(--border);
+    }
+    /* The first header cell is the row-label column header, left-aligned. */
+    .bench-table thead th:first-child { text-align: start; }
+
+    /* Strong divider underneath the header, like the reference's 2px line. */
+    .bench-table thead { border-block-end: 2px solid var(--border); }
+
+    /* Data cells. Numbers right-aligned (text-align: end); the row
+       header (first child of each tbody row) keeps its own left
+       alignment via :first-child overrides below. */
+    .bench-table tbody th,
+    .bench-table tbody td,
+    .bench-table tfoot th,
+    .bench-table tfoot td {
+      border: 1px solid var(--border);
+      padding: 0.55rem 0.85rem;
+      vertical-align: baseline;
+    }
+    .bench-table tbody td,
+    .bench-table tfoot td { text-align: end; font-variant-numeric: tabular-nums; }
+
+    /* Sticky first column. Stays visible while scrolling horizontally;
+       a 1px right-edge ::after softens the join between sticky and
+       scrolled content. */
+    .bench-table th:first-child {
+      position: sticky;
+      inset-inline-start: 0;
+      width: 14rem;
+      background: var(--bg);
+      text-align: start;
+      border-inline-end: none;
+    }
+    .bench-table th:first-child::after {
+      content: '';
+      position: absolute;
+      inset-block-start: 0;
+      inset-inline-end: 0;
+      width: 1px;
+      height: 100%;
+      background: var(--border);
+    }
+    .bench-table tbody th { background: var(--white); }
+    .bench-table thead th:first-child,
+    .bench-table tfoot th:first-child { background: var(--code-bg); }
+
+    /* Avoid the doubled left border between sticky col and first data col. */
+    .bench-table tbody td:first-of-type,
+    :where(.bench-table thead, .bench-table tfoot) th:nth-child(2) {
+      border-inline-start: none;
+    }
+
+    /* Footer row (totals / annual line) — strong borders top + bottom. */
+    .bench-table tfoot {
+      border-block: 2px solid var(--border);
+      background: var(--code-bg);
+      font-weight: 700;
+    }
+    .bench-table tfoot th { background: var(--code-bg); }
+
+    /* Hover highlight — soft warm wash, doesn't disturb the sticky col bg. */
+    .bench-table tbody tr:hover td,
+    .bench-table tbody tr:hover th {
+      background: color-mix(in srgb, var(--primary) 8%, var(--bg));
+    }
+
+    .bench-table code {
+      background: var(--code-bg);
+      padding: 0.05rem 0.35rem;
+      border-radius: 3px;
       font-size: 0.82rem;
       color: var(--text);
       white-space: nowrap;
     }
-    /* Pill-shaped scenario tag in the first column of the picker table */
-    .scenario-pill {
-      display: inline-block;
-      background: color-mix(in srgb, var(--primary) 12%, transparent);
-      color: var(--primary-dark);
-      padding: 0.3rem 0.7rem;
-      border-radius: 999px;
-      font-size: 0.78rem;
-      font-weight: 700;
-      letter-spacing: 0.02em;
-      white-space: nowrap;
-    }
-    /* Auto-select swatch — tri-color gradient hinting at the underlying picks */
-    .swatch-auto {
-      background: linear-gradient(135deg, #4285f4 0%, #34a853 50%, #ea4335 100%);
-    }
-    .bench-table .num {
-      font-variant-numeric: tabular-nums;
-      font-family: "Source Code Pro", "IBM Plex Mono", monospace;
-      font-weight: 600;
-      font-size: 0.95rem;
-      color: var(--text);
-      display: block;
-      text-align: right;
-    }
-    .bench-table .num-unit {
-      color: var(--text-light);
-      font-weight: 400;
-      font-size: 0.78rem;
-      margin-left: 0.25rem;
-    }
-    .bench-table .winner .num { color: var(--primary-dark); }
-    .bench-table .winner .num::after {
-      content: '★';
-      margin-left: 0.45rem;
-      color: var(--primary);
-      font-size: 0.78rem;
-      vertical-align: 1px;
-    }
-    .bench-table .bench-bar {
-      display: block;
-      height: 4px;
-      margin-top: 0.4rem;
-      background: var(--code-bg);
-      border-radius: 2px;
-      position: relative;
-      overflow: hidden;
-    }
-    .bench-table .bench-bar::after {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; bottom: 0;
-      width: var(--pct, 0%);
-      background: var(--bar-color, var(--primary));
-      border-radius: 2px;
-      transition: width 250ms ease;
-    }
 
-    /* Engine name cell with colored swatch keyed to chart series */
+    /* Engine name cell with colored swatch keyed to chart series. */
     .engine-cell {
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      gap: 0.6rem;
+      gap: 0.5rem;
       font-weight: 600;
       color: var(--text);
-      font-size: 0.93rem;
       white-space: nowrap;
     }
     .engine-swatch {
@@ -321,6 +321,9 @@
     .swatch-mono   { background: #4285f4; }
     .swatch-stream { background: #34a853; }
     .swatch-mr     { background: #ea4335; }
+    .swatch-auto   {
+      background: linear-gradient(135deg, #4285f4 0%, #34a853 50%, #ea4335 100%);
+    }
 
     /* Figure references on chart captions */
     .chart-caption .fig-num {
@@ -332,23 +335,33 @@
       margin-right: 0.35rem;
     }
 
-    /* Dark theme tweaks */
-    [data-theme="dark"] .bench-table {
-      background: #1a1a1a;
-      border-color: #3a3a3a;
+    /* Dark theme — swap the warm-grey backgrounds for darker neutrals. */
+    [data-theme="dark"] .bench-scroll[tabindex="0"][aria-labelledby][role="region"] {
+      background:
+        linear-gradient(to right, #1a1a1a 30%, rgba(0,0,0,0)),
+        linear-gradient(to right, rgba(0,0,0,0), #1a1a1a 70%) 0 100%,
+        radial-gradient(farthest-side at 0% 50%, rgba(0,0,0,0.5), rgba(0,0,0,0)),
+        radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,0.5), rgba(0,0,0,0)) 0 100%;
+      background-repeat: no-repeat;
+      background-color: #1a1a1a;
+      background-size: 4em 100%, 4em 100%, 1.4em 100%, 1.4em 100%;
+      background-position: 0 0, 100% 0, 0 0, 100% 0;
+      background-attachment: local, local, scroll, scroll;
     }
-    [data-theme="dark"] .bench-table tbody tr:nth-child(even) td {
-      background: color-mix(in srgb, var(--primary) 8%, transparent);
-    }
-    [data-theme="dark"] .bench-table tbody tr:hover td {
-      background: color-mix(in srgb, var(--primary) 18%, transparent);
+    [data-theme="dark"] .bench-table caption,
+    [data-theme="dark"] .bench-table th:first-child,
+    [data-theme="dark"] .bench-table tbody th { background: #1a1a1a; }
+    [data-theme="dark"] .bench-table thead th,
+    [data-theme="dark"] .bench-table tfoot,
+    [data-theme="dark"] .bench-table tfoot th,
+    [data-theme="dark"] .bench-table thead th:first-child,
+    [data-theme="dark"] .bench-table tfoot th:first-child { background: #2a2a2a; }
+    [data-theme="dark"] .bench-table tbody tr:hover td,
+    [data-theme="dark"] .bench-table tbody tr:hover th {
+      background: color-mix(in srgb, var(--primary) 18%, #1a1a1a);
     }
     [data-theme="dark"] .engine-swatch {
       box-shadow: 0 0 0 2px #1a1a1a inset, 0 0 0 1px rgba(255,255,255,0.15);
-    }
-    [data-theme="dark"] .scenario-pill {
-      background: color-mix(in srgb, var(--primary) 22%, transparent);
-      color: var(--text);
     }
 
     @media (max-width: 720px) {
@@ -360,16 +373,13 @@
         transform: none;
         left: auto;
       }
-      .bench-table { font-size: 0.78rem; }
-      .bench-table thead th { padding: 0.6rem 0.5rem; font-size: 0.66rem; }
-      .bench-table tbody td { padding: 0.6rem 0.5rem; }
-      .bench-table .num { font-size: 0.82rem; }
-      .bench-table .bench-bar { display: none; }
-      .bench-table thead th:first-child,
-      .bench-table tbody td:first-child { padding-left: 0.6rem; }
-      .bench-table thead th:last-child,
-      .bench-table tbody td:last-child { padding-right: 0.6rem; }
-      .scenario-pill { font-size: 0.7rem; padding: 0.25rem 0.55rem; }
+      .bench-table { font-size: 0.8rem; }
+      .bench-table thead th,
+      .bench-table tbody th,
+      .bench-table tbody td,
+      .bench-table tfoot th,
+      .bench-table tfoot td { padding: 0.45rem 0.55rem; }
+      .bench-table th:first-child { width: 10rem; }
     }
 
     @media (max-width: 600px) {
@@ -480,53 +490,55 @@
 <p>At the largest test size (8192&times;5760, 47 megapixels), libvips completes in 429 ms (Figure&nbsp;1). The libviprs monolithic engine finishes in 180 ms &mdash; 2.4&times; faster. The streaming engine takes 287 ms while staying within a 4 MB <a href="cli/#flag-memory-budget" style="color:var(--primary);">memory budget</a>, and the MapReduce engine splits the difference at 236 ms. Every libviprs engine beats libvips on wall time at every image size tested.</p>
 
 <div class="bench-wide">
-  <table class="bench-table">
-    <thead>
-      <tr>
-        <th>Engine</th>
-        <th class="num-col">Wall&nbsp;time</th>
-        <th class="num-col">Peak&nbsp;memory</th>
-        <th class="num-col">Throughput</th>
-        <th class="num-col">Memory&nbsp;efficiency</th>
-        <th class="num-col">Resource&nbsp;cost</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td><span class="engine-cell"><span class="engine-swatch swatch-vips"></span>libvips&nbsp;8.18</span></td>
-        <td><span class="num">429<span class="num-unit">ms</span></span><span class="bench-bar" style="--pct: 0%; --bar-color: #9c27b0;"></span></td>
-        <td><span class="num">448<span class="num-unit">MB</span></span><span class="bench-bar" style="--pct: 0%; --bar-color: #9c27b0;"></span></td>
-        <td><span class="num">2,336<span class="num-unit">tiles/s</span></span><span class="bench-bar" style="--pct: 42%; --bar-color: #9c27b0;"></span></td>
-        <td><span class="num">5.2<span class="num-unit">t/s/MB</span></span><span class="bench-bar" style="--pct: 5%; --bar-color: #9c27b0;"></span></td>
-        <td><span class="num">0.192<span class="num-unit">MB&middot;s/tile</span></span><span class="bench-bar" style="--pct: 0%; --bar-color: #9c27b0;"></span></td>
-      </tr>
-      <tr>
-        <td><span class="engine-cell"><span class="engine-swatch swatch-mono"></span>libviprs monolithic</span></td>
-        <td class="winner"><span class="num">180<span class="num-unit">ms</span></span><span class="bench-bar" style="--pct: 100%; --bar-color: #4285f4;"></span></td>
-        <td><span class="num">135<span class="num-unit">MB</span></span><span class="bench-bar" style="--pct: 70%; --bar-color: #4285f4;"></span></td>
-        <td class="winner"><span class="num">5,572<span class="num-unit">tiles/s</span></span><span class="bench-bar" style="--pct: 100%; --bar-color: #4285f4;"></span></td>
-        <td><span class="num">41.3<span class="num-unit">t/s/MB</span></span><span class="bench-bar" style="--pct: 41%; --bar-color: #4285f4;"></span></td>
-        <td><span class="num">0.024<span class="num-unit">MB&middot;s/tile</span></span><span class="bench-bar" style="--pct: 88%; --bar-color: #4285f4;"></span></td>
-      </tr>
-      <tr>
-        <td><span class="engine-cell"><span class="engine-swatch swatch-stream"></span>libviprs streaming</span></td>
-        <td><span class="num">287<span class="num-unit">ms</span></span><span class="bench-bar" style="--pct: 58%; --bar-color: #34a853;"></span></td>
-        <td class="winner"><span class="num">42<span class="num-unit">MB</span></span><span class="bench-bar" style="--pct: 100%; --bar-color: #34a853;"></span></td>
-        <td><span class="num">3,487<span class="num-unit">tiles/s</span></span><span class="bench-bar" style="--pct: 63%; --bar-color: #34a853;"></span></td>
-        <td><span class="num">83.0<span class="num-unit">t/s/MB</span></span><span class="bench-bar" style="--pct: 82%; --bar-color: #34a853;"></span></td>
-        <td><span class="num">0.012<span class="num-unit">MB&middot;s/tile</span></span><span class="bench-bar" style="--pct: 94%; --bar-color: #34a853;"></span></td>
-      </tr>
-      <tr>
-        <td><span class="engine-cell"><span class="engine-swatch swatch-mr"></span>libviprs MapReduce</span></td>
-        <td><span class="num">236<span class="num-unit">ms</span></span><span class="bench-bar" style="--pct: 76%; --bar-color: #ea4335;"></span></td>
-        <td class="winner"><span class="num">42<span class="num-unit">MB</span></span><span class="bench-bar" style="--pct: 100%; --bar-color: #ea4335;"></span></td>
-        <td><span class="num">4,242<span class="num-unit">tiles/s</span></span><span class="bench-bar" style="--pct: 76%; --bar-color: #ea4335;"></span></td>
-        <td class="winner"><span class="num">101.0<span class="num-unit">t/s/MB</span></span><span class="bench-bar" style="--pct: 100%; --bar-color: #ea4335;"></span></td>
-        <td class="winner"><span class="num">0.010<span class="num-unit">MB&middot;s/tile</span></span><span class="bench-bar" style="--pct: 100%; --bar-color: #ea4335;"></span></td>
-      </tr>
-    </tbody>
-  </table>
-  <p class="bench-wide-caption">Largest test size (8192&times;5760, 47 MP). Bar widths normalised per column &mdash; longer is better. ★ marks the winner.</p>
+  <div class="bench-scroll" tabindex="0" role="region" aria-labelledby="benchTableCaption_engines">
+    <table class="bench-table">
+      <caption id="benchTableCaption_engines">Engine comparison at 8192&times;5760 (47 MP)</caption>
+      <thead>
+        <tr>
+          <th scope="col">Engine</th>
+          <th scope="col">Wall time (ms)</th>
+          <th scope="col">Peak memory (MB)</th>
+          <th scope="col">Throughput (tiles/s)</th>
+          <th scope="col">Memory efficiency (tiles/s/MB)</th>
+          <th scope="col">Resource cost (MB&middot;s/tile)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row"><span class="engine-cell"><span class="engine-swatch swatch-vips"></span>libvips&nbsp;8.18</span></th>
+          <td>429</td>
+          <td>448</td>
+          <td>2,336</td>
+          <td>5.2</td>
+          <td>0.192</td>
+        </tr>
+        <tr>
+          <th scope="row"><span class="engine-cell"><span class="engine-swatch swatch-mono"></span>libviprs monolithic</span></th>
+          <td>180</td>
+          <td>135</td>
+          <td>5,572</td>
+          <td>41.3</td>
+          <td>0.024</td>
+        </tr>
+        <tr>
+          <th scope="row"><span class="engine-cell"><span class="engine-swatch swatch-stream"></span>libviprs streaming</span></th>
+          <td>287</td>
+          <td>42</td>
+          <td>3,487</td>
+          <td>83.0</td>
+          <td>0.012</td>
+        </tr>
+        <tr>
+          <th scope="row"><span class="engine-cell"><span class="engine-swatch swatch-mr"></span>libviprs MapReduce</span></th>
+          <td>236</td>
+          <td>42</td>
+          <td>4,242</td>
+          <td>101.0</td>
+          <td>0.010</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 </div>
 
 <p>Raw throughput only tells part of the story. Tiles-per-second makes the monolithic engine look dominant, but it burns 135 MB to get there. When you normalise for memory &mdash; tiles per second per megabyte of peak usage &mdash; the streaming and MapReduce engines pull decisively ahead. This matters in the real world: containers have memory limits, and an engine that generates fewer tiles per second but does it within a 42 MB envelope can run in places a 448 MB process cannot.</p>
@@ -594,47 +606,50 @@
 <p>libviprs ships three engines behind a unified API. The <strong>monolithic engine</strong> materialises the full canvas and processes levels top-down &mdash; fastest when memory is abundant. The <strong>streaming engine</strong> processes the image in horizontal strips, keeping peak memory proportional to strip height rather than image height &mdash; best for memory-constrained containers. The <a href="cli/#flag-parallel" style="color:var(--primary);"><strong>MapReduce engine</strong></a> extends streaming with parallel strip rendering, overlapping the Map phase (render + tile) across multiple strips while the Reduce phase (downscale propagation) runs sequentially. All three produce byte-identical <a href="cli/#pyramid" style="color:var(--primary);">pyramid output</a>.</p>
 
 <div class="bench-wide">
-  <table class="bench-table">
-    <thead>
-      <tr>
-        <th>Scenario</th>
-        <th>Best engine</th>
-        <th>Memory</th>
-        <th>Speed</th>
-        <th>Best when</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td><span class="scenario-pill">Beefy server, max speed</span></td>
-        <td><span class="engine-cell"><span class="engine-swatch swatch-mono"></span>Monolithic</span></td>
-        <td><code>O(canvas&sup2;)</code></td>
-        <td>Fastest &mdash; 5,572&nbsp;tiles/s at 47&nbsp;MP</td>
-        <td>RAM is abundant and you want raw throughput.</td>
-      </tr>
-      <tr>
-        <td><span class="scenario-pill">Container, limited RAM</span></td>
-        <td><span class="engine-cell"><span class="engine-swatch swatch-stream"></span>Streaming</span></td>
-        <td><code>O(width &times; strip)</code></td>
-        <td>Good &mdash; 3,487&nbsp;tiles/s in a 42&nbsp;MB envelope</td>
-        <td>Tight memory ceiling (e.g. 512&nbsp;MB pod) on potentially huge images.</td>
-      </tr>
-      <tr>
-        <td><span class="scenario-pill">Multi-core, bounded RAM</span></td>
-        <td><span class="engine-cell"><span class="engine-swatch swatch-mr"></span>MapReduce</span></td>
-        <td><code>O(width &times; strip)</code></td>
-        <td>Fast &mdash; 4,242&nbsp;tiles/s, same 42&nbsp;MB envelope</td>
-        <td>Spare cores you can spend on parallel strip rendering.</td>
-      </tr>
-      <tr>
-        <td><span class="scenario-pill">Unknown image sizes</span></td>
-        <td><span class="engine-cell"><span class="engine-swatch swatch-auto"></span>Auto-select</span></td>
-        <td>Adapts to <code>with_memory_budget</code></td>
-        <td>Adapts &mdash; builder picks at runtime</td>
-        <td>Workload spans many image sizes; default for <code>EngineKind::Auto</code>.</td>
-      </tr>
-    </tbody>
-  </table>
+  <div class="bench-scroll" tabindex="0" role="region" aria-labelledby="benchTableCaption_picker">
+    <table class="bench-table">
+      <caption id="benchTableCaption_picker">Choosing an engine for your scenario</caption>
+      <thead>
+        <tr>
+          <th scope="col">Scenario</th>
+          <th scope="col">Best engine</th>
+          <th scope="col">Memory complexity</th>
+          <th scope="col">Speed</th>
+          <th scope="col">Best when</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">Beefy server, max speed</th>
+          <td><span class="engine-cell"><span class="engine-swatch swatch-mono"></span>Monolithic</span></td>
+          <td><code>O(canvas&sup2;)</code></td>
+          <td>Fastest &mdash; 5,572&nbsp;tiles/s at 47&nbsp;MP</td>
+          <td>RAM is abundant and you want raw throughput.</td>
+        </tr>
+        <tr>
+          <th scope="row">Container, limited RAM</th>
+          <td><span class="engine-cell"><span class="engine-swatch swatch-stream"></span>Streaming</span></td>
+          <td><code>O(width &times; strip)</code></td>
+          <td>Good &mdash; 3,487&nbsp;tiles/s in a 42&nbsp;MB envelope</td>
+          <td>Tight memory ceiling (e.g. 512&nbsp;MB pod) on potentially huge images.</td>
+        </tr>
+        <tr>
+          <th scope="row">Multi-core, bounded RAM</th>
+          <td><span class="engine-cell"><span class="engine-swatch swatch-mr"></span>MapReduce</span></td>
+          <td><code>O(width &times; strip)</code></td>
+          <td>Fast &mdash; 4,242&nbsp;tiles/s, same 42&nbsp;MB envelope</td>
+          <td>Spare cores you can spend on parallel strip rendering.</td>
+        </tr>
+        <tr>
+          <th scope="row">Unknown image sizes</th>
+          <td><span class="engine-cell"><span class="engine-swatch swatch-auto"></span>Auto-select</span></td>
+          <td>Adapts to <code>with_memory_budget</code></td>
+          <td>Adapts &mdash; builder picks at runtime</td>
+          <td>Workload spans many image sizes; default for <code>EngineKind::Auto</code>.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 </div>
 
 <p>Auto-selection is built into <code>EngineBuilder::new(...).with_engine(EngineKind::Auto)</code> &mdash; and <code>EngineKind::Auto</code> is the default, so it applies even if you never call <code>with_engine</code>. The builder picks the engine at runtime from the source kind (in-memory raster vs. strip source) and the value passed to <a href="cli/#flag-memory-budget" style="color:var(--primary);"><code>with_memory_budget</code></a>. If the monolithic engine fits the budget for a raster source, it's used for maximum throughput. Otherwise, the streaming or MapReduce engine kicks in. No code changes, no configuration files &mdash; just a memory budget parameter.</p>
