@@ -198,6 +198,14 @@
       background-attachment: local, local, scroll, scroll;
     }
 
+    /* Table — flat reference-faithful structure. Rules are ordered
+       deliberately so later background overrides win over earlier
+       ones (matches the source order in the upstream Met Office CSS).
+       1. Base `th, td { border, padding, baseline }`
+       2. Sticky `th:first-child` (no background — set later by row group)
+       3. Group bodies: tbody th → bg, thead th + tfoot th → tint
+       The result: every cell shares the same 1px grid, header / footer
+       sit on a tint, sticky tbody row labels sit on the page bg. */
     .bench-table {
       border-collapse: collapse;
       width: max(60rem, 100%);
@@ -217,48 +225,53 @@
       border-bottom: 1px solid var(--border);
     }
 
-    /* Header row — flat warm-grey from the palette, bottom-bordered
-       like the reference. No gradient, no uppercase. */
-    .bench-table thead th {
-      background: var(--code-bg);
-      color: var(--text);
-      font-weight: 700;
-      text-align: end;
-      vertical-align: bottom;
-      padding: 0.55rem 0.85rem;
-      border: 1px solid var(--border);
-    }
-    /* The first header cell is the row-label column header, left-aligned. */
-    .bench-table thead th:first-child { text-align: start; }
+    /* Default cell text alignment: column headers (except first) +
+       data cells are right-aligned numerics. */
+    .bench-table th,
+    .bench-table caption { text-align: start; }
+    .bench-table thead th:not(:first-child),
+    .bench-table td { text-align: end; }
+    .bench-table td,
+    .bench-table tfoot td { font-variant-numeric: tabular-nums; }
 
-    /* Strong divider underneath the header, like the reference's 2px line. */
+    /* Group separators around header/footer match the 2px reference. */
     .bench-table thead { border-block-end: 2px solid var(--border); }
+    .bench-table tfoot { border-block: 2px solid var(--border); font-weight: 700; }
 
-    /* Data cells. Numbers right-aligned (text-align: end); the row
-       header (first child of each tbody row) keeps its own left
-       alignment via :first-child overrides below. */
-    .bench-table tbody th,
-    .bench-table tbody td,
-    .bench-table tfoot th,
-    .bench-table tfoot td {
+    /* Uniform 1px grid on every cell — the part you flagged as missing. */
+    .bench-table th,
+    .bench-table td {
       border: 1px solid var(--border);
-      padding: 0.55rem 0.85rem;
+      padding: 0.6rem 0.85rem;
       vertical-align: baseline;
     }
-    .bench-table tbody td,
-    .bench-table tfoot td { text-align: end; font-variant-numeric: tabular-nums; }
 
-    /* Sticky first column. Stays visible while scrolling horizontally;
-       a 1px right-edge ::after softens the join between sticky and
-       scrolled content. */
+    /* Sticky first column. NO background here — set by the row group
+       below so the header/footer tint isn't accidentally clobbered. */
     .bench-table th:first-child {
       position: sticky;
       inset-inline-start: 0;
-      width: 14rem;
-      background: var(--bg);
-      text-align: start;
       border-inline-end: none;
     }
+    .bench-table th:first-of-type { width: 14rem; }
+
+    /* Row-group backgrounds — declared AFTER th:first-child so they
+       win on the sticky cells too. Body row labels keep page-bg
+       (white in light theme) so they read as data-not-header; column
+       header + footer rows get the tint. */
+    .bench-table tbody th { background: var(--bg); }
+    .bench-table thead th,
+    .bench-table tfoot th,
+    .bench-table tfoot td { background: var(--code-bg); }
+
+    /* Avoid the doubled left border between sticky col and first data col. */
+    .bench-table tbody td:first-of-type,
+    :where(.bench-table thead, .bench-table tfoot) th:nth-child(2) {
+      border-inline-start: none;
+    }
+
+    /* 1px divider drawn as ::after on the sticky cell — survives over
+       the right-side scrolled content because it overlays. */
     .bench-table th:first-child::after {
       content: '';
       position: absolute;
@@ -268,23 +281,10 @@
       height: 100%;
       background: var(--border);
     }
-    .bench-table tbody th { background: var(--white); }
-    .bench-table thead th:first-child,
-    .bench-table tfoot th:first-child { background: var(--code-bg); }
 
-    /* Avoid the doubled left border between sticky col and first data col. */
-    .bench-table tbody td:first-of-type,
-    :where(.bench-table thead, .bench-table tfoot) th:nth-child(2) {
-      border-inline-start: none;
-    }
-
-    /* Footer row (totals / annual line) — strong borders top + bottom. */
-    .bench-table tfoot {
-      border-block: 2px solid var(--border);
-      background: var(--code-bg);
-      font-weight: 700;
-    }
-    .bench-table tfoot th { background: var(--code-bg); }
+    /* Vertical-align tweak so column headers settle to the bottom of
+       their cell (multi-line headers wrap nicely). */
+    .bench-table thead th { vertical-align: bottom; }
 
     /* Hover highlight — soft warm wash, doesn't disturb the sticky col bg. */
     .bench-table tbody tr:hover td,
@@ -349,13 +349,10 @@
       background-attachment: local, local, scroll, scroll;
     }
     [data-theme="dark"] .bench-table caption,
-    [data-theme="dark"] .bench-table th:first-child,
     [data-theme="dark"] .bench-table tbody th { background: #1a1a1a; }
     [data-theme="dark"] .bench-table thead th,
-    [data-theme="dark"] .bench-table tfoot,
     [data-theme="dark"] .bench-table tfoot th,
-    [data-theme="dark"] .bench-table thead th:first-child,
-    [data-theme="dark"] .bench-table tfoot th:first-child { background: #2a2a2a; }
+    [data-theme="dark"] .bench-table tfoot td { background: #2a2a2a; }
     [data-theme="dark"] .bench-table tbody tr:hover td,
     [data-theme="dark"] .bench-table tbody tr:hover th {
       background: color-mix(in srgb, var(--primary) 18%, #1a1a1a);
