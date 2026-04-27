@@ -208,9 +208,14 @@ table {
   text-align: start;
   border-collapse: collapse;
   caption-side: bottom;
-  width: max(60rem, 100%);
+  /* Fill the article column. The piccalilli reference forces a 65rem
+     minimum to trigger horizontal scroll on narrow screens; we'd
+     rather have tables sit naturally inside the prose, so they size
+     to the wrapper instead. The .bench-scroll wrapper still provides
+     keyboard-focusable overflow if a table happens to be too wide. */
+  width: 100%;
   table-layout: fixed;
-  font-size: 0.92rem;
+  font-size: 0.88rem;
 }
 
 th,
@@ -273,7 +278,11 @@ th:first-child::after {
   background: var(--border);
 }
 
-th:first-of-type { width: 14rem; }
+/* Reasonable starting width for the row-label column — fixed table
+   layout treats this as a hint, the rest of the columns split
+   what's left. Keeps engine names like "libviprs MapReduce" on one
+   line at the article's prose width. */
+th:first-of-type { width: 9rem; }
 
 /* Soft hover wash on body rows. */
 tbody tr:hover td,
@@ -304,13 +313,13 @@ tbody tr:hover th {
   outline-offset: 2px;
 }
 
-/* `.bench-wide` lets a table escape the 860px article cap up to 1180px
-   on desktop while staying centred. The `left:50%; transform` trick is
-   self-relative so it works inside any parent. */
+/* `.bench-wide` is the table block container. Sized to fill the
+   article's prose column rather than escape it — the data benefits
+   more from sitting in the reading flow than from extra width. If a
+   future table needs more room, escape via `width: min(1180px, …)`
+   here without touching markup. */
 .bench-wide {
-  width: min(1180px, calc(100vw - 2rem));
-  margin-left: 50%;
-  transform: translateX(-50%);
+  width: 100%;
   position: relative;
   margin-top: 1.25rem;
   margin-bottom: 1.75rem;
