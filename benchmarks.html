@@ -191,34 +191,72 @@
       margin: 0;
       background: var(--white);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 14px;
       overflow: hidden;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+      box-shadow: 0 4px 20px rgba(60, 30, 10, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
       font-size: 0.92rem;
     }
+    /* Subtle gradient header — pulls from primary palette without overwhelming
+       the data below. Uppercase mini-caps keep weight off the body rows. */
     .bench-table thead th {
-      background: var(--code-bg);
+      background: linear-gradient(180deg,
+        color-mix(in srgb, var(--primary) 12%, var(--code-bg)) 0%,
+        var(--code-bg) 100%);
       color: var(--primary-dark);
       font-size: 0.72rem;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
-      padding: 0.95rem 1rem;
+      letter-spacing: 0.09em;
+      padding: 1rem 1.1rem;
       font-weight: 700;
       border-bottom: 1px solid var(--border);
       white-space: nowrap;
       text-align: left;
     }
+    .bench-table thead th:first-child { padding-left: 1.4rem; }
+    .bench-table thead th:last-child { padding-right: 1.4rem; }
     .bench-table thead th.num-col { text-align: right; }
     .bench-table tbody td {
-      padding: 0.95rem 1rem;
+      padding: 0.95rem 1.1rem;
       border-bottom: 1px solid var(--border);
       vertical-align: middle;
       color: var(--text);
       background: transparent;
+      font-size: 0.92rem;
+      line-height: 1.5;
     }
+    .bench-table tbody td:first-child { padding-left: 1.4rem; }
+    .bench-table tbody td:last-child { padding-right: 1.4rem; }
     .bench-table tbody tr:last-child td { border-bottom: 0; }
+    /* Zebra striping — soft warm tint matches the page palette */
+    .bench-table tbody tr:nth-child(even) td {
+      background: color-mix(in srgb, var(--primary) 3%, transparent);
+    }
     .bench-table tbody tr:hover td {
-      background: color-mix(in srgb, var(--primary) 5%, transparent);
+      background: color-mix(in srgb, var(--primary) 8%, transparent);
+    }
+    .bench-table tbody td code {
+      background: var(--code-bg);
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      font-size: 0.82rem;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    /* Pill-shaped scenario tag in the first column of the picker table */
+    .scenario-pill {
+      display: inline-block;
+      background: color-mix(in srgb, var(--primary) 12%, transparent);
+      color: var(--primary-dark);
+      padding: 0.3rem 0.7rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+    /* Auto-select swatch — tri-color gradient hinting at the underlying picks */
+    .swatch-auto {
+      background: linear-gradient(135deg, #4285f4 0%, #34a853 50%, #ea4335 100%);
     }
     .bench-table .num {
       font-variant-numeric: tabular-nums;
@@ -284,72 +322,6 @@
     .swatch-stream { background: #34a853; }
     .swatch-mr     { background: #ea4335; }
 
-    /* Scenario picker — card grid replaces the small "best engine" table */
-    .engine-picker {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-      gap: 0.95rem;
-      margin: 0;
-    }
-    .engine-card {
-      background: var(--white);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 1.1rem 1.15rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.55rem;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-      transition: transform 130ms ease, box-shadow 130ms ease, border-color 130ms ease;
-    }
-    .engine-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
-      border-color: var(--primary);
-    }
-    .engine-card .scenario {
-      font-size: 0.72rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--text-light);
-      font-weight: 700;
-    }
-    .engine-card .pick {
-      display: flex;
-      align-items: center;
-      gap: 0.6rem;
-      font-size: 1.05rem;
-      font-weight: 700;
-      color: var(--primary-dark);
-      margin-top: -0.1rem;
-    }
-    .engine-card .specs {
-      display: grid;
-      grid-template-columns: max-content 1fr;
-      gap: 0.35rem 0.85rem;
-      font-size: 0.82rem;
-      color: var(--text-light);
-      margin-top: 0.4rem;
-      border-top: 1px solid var(--border);
-      padding-top: 0.55rem;
-    }
-    .engine-card .specs .key {
-      font-weight: 700;
-      color: var(--text);
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      padding-top: 0.05rem;
-    }
-    .engine-card .specs .val { line-height: 1.5; }
-    .engine-card .specs .val code {
-      background: var(--code-bg);
-      padding: 0.08rem 0.35rem;
-      border-radius: 3px;
-      font-size: 0.78rem;
-      color: var(--text);
-    }
-
     /* Figure references on chart captions */
     .chart-caption .fig-num {
       display: inline-block;
@@ -361,18 +333,23 @@
     }
 
     /* Dark theme tweaks */
-    [data-theme="dark"] .bench-table,
-    [data-theme="dark"] .engine-card {
+    [data-theme="dark"] .bench-table {
       background: #1a1a1a;
       border-color: #3a3a3a;
     }
+    [data-theme="dark"] .bench-table tbody tr:nth-child(even) td {
+      background: color-mix(in srgb, var(--primary) 8%, transparent);
+    }
     [data-theme="dark"] .bench-table tbody tr:hover td {
-      background: color-mix(in srgb, var(--primary) 14%, transparent);
+      background: color-mix(in srgb, var(--primary) 18%, transparent);
     }
     [data-theme="dark"] .engine-swatch {
       box-shadow: 0 0 0 2px #1a1a1a inset, 0 0 0 1px rgba(255,255,255,0.15);
     }
-    [data-theme="dark"] .engine-card .specs { border-top-color: #3a3a3a; }
+    [data-theme="dark"] .scenario-pill {
+      background: color-mix(in srgb, var(--primary) 22%, transparent);
+      color: var(--text);
+    }
 
     @media (max-width: 720px) {
       .bench-wide {
@@ -388,7 +365,11 @@
       .bench-table tbody td { padding: 0.6rem 0.5rem; }
       .bench-table .num { font-size: 0.82rem; }
       .bench-table .bench-bar { display: none; }
-      .engine-picker { grid-template-columns: 1fr; }
+      .bench-table thead th:first-child,
+      .bench-table tbody td:first-child { padding-left: 0.6rem; }
+      .bench-table thead th:last-child,
+      .bench-table tbody td:last-child { padding-right: 0.6rem; }
+      .scenario-pill { font-size: 0.7rem; padding: 0.25rem 0.55rem; }
     }
 
     @media (max-width: 600px) {
@@ -613,44 +594,47 @@
 <p>libviprs ships three engines behind a unified API. The <strong>monolithic engine</strong> materialises the full canvas and processes levels top-down &mdash; fastest when memory is abundant. The <strong>streaming engine</strong> processes the image in horizontal strips, keeping peak memory proportional to strip height rather than image height &mdash; best for memory-constrained containers. The <a href="cli/#flag-parallel" style="color:var(--primary);"><strong>MapReduce engine</strong></a> extends streaming with parallel strip rendering, overlapping the Map phase (render + tile) across multiple strips while the Reduce phase (downscale propagation) runs sequentially. All three produce byte-identical <a href="cli/#pyramid" style="color:var(--primary);">pyramid output</a>.</p>
 
 <div class="bench-wide">
-  <div class="engine-picker">
-    <div class="engine-card">
-      <span class="scenario">Beefy server, max speed</span>
-      <span class="pick"><span class="engine-swatch swatch-mono"></span>Monolithic</span>
-      <div class="specs">
-        <span class="key">Memory</span><span class="val"><code>O(canvas&sup2;)</code></span>
-        <span class="key">Speed</span><span class="val">Fastest &mdash; 5,572 tiles/s at 47&nbsp;MP</span>
-        <span class="key">Best when</span><span class="val">RAM is abundant and you want raw throughput.</span>
-      </div>
-    </div>
-    <div class="engine-card">
-      <span class="scenario">Container, limited RAM</span>
-      <span class="pick"><span class="engine-swatch swatch-stream"></span>Streaming</span>
-      <div class="specs">
-        <span class="key">Memory</span><span class="val"><code>O(width &times; strip)</code></span>
-        <span class="key">Speed</span><span class="val">Good &mdash; 3,487 tiles/s in a 42&nbsp;MB envelope</span>
-        <span class="key">Best when</span><span class="val">Tight memory ceiling (e.g. 512&nbsp;MB pod) on potentially huge images.</span>
-      </div>
-    </div>
-    <div class="engine-card">
-      <span class="scenario">Multi-core, bounded RAM</span>
-      <span class="pick"><span class="engine-swatch swatch-mr"></span>MapReduce</span>
-      <div class="specs">
-        <span class="key">Memory</span><span class="val"><code>O(width &times; strip)</code></span>
-        <span class="key">Speed</span><span class="val">Fast &mdash; 4,242 tiles/s, same 42&nbsp;MB envelope</span>
-        <span class="key">Best when</span><span class="val">Spare cores you can spend on parallel strip rendering.</span>
-      </div>
-    </div>
-    <div class="engine-card">
-      <span class="scenario">Unknown image sizes</span>
-      <span class="pick"><span class="engine-swatch" style="background:linear-gradient(135deg,#4285f4 0%,#34a853 50%,#ea4335 100%);"></span>Auto-select</span>
-      <div class="specs">
-        <span class="key">Memory</span><span class="val">Adapts to <code>with_memory_budget</code></span>
-        <span class="key">Speed</span><span class="val">Adapts &mdash; the builder picks the best engine at runtime</span>
-        <span class="key">Best when</span><span class="val">Workload spans many image sizes; default for <code>EngineKind::Auto</code>.</span>
-      </div>
-    </div>
-  </div>
+  <table class="bench-table">
+    <thead>
+      <tr>
+        <th>Scenario</th>
+        <th>Best engine</th>
+        <th>Memory</th>
+        <th>Speed</th>
+        <th>Best when</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="scenario-pill">Beefy server, max speed</span></td>
+        <td><span class="engine-cell"><span class="engine-swatch swatch-mono"></span>Monolithic</span></td>
+        <td><code>O(canvas&sup2;)</code></td>
+        <td>Fastest &mdash; 5,572&nbsp;tiles/s at 47&nbsp;MP</td>
+        <td>RAM is abundant and you want raw throughput.</td>
+      </tr>
+      <tr>
+        <td><span class="scenario-pill">Container, limited RAM</span></td>
+        <td><span class="engine-cell"><span class="engine-swatch swatch-stream"></span>Streaming</span></td>
+        <td><code>O(width &times; strip)</code></td>
+        <td>Good &mdash; 3,487&nbsp;tiles/s in a 42&nbsp;MB envelope</td>
+        <td>Tight memory ceiling (e.g. 512&nbsp;MB pod) on potentially huge images.</td>
+      </tr>
+      <tr>
+        <td><span class="scenario-pill">Multi-core, bounded RAM</span></td>
+        <td><span class="engine-cell"><span class="engine-swatch swatch-mr"></span>MapReduce</span></td>
+        <td><code>O(width &times; strip)</code></td>
+        <td>Fast &mdash; 4,242&nbsp;tiles/s, same 42&nbsp;MB envelope</td>
+        <td>Spare cores you can spend on parallel strip rendering.</td>
+      </tr>
+      <tr>
+        <td><span class="scenario-pill">Unknown image sizes</span></td>
+        <td><span class="engine-cell"><span class="engine-swatch swatch-auto"></span>Auto-select</span></td>
+        <td>Adapts to <code>with_memory_budget</code></td>
+        <td>Adapts &mdash; builder picks at runtime</td>
+        <td>Workload spans many image sizes; default for <code>EngineKind::Auto</code>.</td>
+      </tr>
+    </tbody>
+  </table>
 </div>
 
 <p>Auto-selection is built into <code>EngineBuilder::new(...).with_engine(EngineKind::Auto)</code> &mdash; and <code>EngineKind::Auto</code> is the default, so it applies even if you never call <code>with_engine</code>. The builder picks the engine at runtime from the source kind (in-memory raster vs. strip source) and the value passed to <a href="cli/#flag-memory-budget" style="color:var(--primary);"><code>with_memory_budget</code></a>. If the monolithic engine fits the budget for a raster source, it's used for maximum throughput. Otherwise, the streaming or MapReduce engine kicks in. No code changes, no configuration files &mdash; just a memory budget parameter.</p>
