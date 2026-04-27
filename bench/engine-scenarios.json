@@ -1,0 +1,60 @@
+{
+  "_doc": "Editorial config for the data tables on /benchmarks.html. The engine-comparison table pulls its numeric values from scalability_results.json (the raw bench output); this file supplies display labels, captions, and the scenario picker's commentary. Speed-cell templates: {throughput}, {mp}, {memory} are substituted from the matching engine's largest-MP row in scalability_results.json. For engine_id values that don't appear in the bench data (e.g. 'auto'), no substitution happens and the template is rendered verbatim.",
+
+  "engine_display": {
+    "libvips":    { "label": "libvips 8.18",         "swatch": "vips"   },
+    "monolithic": { "label": "libviprs monolithic",  "swatch": "mono"   },
+    "streaming":  { "label": "libviprs streaming",   "swatch": "stream" },
+    "mapreduce":  { "label": "libviprs MapReduce",   "swatch": "mr"     },
+    "auto":       { "label": "Auto-select",          "swatch": "auto"   }
+  },
+
+  "engine_table": {
+    "caption_template": "Engine comparison at {width}×{height} ({mp} MP)",
+    "_showcase_mp_target_doc": "Renders the bench row whose megapixel count is closest to this target. Anchors the showcase numbers to the size the surrounding prose discusses, so the table doesn't drift onto a larger benchmarked size whenever the bench grid grows. Update both this value and the prose in benchmarks.html together if you want a different size.",
+    "showcase_mp_target": 47,
+    "engine_order": ["libvips", "monolithic", "streaming", "mapreduce"],
+    "columns": [
+      { "key": "wall_time_ms",            "header": "Wall time (ms)",                   "format": "int",         "thousands": true  },
+      { "key": "peak_memory_mb",          "header": "Peak memory (MB)",                 "format": "int",         "thousands": true  },
+      { "key": "tiles_per_second",        "header": "Throughput (tiles/s)",             "format": "int",         "thousands": true  },
+      { "key": "tiles_per_second_per_mb", "header": "Memory efficiency (tiles/s/MB)",   "format": "fixed1"                          },
+      { "key": "resource_cost",           "header": "Resource cost (MB·s/tile)",   "format": "fixed3"                          }
+    ]
+  },
+
+  "scenario_table": {
+    "caption": "Choosing an engine for your scenario",
+    "headers": ["Scenario", "Best engine", "Memory complexity", "Speed", "Best when"],
+    "scenarios": [
+      {
+        "scenario": "Beefy server, max speed",
+        "engine_id": "monolithic",
+        "memory_complexity": "O(canvas²)",
+        "speed_template": "Fastest — {throughput} tiles/s at {mp} MP",
+        "best_when": "RAM is abundant and you want raw throughput."
+      },
+      {
+        "scenario": "Container, limited RAM",
+        "engine_id": "streaming",
+        "memory_complexity": "O(width × strip)",
+        "speed_template": "Good — {throughput} tiles/s in a {memory} MB envelope",
+        "best_when": "Tight memory ceiling (e.g. 512 MB pod) on potentially huge images."
+      },
+      {
+        "scenario": "Multi-core, bounded RAM",
+        "engine_id": "mapreduce",
+        "memory_complexity": "O(width × strip)",
+        "speed_template": "Fast — {throughput} tiles/s, same {memory} MB envelope",
+        "best_when": "Spare cores you can spend on parallel strip rendering."
+      },
+      {
+        "scenario": "Unknown image sizes",
+        "engine_id": "auto",
+        "memory_complexity": "Adapts to <code>with_memory_budget</code>",
+        "speed_template": "Adapts — builder picks at runtime",
+        "best_when": "Workload spans many image sizes; default for <code>EngineKind::Auto</code>."
+      }
+    ]
+  }
+}
