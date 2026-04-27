@@ -280,13 +280,13 @@ th:first-child::after {
   background: var(--border);
 }
 
-/* Roomy first column for the row-label content. Fixed table layout
-   treats this as a hard width and splits the remainder evenly across
-   the data columns. 18rem is wide enough that engine names like
-   "libviprs MapReduce" or scenarios like "Multi-core, bounded RAM"
-   stay on one line; the small font + word-break rules above let
-   anything else wrap inside its cell rather than overflow. */
-th:first-of-type { width: 18rem; }
+/* First-column width is set by `sizeFirstColumn()` in
+   benchmarks/js/scalability-tables.js — it measures the natural
+   max-content width of each row label and applies an inline-style
+   width that respects a configurable threshold/cap ratio against
+   the other columns. The 14rem here is purely a graceful-degradation
+   default for the static-fallback rows when JS hasn't run. */
+th:first-of-type { width: 14rem; }
 
 /* Soft hover wash on body rows. */
 tbody tr:hover td,
