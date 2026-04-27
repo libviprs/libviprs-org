@@ -224,6 +224,117 @@
   }
 
   // ---------------------------------------------------------------------------
+  // First-column auto-sizing
+  // ---------------------------------------------------------------------------
+
+  /* Default sizing rule: shrink the first column to the natural single-line
+   * width of its widest cell. If that natural width would exceed
+   *   threshold_ratio × (the other-column width that results from giving
+   *   the rest of the table the remaining space)
+   * the column is capped at
+   *   cap_ratio × that other-column width
+   * and its cells are allowed to wrap. Override per-table by placing a
+   * `column_sizing` block in the table's JSON config — anything you set
+   * there is merged on top of the JSON's `default_column_sizing` object,
+   * which itself is merged on top of these constants. */
+  const HARD_DEFAULT_COL_SIZING = {
+    threshold_ratio: 2.0,
+    cap_ratio: 1.75,
+  };
+
+  function resolveColSizing(scenariosCfg, perTable) {
+    return Object.assign(
+      {},
+      HARD_DEFAULT_COL_SIZING,
+      scenariosCfg.default_column_sizing || {},
+      perTable || {}
+    );
+  }
+
+  function sizeFirstColumn(table, sizing) {
+    if (!table || !table.tBodies || !table.tBodies.length) return;
+    const firstCells = Array.from(table.querySelectorAll(
+      ':scope > thead > tr > th:first-child, ' +
+      ':scope > tbody > tr > th:first-child, ' +
+      ':scope > tfoot > tr > th:first-child'
+    ));
+    if (firstCells.length === 0) return;
+
+    // Snapshot the inline styles we're about to mutate so we can put
+    // everything back afterwards.
+    const orig = firstCells.map(function (c) {
+      return { ws: c.style.whiteSpace, w: c.style.width, ovr: c.style.overflow };
+    });
+    const origLayout = table.style.tableLayout;
+
+    // Switch to auto layout + nowrap so each cell sizes to its content,
+    // measure, then restore the fixed layout. Reading offsetWidth forces
+    // the reflow so the measurement is current.
+    table.style.tableLayout = 'auto';
+    firstCells.forEach(function (c) {
+      c.style.whiteSpace = 'nowrap';
+      c.style.width = 'max-content';
+      c.style.overflow = 'visible';
+    });
+    void table.offsetWidth;
+    const naturalCw = firstCells.reduce(function (m, c) {
+      return Math.max(m, c.offsetWidth);
+    }, 0);
+
+    // Restore.
+    table.style.tableLayout = origLayout;
+    firstCells.forEach(function (c, i) {
+      c.style.whiteSpace = orig[i].ws;
+      c.style.width      = orig[i].w;
+      c.style.overflow   = orig[i].ovr;
+    });
+    void table.offsetWidth;
+
+    const tableW = table.offsetWidth;
+    const headerCells = table.querySelectorAll(':scope > thead > tr > *');
+    const otherCount = Math.max(0, headerCells.length - 1);
+    if (tableW === 0 || otherCount === 0) return;
+
+    // Algebra: with the first column at width `cw` and the remaining
+    // columns evenly sharing (tableW - cw) across `otherCount` slots,
+    // the per-other-column width is (tableW - cw) / otherCount. Asking
+    // `cw / otherCol > threshold_ratio` is equivalent to
+    //   cw > threshold_ratio · tableW / (otherCount + threshold_ratio).
+    // Same algebra produces the cap.
+    const t = sizing.threshold_ratio;
+    const c = sizing.cap_ratio;
+    const threshold = (t * tableW) / (otherCount + t);
+    let firstColW;
+    let allowWrap;
+    if (naturalCw > threshold) {
+      firstColW = (c * tableW) / (otherCount + c);
+      allowWrap = true;
+    } else {
+      firstColW = naturalCw;
+      allowWrap = false;
+    }
+
+    firstCells.forEach(function (cell) {
+      cell.style.width = firstColW + 'px';
+      cell.style.whiteSpace = allowWrap ? 'normal' : 'nowrap';
+    });
+  }
+
+  function sizeAllFirstColumns(cfg) {
+    document.querySelectorAll('table[data-bench-table]').forEach(function (table) {
+      const which = table.dataset.benchTable;
+      const perTable = (which === 'engines' && cfg.engine_table && cfg.engine_table.column_sizing)
+        || (which === 'scenarios' && cfg.scenario_table && cfg.scenario_table.column_sizing)
+        || null;
+      try {
+        sizeFirstColumn(table, resolveColSizing(cfg, perTable));
+      } catch (e) {
+        console.warn('[bench-table] sizing failed for', which, e);
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // Wiring
   // ---------------------------------------------------------------------------
 
@@ -271,6 +382,16 @@
           // Leave the static fallback rows in place if anything throws.
           console.warn('[bench-table] render failed for', which, e);
         }
+      });
+
+      // Size the first column once on initial render, then again on
+      // viewport resize (debounced). The natural width depends on the
+      // current font size, which the mobile media query may change.
+      sizeAllFirstColumns(cfg);
+      let resizeTimer = null;
+      window.addEventListener('resize', function () {
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function () { sizeAllFirstColumns(cfg); }, 150);
       });
     }).catch(function (e) {
       console.warn('[bench-table] data load failed; static fallback rows remain', e);

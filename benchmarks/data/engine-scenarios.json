@@ -1,5 +1,11 @@
 {
-  "_doc": "Editorial config for the data tables on /benchmarks.html. The engine-comparison table pulls its numeric values from scalability_results.json (the raw bench output); this file supplies display labels, captions, and the scenario picker's commentary. Speed-cell templates: {throughput}, {mp}, {memory} are substituted from the matching engine's largest-MP row in scalability_results.json. For engine_id values that don't appear in the bench data (e.g. 'auto'), no substitution happens and the template is rendered verbatim.",
+  "_doc": "Editorial config for the data tables on /benchmarks/. The engine-comparison table pulls its numeric values from scalability_results.json (the raw bench output); this file supplies display labels, captions, and the scenario picker's commentary. Speed-cell templates: {throughput}, {mp}, {memory} are substituted from the matching engine's row at the showcase MP. Each table may carry an optional column_sizing block to override the default first-column auto-sizing rule (see _column_sizing_doc below).",
+
+  "_column_sizing_doc": "Default first-column auto-sizing rule used by both tables. The renderer measures each first-column cell at single-line max-content width; if that width exceeds threshold_ratio × the resulting other-column width, the first column is capped at cap_ratio × the other-column width and its cells wrap. Override per-table by placing a `column_sizing` block inside engine_table or scenario_table.",
+  "default_column_sizing": {
+    "threshold_ratio": 2.0,
+    "cap_ratio": 1.75
+  },
 
   "engine_display": {
     "libvips":    { "label": "libvips 8.18",         "swatch": "vips"   },
