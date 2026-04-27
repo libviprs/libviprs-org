@@ -8,9 +8,11 @@
  *   https://piccalil.li/blog/styling-tables-the-modern-css-way
  * — sticky first column with a pseudo-element divider, logical-property
  * alignment, scroll-shadow gradients on a `[role="region"]` wrapper,
- * fixed table-layout with a comfortable min-width that scrolls on
- * narrow viewports rather than cramping, and a configurable accent
- * color (`--table-accent`) driving the header / footer / zebra tint.
+ * a configurable accent color (`--table-accent`) tinting the header
+ * and footer, and a roomy first-column width with the rest of the
+ * columns auto-sharing what's left. Body rows are intentionally not
+ * zebra-striped; the strong header/footer tint plus 1px cell grid is
+ * enough visual separation for short data tables.
  */
 
 /* ----- Theme tokens ------------------------------------------------------ */
@@ -201,7 +203,7 @@ footer a:hover { text-decoration: underline; }
    ============================================================ */
 
 table {
-  /* `--table-accent` is the single knob for header/footer + zebra tint;
+  /* `--table-accent` is the single knob for the header / footer tint;
      overridable per-table via inline style or a wrapper class. */
   --table-accent: color-mix(in srgb, var(--primary) 16%, var(--code-bg));
 
@@ -215,7 +217,7 @@ table {
      keyboard-focusable overflow if a table happens to be too wide. */
   width: 100%;
   table-layout: fixed;
-  font-size: 0.88rem;
+  font-size: 0.78rem;
 }
 
 th,
@@ -235,21 +237,21 @@ caption {
 thead { border-block-end: 2px solid var(--border); background: var(--table-accent); }
 tfoot { border-block: 2px solid var(--border);     background: var(--table-accent); font-weight: 700; }
 
-/* Cells: 1px grid, baseline alignment, comfortable padding. */
+/* Cells: 1px grid, baseline alignment, content wraps so long prose
+   like "Spare cores you can spend on parallel strip rendering" fits
+   inside its column instead of overflowing. */
 th,
 td {
   border: 1px solid var(--border);
-  padding: 0.55rem 0.85rem;
+  padding: 0.5rem 0.6rem;
   vertical-align: baseline;
   font-variant-numeric: tabular-nums;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 thead th { vertical-align: bottom; font-weight: 700; color: var(--primary-dark); }
-
-/* Zebra body rows at 60% transparency of the accent. */
-tbody tr:nth-child(even) {
-  background: color-mix(in srgb, var(--table-accent), transparent 60%);
-}
 
 /* Sticky row-header column. NO background here — set below by row group. */
 th:first-child {
@@ -278,11 +280,13 @@ th:first-child::after {
   background: var(--border);
 }
 
-/* Reasonable starting width for the row-label column — fixed table
-   layout treats this as a hint, the rest of the columns split
-   what's left. Keeps engine names like "libviprs MapReduce" on one
-   line at the article's prose width. */
-th:first-of-type { width: 9rem; }
+/* Roomy first column for the row-label content. Fixed table layout
+   treats this as a hard width and splits the remainder evenly across
+   the data columns. 18rem is wide enough that engine names like
+   "libviprs MapReduce" or scenarios like "Multi-core, bounded RAM"
+   stay on one line; the small font + word-break rules above let
+   anything else wrap inside its cell rather than overflow. */
+th:first-of-type { width: 18rem; }
 
 /* Soft hover wash on body rows. */
 tbody tr:hover td,
@@ -330,10 +334,10 @@ tbody tr:hover th {
 .engine-cell {
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.5rem;
   font-weight: 600;
   color: var(--text);
-  white-space: nowrap;
+  flex-wrap: wrap;
 }
 .engine-swatch {
   width: 0.7rem;
