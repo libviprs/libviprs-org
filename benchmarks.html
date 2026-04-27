@@ -386,6 +386,7 @@
   </style>
   <link rel="stylesheet" href="topbar.css">
   <script src="topbar.js" defer></script>
+  <script src="bench/scalability-tables.js" defer></script>
 </head>
 <body>
 
@@ -488,7 +489,7 @@
 
 <div class="bench-wide">
   <div class="bench-scroll" tabindex="0" role="region" aria-labelledby="benchTableCaption_engines">
-    <table class="bench-table">
+    <table class="bench-table" data-bench-table="engines">
       <caption id="benchTableCaption_engines">Engine comparison at 8192&times;5760 (47 MP)</caption>
       <thead>
         <tr>
@@ -604,7 +605,7 @@
 
 <div class="bench-wide">
   <div class="bench-scroll" tabindex="0" role="region" aria-labelledby="benchTableCaption_picker">
-    <table class="bench-table">
+    <table class="bench-table" data-bench-table="scenarios">
       <caption id="benchTableCaption_picker">Choosing an engine for your scenario</caption>
       <thead>
         <tr>
