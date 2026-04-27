@@ -1,0 +1,388 @@
+/* benchmarks.css — styles for /benchmarks/.
+ *
+ * Layout follows the same shape as the rest of the site (warm/orange
+ * palette, page header + main column, 860px max prose width).
+ *
+ * The global <table> rules at the bottom adopt Andy Bell / Michelle
+ * Barker's modern data-table pattern documented at
+ *   https://piccalil.li/blog/styling-tables-the-modern-css-way
+ * — sticky first column with a pseudo-element divider, logical-property
+ * alignment, scroll-shadow gradients on a `[role="region"]` wrapper,
+ * fixed table-layout with a comfortable min-width that scrolls on
+ * narrow viewports rather than cramping, and a configurable accent
+ * color (`--table-accent`) driving the header / footer / zebra tint.
+ */
+
+/* ----- Theme tokens ------------------------------------------------------ */
+
+:root,
+[data-theme="light"] {
+  --primary: #be6e34;
+  --primary-dark: #6d2c0f;
+  --accent: #d0704d;
+  --bg: #fafaf8;
+  --text: #2d2d2d;
+  --text-light: #555;
+  --code-bg: #f0ede8;
+  --border: #e0dcd4;
+  --white: #fff;
+  --hero-bg: #6d2c0f;
+  --table-header-bg: #f0ede8;
+  --max-width: 860px;
+}
+
+[data-theme="dark"] {
+  --primary: #d4894e;
+  --primary-dark: #e0a06a;
+  --accent: #d0704d;
+  --bg: #1a1a1a;
+  --text: #e0e0e0;
+  --text-light: #aaa;
+  --code-bg: #2a2a2a;
+  --border: #3a3a3a;
+  --white: #fff;
+  --hero-bg: #2c1608;
+  --table-header-bg: #2a2a2a;
+}
+
+/* ----- Reset + base ------------------------------------------------------ */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: "Source Code Pro", "IBM Plex Sans", -apple-system, BlinkMacSystemFont,
+               "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ----- Page chrome ------------------------------------------------------- */
+
+.page-header {
+  max-width: var(--max-width);
+  margin: 0 auto 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.page-header h1 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--primary-dark);
+  letter-spacing: -0.5px;
+  margin-bottom: 0.4rem;
+}
+
+main {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 4rem;
+}
+
+article p {
+  margin-bottom: 1.25rem;
+  color: var(--text-light);
+  font-size: 0.95rem;
+}
+article p:first-of-type {
+  font-size: 1.05rem;
+  color: var(--text);
+}
+
+h2 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--primary-dark);
+  margin: 2.5rem 0 0.75rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 2px solid var(--border);
+}
+h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 1.75rem 0 0.5rem;
+}
+
+.byline {
+  font-size: 0.85rem;
+  color: var(--text-light);
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ----- Inline code ------------------------------------------------------- */
+
+td code, p code, li code {
+  background: var(--code-bg);
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  font-size: 0.85rem;
+}
+
+/* ----- Charts + supporting boxes ---------------------------------------- */
+
+.chart-wrap {
+  margin: 1.5rem 0;
+  text-align: center;
+}
+.chart-wrap img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--white);
+}
+.chart-caption {
+  font-size: 0.8rem;
+  color: var(--text-light);
+  margin-top: 0.4rem;
+  font-style: italic;
+}
+.chart-caption .fig-num {
+  display: inline-block;
+  font-style: normal;
+  font-weight: 700;
+  color: var(--primary-dark);
+  letter-spacing: 0.04em;
+  margin-right: 0.35rem;
+}
+
+.highlight-box {
+  background: var(--code-bg);
+  border-left: 4px solid var(--primary);
+  padding: 1rem 1.25rem;
+  margin: 1.5rem 0;
+  border-radius: 0 6px 6px 0;
+}
+.highlight-box p {
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+.highlight-box p:last-child { margin-bottom: 0; }
+.highlight-box strong { color: var(--text); }
+
+.conclusion {
+  background: var(--hero-bg);
+  color: var(--white);
+  padding: 2rem 1.5rem;
+  border-radius: 8px;
+  margin: 2.5rem 0;
+}
+.conclusion h2 {
+  color: var(--white);
+  border-bottom-color: rgba(255, 255, 255, 0.2);
+  margin-top: 0;
+}
+.conclusion p,
+article .conclusion p { color: rgba(255, 255, 255, 0.85); }
+
+footer {
+  text-align: center;
+  padding: 2rem 1.5rem;
+  color: var(--text-light);
+  font-size: 0.85rem;
+  border-top: 1px solid var(--border);
+  max-width: var(--max-width);
+  margin: 0 auto;
+}
+footer a { color: var(--primary); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+
+/* ============================================================
+   Global <table> styling — modern data-table pattern from
+   https://piccalil.li/blog/styling-tables-the-modern-css-way
+   adapted to the libviprs warm/orange palette.
+
+   Source-ordered exactly as the article so later background rules
+   (tbody th, thead th + tfoot th) win on the sticky cells.
+   ============================================================ */
+
+table {
+  /* `--table-accent` is the single knob for header/footer + zebra tint;
+     overridable per-table via inline style or a wrapper class. */
+  --table-accent: color-mix(in srgb, var(--primary) 16%, var(--code-bg));
+
+  text-align: start;
+  border-collapse: collapse;
+  caption-side: bottom;
+  width: max(60rem, 100%);
+  table-layout: fixed;
+  font-size: 0.92rem;
+}
+
+th,
+caption { text-align: start; }
+
+thead th:not(:first-child),
+td { text-align: end; }
+
+caption {
+  margin-block: 0.75rem;
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--text-light);
+}
+
+/* Header / footer get the accent tint and a 2px boundary against the body. */
+thead { border-block-end: 2px solid var(--border); background: var(--table-accent); }
+tfoot { border-block: 2px solid var(--border);     background: var(--table-accent); font-weight: 700; }
+
+/* Cells: 1px grid, baseline alignment, comfortable padding. */
+th,
+td {
+  border: 1px solid var(--border);
+  padding: 0.55rem 0.85rem;
+  vertical-align: baseline;
+  font-variant-numeric: tabular-nums;
+}
+
+thead th { vertical-align: bottom; font-weight: 700; color: var(--primary-dark); }
+
+/* Zebra body rows at 60% transparency of the accent. */
+tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--table-accent), transparent 60%);
+}
+
+/* Sticky row-header column. NO background here — set below by row group. */
+th:first-child {
+  position: sticky;
+  inset-inline-start: 0;
+  border-inline-end: none;
+}
+
+tbody th { background: var(--bg); }
+thead th,
+tfoot th { background: var(--table-accent); }
+
+/* Avoid doubled left border between sticky col and first data col. */
+td:first-of-type,
+:where(thead, tfoot) th:nth-child(2) { border-inline-start: none; }
+
+/* 1px right-edge divider on the sticky column, drawn as ::after so it
+   overlays the scrolled content. */
+th:first-child::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  width: 1px;
+  height: 100%;
+  background: var(--border);
+}
+
+th:first-of-type { width: 14rem; }
+
+/* Soft hover wash on body rows. */
+tbody tr:hover td,
+tbody tr:hover th {
+  background: color-mix(in srgb, var(--primary) 10%, var(--bg));
+}
+
+/* ----- Scroll-shadow wrapper -------------------------------------------- */
+
+/* Keyboard-focusable horizontal scroll region with the Adrian Roselli
+   four-layer scroll-shadow gradient on its edges so off-screen columns
+   are discoverable. */
+.bench-scroll[tabindex="0"][aria-labelledby][role="region"] {
+  overflow: auto;
+  background:
+    linear-gradient(to right, var(--bg) 30%, rgba(255,255,255,0)),
+    linear-gradient(to right, rgba(255,255,255,0), var(--bg) 70%) 0 100%,
+    radial-gradient(farthest-side at 0% 50%, rgba(0,0,0,0.18), rgba(0,0,0,0)),
+    radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,0.18), rgba(0,0,0,0)) 0 100%;
+  background-repeat: no-repeat;
+  background-color: var(--bg);
+  background-size: 4em 100%, 4em 100%, 1.4em 100%, 1.4em 100%;
+  background-position: 0 0, 100% 0, 0 0, 100% 0;
+  background-attachment: local, local, scroll, scroll;
+}
+.bench-scroll[tabindex="0"][aria-labelledby][role="region"]:focus {
+  outline: 0.1em solid color-mix(in srgb, var(--primary) 40%, transparent);
+  outline-offset: 2px;
+}
+
+/* `.bench-wide` lets a table escape the 860px article cap up to 1180px
+   on desktop while staying centred. The `left:50%; transform` trick is
+   self-relative so it works inside any parent. */
+.bench-wide {
+  width: min(1180px, calc(100vw - 2rem));
+  margin-left: 50%;
+  transform: translateX(-50%);
+  position: relative;
+  margin-top: 1.25rem;
+  margin-bottom: 1.75rem;
+}
+
+/* ----- Engine identity (libviprs-specific) ------------------------------ */
+
+.engine-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+.engine-swatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px var(--white) inset, 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+.swatch-vips   { background: #9c27b0; }
+.swatch-mono   { background: #4285f4; }
+.swatch-stream { background: #34a853; }
+.swatch-mr     { background: #ea4335; }
+.swatch-auto   { background: linear-gradient(135deg, #4285f4 0%, #34a853 50%, #ea4335 100%); }
+
+/* ----- Dark-theme tweaks ------------------------------------------------ */
+
+[data-theme="dark"] table {
+  /* Slightly stronger accent in dark mode so the tint reads. */
+  --table-accent: color-mix(in srgb, var(--primary) 22%, var(--code-bg));
+}
+[data-theme="dark"] tbody th { background: #1a1a1a; }
+[data-theme="dark"] tbody tr:hover td,
+[data-theme="dark"] tbody tr:hover th {
+  background: color-mix(in srgb, var(--primary) 22%, #1a1a1a);
+}
+[data-theme="dark"] .engine-swatch {
+  box-shadow: 0 0 0 2px #1a1a1a inset, 0 0 0 1px rgba(255, 255, 255, 0.15);
+}
+[data-theme="dark"] .bench-scroll[tabindex="0"][aria-labelledby][role="region"] {
+  background:
+    linear-gradient(to right, #1a1a1a 30%, rgba(0,0,0,0)),
+    linear-gradient(to right, rgba(0,0,0,0), #1a1a1a 70%) 0 100%,
+    radial-gradient(farthest-side at 0% 50%, rgba(0,0,0,0.5), rgba(0,0,0,0)),
+    radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,0.5), rgba(0,0,0,0)) 0 100%;
+  background-repeat: no-repeat;
+  background-color: #1a1a1a;
+  background-size: 4em 100%, 4em 100%, 1.4em 100%, 1.4em 100%;
+  background-position: 0 0, 100% 0, 0 0, 100% 0;
+  background-attachment: local, local, scroll, scroll;
+}
+
+/* ----- Mobile ----------------------------------------------------------- */
+
+@media (max-width: 720px) {
+  .bench-wide {
+    width: 100%;
+    max-width: var(--max-width);
+    margin-left: auto;
+    margin-right: auto;
+    transform: none;
+    left: auto;
+  }
+  table { font-size: 0.8rem; }
+  th, td { padding: 0.45rem 0.55rem; }
+  th:first-of-type { width: 10rem; }
+}
+
+@media (max-width: 600px) {
+  .page-header h1 { font-size: 1.3rem; }
+  table { font-size: 0.76rem; }
+}
