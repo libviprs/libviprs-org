@@ -1,10 +1,11 @@
-/* Renders the two data tables on /benchmarks.html from JSON.
+/* Renders the two data tables on /benchmarks/ from JSON.
  *
- * Sources:
- *   bench/scalability_results.json — raw bench output (libviprs-bench
- *     drops this alongside the SVGs; one row per
- *     (engine × image size).
- *   bench/engine-scenarios.json — editorial copy: display labels,
+ * Sources (paths resolved relative to this script's own location, so
+ * the page works whether served from /, /benchmarks/, or any sub-path):
+ *   ../data/scalability_results.json — raw bench output. libviprs-bench
+ *     produces this alongside the SVGs; copy both to benchmarks/data
+ *     and benchmarks/img on each republish.
+ *   ../data/engine-scenarios.json — editorial copy: display labels,
  *     captions, scenario picker rows, speed-cell templates.
  *
  * Targets in the HTML are tagged with `data-bench-table="engines"`
@@ -227,16 +228,20 @@
   // ---------------------------------------------------------------------------
 
   // Resolve fetch URLs relative to this script's own location so the
-  // page works whether it's served from /, /benchmarks.html, or any
-  // sub-path. document.currentScript is set when the script is being
-  // executed synchronously — `defer` keeps that intact for module
-  // scripts and classic scripts alike on modern browsers.
-  function scriptDir() {
+  // page works regardless of where it's mounted. The data lives at
+  // ../data/ relative to the script (benchmarks/js/ → benchmarks/data/).
+  // document.currentScript is set while the script body is executing
+  // synchronously — `defer` keeps that intact for classic scripts.
+  function dataDir() {
     const cur = document.currentScript;
-    if (!cur || !cur.src) return 'bench/';
-    return cur.src.substring(0, cur.src.lastIndexOf('/') + 1);
+    const fallback = '../data/';
+    if (!cur || !cur.src) return fallback;
+    const here = cur.src.substring(0, cur.src.lastIndexOf('/') + 1);
+    // Resolve `here + ../data/` via URL so it normalises correctly.
+    try { return new URL('../data/', here).href; }
+    catch (_) { return fallback; }
   }
-  const baseDir = scriptDir();
+  const baseDir = dataDir();
 
   function fetchJson(name) {
     return fetch(baseDir + name, { cache: 'no-cache' }).then(function (r) {
