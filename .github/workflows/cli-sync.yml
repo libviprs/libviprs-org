@@ -1,0 +1,77 @@
+name: cli-sync
+
+# Guards the frozen CLI copy at cli/rust/main.rs against silent drift from the
+# canonical libviprs-cli source, and verifies the `#flag-*` --help anchors that
+# the interactive doc page generates client-side still resolve. See #155.
+#
+# Runs on every push/PR that touches the CLI doc surface, and on a daily
+# schedule so an upstream flag rename in libviprs-cli is caught even when no
+# push lands in this repo.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cli/**'
+      - '.github/workflows/cli-sync.yml'
+  pull_request:
+    paths:
+      - 'cli/**'
+      - '.github/workflows/cli-sync.yml'
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cli-sync:
+    runs-on: ubuntu-latest
+    steps:
+      # Check both repos out as siblings under $GITHUB_WORKSPACE so
+      # sync-cli-src.sh finds the canonical source at ../../../libviprs-cli.
+      - name: Check out libviprs-org (this repo)
+        uses: actions/checkout@v4
+        with:
+          path: libviprs-org
+
+      - name: Check out canonical libviprs-cli (sibling)
+        uses: actions/checkout@v4
+        with:
+          repository: libviprs/libviprs-cli
+          path: libviprs-cli
+          # Optional PAT for the day either repo goes private; falls back to the
+          # job's GITHUB_TOKEN, which is sufficient while both repos are public.
+          token: ${{ secrets.SYNC_CLI_TOKEN || github.token }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 1. Drift guard: the frozen copy must be byte-identical to the canonical
+      #    libviprs-cli source (diff-only; writes nothing).
+      - name: Assert frozen CLI copy is in sync
+        run: libviprs-org/cli/tools/sync-cli-src.sh --check
+
+      # 2. Flag-anchor test: every `#flag-<name>` link in the frozen copy must
+      #    resolve to a flag in snippets.generated.json (the client-side anchor
+      #    source), so no --help hyperlink is silently broken.
+      - name: Flag-anchor test
+        run: node libviprs-org/cli/tools/test-flags/anchors.js
+
+      # 3. Per-flag audit: every flag in snippets.generated.json must still
+      #    produce a code diff when checked (catches empty fragments / mis-wired
+      #    slots that would render a dead flag panel behind an anchor).
+      - name: Per-flag audit
+        run: node libviprs-org/cli/tools/test-flags/test.js
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # 4. Extractor unit tests: keep the snippet parser that feeds the JSON
+      #    honest.
+      - name: Extractor unit tests
+        working-directory: libviprs-org/cli/tools/extract-snippets
+        run: cargo test --quiet
