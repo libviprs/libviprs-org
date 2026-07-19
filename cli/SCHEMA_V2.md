@@ -242,8 +242,10 @@ build.
       "shape": "image->image",
       "oracle_class": "EXACT",
       "positionals": [
-        { "name": "IN",  "index": 1, "required": true,  "help": "Input image" },
-        { "name": "OUT", "index": 2, "required": true,  "help": "Output image" }
+        { "name": "IN",  "index": 1, "required": true,  "value_name": "IN",
+          "possible_values": null, "help": "Input image" },
+        { "name": "OUT", "index": 2, "required": true,  "value_name": "OUT",
+          "possible_values": null, "help": "Output image" }
       ],
       "flags": [
         {
@@ -272,7 +274,12 @@ Field notes:
   by name); `shape` is one of the six §3 shapes, `oracle_class` one of §5.
 * `positionals[]` — in clap declaration order (`index` 1-based, matching vips
   positional order per `CLI_CONTRACT.md` §3, incl. the OUT-first creator shape and
-  two-output shape).
+  two-output shape). Each carries `name`, `index`, `required`, `value_name`,
+  `possible_values|null`, `help`. vips **op-selectors are positionals** (`morph`'s
+  `erode|dilate`, `countlines`' `horizontal|vertical`, and later
+  `round`/`boolean`/`relational`/…), so `value_name` and `possible_values` (the
+  enum choices, `null` when the positional has none) mirror the `flags[]` fields
+  — without them the selector choices would vanish from the docs.
 * `flags[]` — every non-positional arg: `long`, `short|null`, `value_name`,
   `takes_value`, `multiple`, `required`, `default|null`, `possible_values|null`
   (enum choices), `help`. Decode-limit flags (`--max-width` … `--max-alloc-bytes`,
