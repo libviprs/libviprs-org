@@ -42,6 +42,37 @@ const DEFAULT_MANIFEST = path.join(HERE, '..', '..', 'js', 'snippets.generated.j
 // Commands whose HTML is hand-authored & interactive — never generated (§3.2).
 const HAND_AUTHORED = new Set(['pyramid', 'info', 'plan', 'test-image']);
 
+// The closed vocabularies a generated command's metadata must belong to
+// (SCHEMA_V2 §3.1 shapes + §5 / OP_MAP oracle classes). A dump command that
+// contradicts them (e.g. rank tagged oracle "APPROX") fails the build loud.
+const VALID_ORACLE_CLASSES = new Set([
+  'EXACT', 'EXACT-AFTER-CAST', 'BOUNDED-TOL', 'FOURIER',
+  'GOLDEN-ONLY', 'EXCLUDED', 'DEFERRED',
+]);
+const VALID_SHAPES = new Set([
+  'image->image', 'n-image->image', 'image->stdout-scalar',
+  'image->two-outputs', 'creator', 'draw',
+]);
+
+// Throw with a specific diagnostic if any generated command's oracle_class or
+// shape is outside the closed vocabulary (§3.1 / §5). Only the commands we
+// actually render are validated — builtins (null shape/oracle) are excluded
+// upstream by the interactive/hand-authored filter.
+function validateCommands(commands) {
+  const errors = [];
+  commands.forEach((c) => {
+    if (!VALID_ORACLE_CLASSES.has(c.oracle_class)) {
+      errors.push(`command '${c.name}': invalid oracle_class ${JSON.stringify(c.oracle_class)} (expected one of ${[...VALID_ORACLE_CLASSES].join(', ')})`);
+    }
+    if (!VALID_SHAPES.has(c.shape)) {
+      errors.push(`command '${c.name}': invalid shape ${JSON.stringify(c.shape)} (expected one of ${[...VALID_SHAPES].join(', ')})`);
+    }
+  });
+  if (errors.length) {
+    throw new Error('gen-op-sections validation failed:\n  ' + errors.join('\n  '));
+  }
+}
+
 function esc(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;')
@@ -172,6 +203,9 @@ function generate(dump, manifest) {
       if (HAND_AUTHORED.has(c.name)) return false;
       return true;
     });
+
+  // Validate the closed metadata vocabularies before rendering (B5).
+  validateCommands(commands);
 
   const sections = commands.map((c) => renderSection(c, manifestCommands[c.name]));
   return { names: commands.map((c) => c.name), html: sections.join('\n\n') };

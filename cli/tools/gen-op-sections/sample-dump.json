@@ -1,92 +1,83 @@
 {
   "viprs_version": "0.4.1",
-  "generated_by": "viprs __dump-commands (SAMPLE fixture — hand-written per SCHEMA_V2 §3.1)",
-  "_note": "Placeholder for the real `viprs __dump-commands --json` output. Covers the 4 Wave-1 morphology reference ops so gen-op-sections can be developed and proven before libviprs-cli lands the hidden subcommand.",
+  "generated_by": "viprs __dump-commands",
+  "_note": "SAMPLE fixture mirroring the real `viprs __dump-commands --json` shape (SCHEMA_V2 §3.1, matching libviprs-cli src/ops/dump.rs + src/ops/morphology.rs + src/ops/io.rs). Covers the 4 Wave-1 morphology reference ops so gen-op-sections is developed & proven before the hidden subcommand lands. Positionals carry value_name/possible_values (amended §3.1); mask/operation/width/height/index/direction are POSITIONALS (per OP_MAP), and the five shared decode-limit flags (--max-width … --max-alloc-bytes) appear on every image-loading command.",
   "commands": [
     {
       "name": "countlines",
-      "about": "Count the number of black-white transitions along a scan direction.",
+      "about": "Count the average number of lines in a one-band image and print it.",
       "family": "morphology",
-      "shape": "image->scalar",
+      "shape": "image->stdout-scalar",
       "oracle_class": "EXACT",
       "positionals": [
-        { "name": "IN", "index": 1, "required": true, "help": "Input image (single-band, thresholded)." }
+        { "name": "IN", "index": 1, "required": true, "value_name": "IN", "possible_values": null, "help": "Input image (one band, unsigned 8/16-bit)" },
+        { "name": "DIRECTION", "index": 2, "required": true, "value_name": "horizontal|vertical", "possible_values": ["horizontal", "vertical"], "help": "Line direction to count" }
       ],
       "flags": [
-        {
-          "long": "direction", "short": "d", "value_name": "DIR",
-          "takes_value": true, "multiple": false, "required": false,
-          "default": "horizontal", "possible_values": ["horizontal", "vertical"],
-          "help": "Scan direction for counting transitions."
-        }
+        { "long": "max-width", "short": null, "value_name": "PX", "takes_value": true, "multiple": false, "required": false, "default": null, "possible_values": null, "help": "Reject inputs wider than PX pixels (DecodeLimits::max_width)" },
+        { "long": "max-height", "short": null, "value_name": "PX", "takes_value": true, "multiple": false, "required": false, "default": null, "possible_values": null, "help": "Reject inputs taller than PX pixels (DecodeLimits::max_height)" },
+        { "long": "max-coord", "short": null, "value_name": "PX", "takes_value": true, "multiple": false, "required": false, "default": null, "possible_values": null, "help": "Reject a single axis larger than PX pixels (DecodeLimits::max_coord)" },
+        { "long": "max-pixels", "short": null, "value_name": "N", "takes_value": true, "multiple": false, "required": false, "default": null, "possible_values": null, "help": "Reject inputs with more than N total pixels (DecodeLimits::max_pixels)" },
+        { "long": "max-alloc-bytes", "short": null, "value_name": "BYTES", "takes_value": true, "multiple": false, "required": false, "default": null, "possible_values": null, "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)" }
       ]
     },
     {
       "name": "labelregions",
-      "about": "Label discrete connected regions with unique integer labels.",
+      "about": "Label 4-connected regions; write the label mask and print the segment count.",
       "family": "morphology",
-      "shape": "image->image",
+      "shape": "image->two-outputs",
       "oracle_class": "EXACT",
       "positionals": [
-        { "name": "IN", "index": 1, "required": true, "help": "Input image (single-band mask)." },
-        { "name": "OUT", "index": 2, "required": true, "help": "Output labelled image." }
+        { "name": "IN", "index": 1, "required": true, "value_name": "IN", "possible_values": null, "help": "Input image" },
+        { "name": "MASK_OUT", "index": 2, "required": true, "value_name": "MASK_OUT", "possible_values": null, "help": "Output path for the Gray16 label mask" }
       ],
-      "flags": []
+      "flags": [
+        { "long": "max-width", "short": null, "value_name": "PX", "takes_value": true, "multiple": false, "required": false, "default": null, "possible_values": null, "help": "Reject inputs wider than PX pixels (DecodeLimits::max_width)" },
+        { "long": "max-height", "short": null, "value_name": "PX", "takes_value": true, "multiple": false, "required": false, "default": null, "possible_values": null, "help": "Reject inputs taller than PX pixels (DecodeLimits::max_height)" },
+        { "long": "max-coord", "short": null, "value_name": "PX", "takes_value": true, "multiple": false, "required": false, "default": null, "possible_values": null, "help": "Reject a single axis larger than PX pixels (DecodeLimits::max_coord)" },
+        { "long": "max-pixels", "short": null, "value_name": "N", "takes_value": true, "multiple": false, "required": false, "default": null, "possible_values": null, "help": "Reject inputs with more than N total pixels (DecodeLimits::max_pixels)" },
+        { "long": "max-alloc-bytes", "short": null, "value_name": "BYTES", "takes_value": true, "multiple": false, "required": false, "default": null, "possible_values": null, "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)" }
+      ]
     },
     {
       "name": "morph",
-      "about": "Apply a morphological operation (erode or dilate) using a structuring mask.",
+      "about": "Erode or dilate a binary image with a morphological mask.",
       "family": "morphology",
       "shape": "image->image",
       "oracle_class": "EXACT",
       "positionals": [
-        { "name": "IN", "index": 1, "required": true, "help": "Input image." },
-        { "name": "OUT", "index": 2, "required": true, "help": "Output image." }
+        { "name": "IN", "index": 1, "required": true, "value_name": "IN", "possible_values": null, "help": "Input image (8-bit)" },
+        { "name": "OUT", "index": 2, "required": true, "value_name": "OUT", "possible_values": null, "help": "Output image" },
+        { "name": "MASK", "index": 3, "required": true, "value_name": "MASK.mat", "possible_values": null, "help": "Structuring element as a vips text matrix (values 0/128/255)" },
+        { "name": "OP", "index": 4, "required": true, "value_name": "erode|dilate", "possible_values": ["erode", "dilate"], "help": "Morphological operation" }
       ],
       "flags": [
-        {
-          "long": "mask", "short": "m", "value_name": "MASK",
-          "takes_value": true, "multiple": false, "required": true,
-          "default": null, "possible_values": null,
-          "help": "Structuring-element mask file (e.g. a 3x3 matrix)."
-        },
-        {
-          "long": "operation", "short": "o", "value_name": "OP",
-          "takes_value": true, "multiple": false, "required": false,
-          "default": "erode", "possible_values": ["erode", "dilate"],
-          "help": "Morphological operation to apply."
-        }
+        { "long": "max-width", "short": null, "value_name": "PX", "takes_value": true, "multiple": false, "required": false, "default": null, "possible_values": null, "help": "Reject inputs wider than PX pixels (DecodeLimits::max_width)" },
+        { "long": "max-height", "short": null, "value_name": "PX", "takes_value": true, "multiple": false, "required": false, "default": null, "possible_values": null, "help": "Reject inputs taller than PX pixels (DecodeLimits::max_height)" },
+        { "long": "max-coord", "short": null, "value_name": "PX", "takes_value": true, "multiple": false, "required": false, "default": null, "possible_values": null, "help": "Reject a single axis larger than PX pixels (DecodeLimits::max_coord)" },
+        { "long": "max-pixels", "short": null, "value_name": "N", "takes_value": true, "multiple": false, "required": false, "default": null, "possible_values": null, "help": "Reject inputs with more than N total pixels (DecodeLimits::max_pixels)" },
+        { "long": "max-alloc-bytes", "short": null, "value_name": "BYTES", "takes_value": true, "multiple": false, "required": false, "default": null, "possible_values": null, "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)" }
       ]
     },
     {
       "name": "rank",
-      "about": "Rank filter: replace each pixel with the nth ranked value in a window.",
+      "about": "Rank (order-statistic) filter over a sliding window.",
       "family": "morphology",
       "shape": "image->image",
-      "oracle_class": "APPROX",
+      "oracle_class": "EXACT",
       "positionals": [
-        { "name": "IN", "index": 1, "required": true, "help": "Input image." },
-        { "name": "OUT", "index": 2, "required": true, "help": "Output image." }
+        { "name": "IN", "index": 1, "required": true, "value_name": "IN", "possible_values": null, "help": "Input image (unsigned 8/16-bit)" },
+        { "name": "OUT", "index": 2, "required": true, "value_name": "OUT", "possible_values": null, "help": "Output image" },
+        { "name": "WIDTH", "index": 3, "required": true, "value_name": "WIDTH", "possible_values": null, "help": "Window width in pixels" },
+        { "name": "HEIGHT", "index": 4, "required": true, "value_name": "HEIGHT", "possible_values": null, "help": "Window height in pixels" },
+        { "name": "INDEX", "index": 5, "required": true, "value_name": "INDEX", "possible_values": null, "help": "Sorted-window index (0 = min, width*height-1 = max, middle = median)" }
       ],
       "flags": [
-        {
-          "long": "width", "short": "w", "value_name": "N",
-          "takes_value": true, "multiple": false, "required": false,
-          "default": "3", "possible_values": null,
-          "help": "Window width in pixels."
-        },
-        {
-          "long": "height", "short": "h", "value_name": "N",
-          "takes_value": true, "multiple": false, "required": false,
-          "default": "3", "possible_values": null,
-          "help": "Window height in pixels."
-        },
-        {
-          "long": "index", "short": "i", "value_name": "I",
-          "takes_value": true, "multiple": false, "required": false,
-          "default": "4", "possible_values": null,
-          "help": "Rank index within the window (0 = min, size-1 = max, size/2 = median)."
-        }
+        { "long": "max-width", "short": null, "value_name": "PX", "takes_value": true, "multiple": false, "required": false, "default": null, "possible_values": null, "help": "Reject inputs wider than PX pixels (DecodeLimits::max_width)" },
+        { "long": "max-height", "short": null, "value_name": "PX", "takes_value": true, "multiple": false, "required": false, "default": null, "possible_values": null, "help": "Reject inputs taller than PX pixels (DecodeLimits::max_height)" },
+        { "long": "max-coord", "short": null, "value_name": "PX", "takes_value": true, "multiple": false, "required": false, "default": null, "possible_values": null, "help": "Reject a single axis larger than PX pixels (DecodeLimits::max_coord)" },
+        { "long": "max-pixels", "short": null, "value_name": "N", "takes_value": true, "multiple": false, "required": false, "default": null, "possible_values": null, "help": "Reject inputs with more than N total pixels (DecodeLimits::max_pixels)" },
+        { "long": "max-alloc-bytes", "short": null, "value_name": "BYTES", "takes_value": true, "multiple": false, "required": false, "default": null, "possible_values": null, "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)" }
       ]
     }
   ]
