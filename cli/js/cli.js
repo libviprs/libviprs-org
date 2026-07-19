@@ -545,7 +545,11 @@
       } else {
         v = f.default != null ? f.default : '';
       }
-      if (f.param) byParam[f.param] = f.options ? variantFor(v, byParam) : v;
+      // The manifest's canonical key is `param_name` (legacy `param` kept as a
+      // fallback). Reading `f.param` alone made sibling-default folding a dead
+      // no-op, since no manifest flag carries a bare `param`.
+      var pk = f.param_name || f.param;
+      if (pk) byParam[pk] = f.options ? variantFor(v, byParam) : v;
     });
     return byParam;
   }

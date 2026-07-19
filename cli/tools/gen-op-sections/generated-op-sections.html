@@ -1,20 +1,20 @@
 <!-- BEGIN generated op sections (tools/gen-op-sections) -->
 <section class="op-section" data-command="countlines">
   <h2 id="countlines">countlines</h2>
-  <p>Count the number of black-white transitions along a scan direction.</p>
-  <p class="op-meta">morphology &middot; image-&gt;scalar &middot; EXACT</p>
+  <p>Count the average number of lines in a one-band image and print it.</p>
+  <p class="op-meta">morphology &middot; image-&gt;stdout-scalar &middot; EXACT</p>
 
   <div class="cmd-base-setup">
     <button type="button" class="cmd-base-setup-toggle" aria-expanded="false">Show Rust equivalent</button>
     <div class="cmd-base-setup-body">
       <div class="code-wrap">
         <button class="copy-btn">&#x2398; Copy</button>
-        <pre><code class="language-shell">viprs countlines in.png --direction horizontal</code></pre>
+        <pre><code class="language-shell">viprs countlines in.png direction.png --max-width PX --max-height PX</code></pre>
       </div>
       <div class="code-wrap">
         <button class="copy-btn">&#x2398; Copy</button>
         <pre><code class="language-rust">let raster = decode_file(&amp;input)?;
-let value = raster.try_countlines(direction)?;
+let value = raster.try_countlines(max_width, max_height, max_coord, max_pixels, max_alloc_bytes)?;
 println!("{value}");</code></pre>
       </div>
     </div>
@@ -22,29 +22,44 @@ println!("{value}");</code></pre>
 
   <dl class="flags">
     <dt><code>&lt;IN&gt;</code></dt>
-    <dd><p>Input image (single-band, thresholded). <span class="required-val">Required.</span></p></dd>
+    <dd><p>Input image (one band, unsigned 8/16-bit) <span class="required-val">Required.</span></p></dd>
 
-    <dt id="countlines-flag-direction"><code>--direction</code>, <code>-d</code> <code>&lt;DIR&gt;</code></dt>
-    <dd><p>Scan direction for counting transitions. <span class="enum-val">One of: <code>horizontal</code>, <code>vertical</code>.</span> <span class="default-val">Default: horizontal</span></p></dd>
+    <dt><code>&lt;DIRECTION&gt;</code></dt>
+    <dd><p>Line direction to count <span class="required-val">Required.</span></p></dd>
+
+    <dt id="countlines-flag-max-width"><code>--max-width</code> <code>&lt;PX&gt;</code></dt>
+    <dd><p>Reject inputs wider than PX pixels (DecodeLimits::max_width)</p></dd>
+
+    <dt id="countlines-flag-max-height"><code>--max-height</code> <code>&lt;PX&gt;</code></dt>
+    <dd><p>Reject inputs taller than PX pixels (DecodeLimits::max_height)</p></dd>
+
+    <dt id="countlines-flag-max-coord"><code>--max-coord</code> <code>&lt;PX&gt;</code></dt>
+    <dd><p>Reject a single axis larger than PX pixels (DecodeLimits::max_coord)</p></dd>
+
+    <dt id="countlines-flag-max-pixels"><code>--max-pixels</code> <code>&lt;N&gt;</code></dt>
+    <dd><p>Reject inputs with more than N total pixels (DecodeLimits::max_pixels)</p></dd>
+
+    <dt id="countlines-flag-max-alloc-bytes"><code>--max-alloc-bytes</code> <code>&lt;BYTES&gt;</code></dt>
+    <dd><p>Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)</p></dd>
   </dl>
 </section>
 
 <section class="op-section" data-command="labelregions">
   <h2 id="labelregions">labelregions</h2>
-  <p>Label discrete connected regions with unique integer labels.</p>
-  <p class="op-meta">morphology &middot; image-&gt;image &middot; EXACT</p>
+  <p>Label 4-connected regions; write the label mask and print the segment count.</p>
+  <p class="op-meta">morphology &middot; image-&gt;two-outputs &middot; EXACT</p>
 
   <div class="cmd-base-setup">
     <button type="button" class="cmd-base-setup-toggle" aria-expanded="false">Show Rust equivalent</button>
     <div class="cmd-base-setup-body">
       <div class="code-wrap">
         <button class="copy-btn">&#x2398; Copy</button>
-        <pre><code class="language-shell">viprs labelregions in.png out.v</code></pre>
+        <pre><code class="language-shell">viprs labelregions in.png mask_out.v --max-width PX --max-height PX</code></pre>
       </div>
       <div class="code-wrap">
         <button class="copy-btn">&#x2398; Copy</button>
         <pre><code class="language-rust">let raster = decode_file(&amp;input)?;
-let result = raster.try_labelregions()?;
+let result = raster.try_labelregions(max_width, max_height, max_coord, max_pixels, max_alloc_bytes)?;
 save_file(&amp;result, &amp;output)?;</code></pre>
       </div>
     </div>
@@ -52,16 +67,31 @@ save_file(&amp;result, &amp;output)?;</code></pre>
 
   <dl class="flags">
     <dt><code>&lt;IN&gt;</code></dt>
-    <dd><p>Input image (single-band mask). <span class="required-val">Required.</span></p></dd>
+    <dd><p>Input image <span class="required-val">Required.</span></p></dd>
 
-    <dt><code>&lt;OUT&gt;</code></dt>
-    <dd><p>Output labelled image. <span class="required-val">Required.</span></p></dd>
+    <dt><code>&lt;MASK_OUT&gt;</code></dt>
+    <dd><p>Output path for the Gray16 label mask <span class="required-val">Required.</span></p></dd>
+
+    <dt id="labelregions-flag-max-width"><code>--max-width</code> <code>&lt;PX&gt;</code></dt>
+    <dd><p>Reject inputs wider than PX pixels (DecodeLimits::max_width)</p></dd>
+
+    <dt id="labelregions-flag-max-height"><code>--max-height</code> <code>&lt;PX&gt;</code></dt>
+    <dd><p>Reject inputs taller than PX pixels (DecodeLimits::max_height)</p></dd>
+
+    <dt id="labelregions-flag-max-coord"><code>--max-coord</code> <code>&lt;PX&gt;</code></dt>
+    <dd><p>Reject a single axis larger than PX pixels (DecodeLimits::max_coord)</p></dd>
+
+    <dt id="labelregions-flag-max-pixels"><code>--max-pixels</code> <code>&lt;N&gt;</code></dt>
+    <dd><p>Reject inputs with more than N total pixels (DecodeLimits::max_pixels)</p></dd>
+
+    <dt id="labelregions-flag-max-alloc-bytes"><code>--max-alloc-bytes</code> <code>&lt;BYTES&gt;</code></dt>
+    <dd><p>Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)</p></dd>
   </dl>
 </section>
 
 <section class="op-section" data-command="morph">
   <h2 id="morph">morph</h2>
-  <p>Apply a morphological operation (erode or dilate) using a structuring mask.</p>
+  <p>Erode or dilate a binary image with a morphological mask.</p>
   <p class="op-meta">morphology &middot; image-&gt;image &middot; EXACT</p>
 
   <div class="cmd-base-setup">
@@ -69,12 +99,12 @@ save_file(&amp;result, &amp;output)?;</code></pre>
     <div class="cmd-base-setup-body">
       <div class="code-wrap">
         <button class="copy-btn">&#x2398; Copy</button>
-        <pre><code class="language-shell">viprs morph in.png out.v --mask MASK --operation erode</code></pre>
+        <pre><code class="language-shell">viprs morph in.png out.v mask.png op.png --max-width PX --max-height PX</code></pre>
       </div>
       <div class="code-wrap">
         <button class="copy-btn">&#x2398; Copy</button>
         <pre><code class="language-rust">let raster = decode_file(&amp;input)?;
-let result = raster.try_morph(mask, operation)?;
+let result = raster.try_morph(max_width, max_height, max_coord, max_pixels, max_alloc_bytes)?;
 save_file(&amp;result, &amp;output)?;</code></pre>
       </div>
     </div>
@@ -82,35 +112,50 @@ save_file(&amp;result, &amp;output)?;</code></pre>
 
   <dl class="flags">
     <dt><code>&lt;IN&gt;</code></dt>
-    <dd><p>Input image. <span class="required-val">Required.</span></p></dd>
+    <dd><p>Input image (8-bit) <span class="required-val">Required.</span></p></dd>
 
     <dt><code>&lt;OUT&gt;</code></dt>
-    <dd><p>Output image. <span class="required-val">Required.</span></p></dd>
+    <dd><p>Output image <span class="required-val">Required.</span></p></dd>
 
-    <dt id="morph-flag-mask"><code>--mask</code>, <code>-m</code> <code>&lt;MASK&gt;</code></dt>
-    <dd><p>Structuring-element mask file (e.g. a 3x3 matrix). <span class="required-val">Required.</span></p></dd>
+    <dt><code>&lt;MASK&gt;</code></dt>
+    <dd><p>Structuring element as a vips text matrix (values 0/128/255) <span class="required-val">Required.</span></p></dd>
 
-    <dt id="morph-flag-operation"><code>--operation</code>, <code>-o</code> <code>&lt;OP&gt;</code></dt>
-    <dd><p>Morphological operation to apply. <span class="enum-val">One of: <code>erode</code>, <code>dilate</code>.</span> <span class="default-val">Default: erode</span></p></dd>
+    <dt><code>&lt;OP&gt;</code></dt>
+    <dd><p>Morphological operation <span class="required-val">Required.</span></p></dd>
+
+    <dt id="morph-flag-max-width"><code>--max-width</code> <code>&lt;PX&gt;</code></dt>
+    <dd><p>Reject inputs wider than PX pixels (DecodeLimits::max_width)</p></dd>
+
+    <dt id="morph-flag-max-height"><code>--max-height</code> <code>&lt;PX&gt;</code></dt>
+    <dd><p>Reject inputs taller than PX pixels (DecodeLimits::max_height)</p></dd>
+
+    <dt id="morph-flag-max-coord"><code>--max-coord</code> <code>&lt;PX&gt;</code></dt>
+    <dd><p>Reject a single axis larger than PX pixels (DecodeLimits::max_coord)</p></dd>
+
+    <dt id="morph-flag-max-pixels"><code>--max-pixels</code> <code>&lt;N&gt;</code></dt>
+    <dd><p>Reject inputs with more than N total pixels (DecodeLimits::max_pixels)</p></dd>
+
+    <dt id="morph-flag-max-alloc-bytes"><code>--max-alloc-bytes</code> <code>&lt;BYTES&gt;</code></dt>
+    <dd><p>Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)</p></dd>
   </dl>
 </section>
 
 <section class="op-section" data-command="rank">
   <h2 id="rank">rank</h2>
-  <p>Rank filter: replace each pixel with the nth ranked value in a window.</p>
-  <p class="op-meta">morphology &middot; image-&gt;image &middot; APPROX</p>
+  <p>Rank (order-statistic) filter over a sliding window.</p>
+  <p class="op-meta">morphology &middot; image-&gt;image &middot; EXACT</p>
 
   <div class="cmd-base-setup">
     <button type="button" class="cmd-base-setup-toggle" aria-expanded="false">Show Rust equivalent</button>
     <div class="cmd-base-setup-body">
       <div class="code-wrap">
         <button class="copy-btn">&#x2398; Copy</button>
-        <pre><code class="language-shell">viprs rank in.png out.v --width 3 --height 3</code></pre>
+        <pre><code class="language-shell">viprs rank in.png out.v width.png height.png index.png --max-width PX --max-height PX</code></pre>
       </div>
       <div class="code-wrap">
         <button class="copy-btn">&#x2398; Copy</button>
         <pre><code class="language-rust">let raster = decode_file(&amp;input)?;
-let result = raster.try_rank(width, height, index)?;
+let result = raster.try_rank(max_width, max_height, max_coord, max_pixels, max_alloc_bytes)?;
 save_file(&amp;result, &amp;output)?;</code></pre>
       </div>
     </div>
@@ -118,19 +163,34 @@ save_file(&amp;result, &amp;output)?;</code></pre>
 
   <dl class="flags">
     <dt><code>&lt;IN&gt;</code></dt>
-    <dd><p>Input image. <span class="required-val">Required.</span></p></dd>
+    <dd><p>Input image (unsigned 8/16-bit) <span class="required-val">Required.</span></p></dd>
 
     <dt><code>&lt;OUT&gt;</code></dt>
-    <dd><p>Output image. <span class="required-val">Required.</span></p></dd>
+    <dd><p>Output image <span class="required-val">Required.</span></p></dd>
 
-    <dt id="rank-flag-width"><code>--width</code>, <code>-w</code> <code>&lt;N&gt;</code></dt>
-    <dd><p>Window width in pixels. <span class="default-val">Default: 3</span></p></dd>
+    <dt><code>&lt;WIDTH&gt;</code></dt>
+    <dd><p>Window width in pixels <span class="required-val">Required.</span></p></dd>
 
-    <dt id="rank-flag-height"><code>--height</code>, <code>-h</code> <code>&lt;N&gt;</code></dt>
-    <dd><p>Window height in pixels. <span class="default-val">Default: 3</span></p></dd>
+    <dt><code>&lt;HEIGHT&gt;</code></dt>
+    <dd><p>Window height in pixels <span class="required-val">Required.</span></p></dd>
 
-    <dt id="rank-flag-index"><code>--index</code>, <code>-i</code> <code>&lt;I&gt;</code></dt>
-    <dd><p>Rank index within the window (0 = min, size-1 = max, size/2 = median). <span class="default-val">Default: 4</span></p></dd>
+    <dt><code>&lt;INDEX&gt;</code></dt>
+    <dd><p>Sorted-window index (0 = min, width*height-1 = max, middle = median) <span class="required-val">Required.</span></p></dd>
+
+    <dt id="rank-flag-max-width"><code>--max-width</code> <code>&lt;PX&gt;</code></dt>
+    <dd><p>Reject inputs wider than PX pixels (DecodeLimits::max_width)</p></dd>
+
+    <dt id="rank-flag-max-height"><code>--max-height</code> <code>&lt;PX&gt;</code></dt>
+    <dd><p>Reject inputs taller than PX pixels (DecodeLimits::max_height)</p></dd>
+
+    <dt id="rank-flag-max-coord"><code>--max-coord</code> <code>&lt;PX&gt;</code></dt>
+    <dd><p>Reject a single axis larger than PX pixels (DecodeLimits::max_coord)</p></dd>
+
+    <dt id="rank-flag-max-pixels"><code>--max-pixels</code> <code>&lt;N&gt;</code></dt>
+    <dd><p>Reject inputs with more than N total pixels (DecodeLimits::max_pixels)</p></dd>
+
+    <dt id="rank-flag-max-alloc-bytes"><code>--max-alloc-bytes</code> <code>&lt;BYTES&gt;</code></dt>
+    <dd><p>Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)</p></dd>
   </dl>
 </section>
 <!-- END generated op sections -->

@@ -10,16 +10,23 @@
 //! * Everything is keyed by `(command, id)` — the v1 flat global slot/flag maps
 //!   (where `test-image --width` and `black --width` would collide) are gone.
 //! * A command's `slot_order` / `imports_base` come from its `@doc-command`
-//!   block; the built-in `pyramid` command falls back to `PYRAMID_BASELINE`.
+//!   block. The non-pyramid op families each require such a block (§1.4).
 //! * `pyramid` is the one **interactive**, hand-authored command. Its manifest
-//!   object is authoritative and embedded verbatim (`pyramid.command.json`), so
-//!   the live generator's rich `default`/`type`/`cli`/`options` fields — which
-//!   are not expressible in the source annotations — survive regeneration
-//!   byte-for-byte. `assert_pyramid_baseline()` guards it against drift.
+//!   object is **embed-only**: it is sourced verbatim from `pyramid.command.json`
+//!   (never from the parsed `main.rs` annotations, which are a superset the embed
+//!   deliberately simplifies), so the live generator's rich
+//!   `default`/`type`/`cli`/`options` fields — plus its `{placeholder}` lines and
+//!   its collapsed `sink` slot — which are not expressible in the source
+//!   annotations, survive regeneration byte-for-byte. `PYRAMID_BASELINE` is a
+//!   cross-check guard (NOT a fallback): `assert_pyramid_baseline()` pins the
+//!   embed against the frozen §4.1 values, and `assert_pyramid_cross_check()`
+//!   pins the embed's flag set against the parsed `main.rs` pyramid annotations
+//!   so a flag added / renamed / dropped in the CLI source — or a mis-scoped op
+//!   `@doc-flag` that fell through to the pyramid default — fails the build loud.
 //! * Op families (e.g. a future `cli/rust/ops/morphology.rs`) are parsed from
 //!   their annotations and merged in, command-scoped.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -31,10 +38,13 @@ use serde_json::{json, Map, Value};
 
 const VERSION: u32 = 2;
 
-/// The frozen `pyramid` baseline (SCHEMA_V2 §4.1). Doubles as:
-///   1. the PYRAMID **fallback** (§1.4) — an un-annotated `pyramid` source still
-///      yields this `slot_order`/`imports_base`; and
-///   2. the regression guard checked by [`assert_pyramid_baseline`] (§4.2).
+/// The frozen `pyramid` baseline (SCHEMA_V2 §4.1).
+///
+/// This is a **cross-check guard, not a fallback**: `pyramid` is always sourced
+/// from the embedded `pyramid.command.json` (see module docs), never
+/// synthesised from these constants. The baseline is the fixed set of values
+/// [`assert_pyramid_baseline`] pins the embed against (§4.2), so any regression
+/// in the committed embed fails the build loud.
 struct PyramidBaseline {
     slot_order: &'static [&'static str],
     imports_base: &'static [&'static str],
@@ -294,6 +304,14 @@ fn build_manifest(parsed: BTreeMap<String, Command>) -> Result<Value, String> {
     let pyramid_value: Value = serde_json::from_str(PYRAMID_COMMAND_JSON)
         .map_err(|e| format!("embedded pyramid.command.json is not valid JSON: {e}"))?;
 
+    // Real §4 cross-check: the embed supersedes the parsed `main.rs` pyramid
+    // annotations, so before we discard the parse, pin the embed's flag set
+    // against what the CLI source actually declares (§4, B2). This is what
+    // `assert_pyramid_baseline` (embed-vs-frozen-constant) can never catch.
+    if let Some(parsed_pyramid) = parsed.get(DEFAULT_COMMAND) {
+        assert_pyramid_cross_check(parsed_pyramid, &pyramid_value)?;
+    }
+
     let mut commands = Map::new();
 
     // Emit commands in sorted key order for deterministic bytes.
@@ -466,6 +484,49 @@ fn assert_pyramid_baseline(pyramid: &Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Real §4 invariant (B2): cross-check the embedded `pyramid` object against the
+/// pyramid annotations actually parsed from the frozen `cli/rust/main.rs`.
+///
+/// `assert_pyramid_baseline` only pins the embed against a sibling constant — a
+/// tautology that never looks at the CLI source the embed supersedes. This
+/// checks the embed's **flag-id set** equals the set of `@doc-flag` ids the
+/// source declares for `pyramid`, so:
+///   * a flag added / renamed / dropped in `main.rs`'s pyramid annotations, and
+///   * a mis-scoped op `@doc-flag` (missing `command=`) that resolved to the
+///     `pyramid` default and would otherwise be silently dropped,
+///
+/// both diverge here and fail the build loud with a specific diff.
+///
+/// The slot ids, `slot_order` and captured `lines` are **not** cross-checked:
+/// the interactive embed is a hand-authored projection — it collapses the
+/// source's `sink-fs`/`sink-s3`/`sink-packfile` slots into one `sink` slot and
+/// carries `{placeholder}` tokens in its lines — so those fields legitimately
+/// diverge from the raw annotations. The embed's slot structure is instead
+/// pinned by `assert_pyramid_baseline` (§4.1) and the CI no-drift gate (§4.2),
+/// and the source's slot fidelity by the byte-identical sync gate (§5.1).
+fn assert_pyramid_cross_check(parsed: &Command, embed: &Value) -> Result<(), String> {
+    let parsed_flags: BTreeSet<String> = parsed.flags.keys().cloned().collect();
+    let embed_flags: BTreeSet<String> = embed
+        .get("flags")
+        .and_then(Value::as_object)
+        .map(|o| o.keys().cloned().collect())
+        .ok_or_else(|| "pyramid embed: flags missing or not an object".to_string())?;
+
+    if parsed_flags != embed_flags {
+        // In the source annotations but absent from the embed (e.g. a new or
+        // mis-scoped `@doc-flag` that fell through to the pyramid default).
+        let extra: Vec<&String> = parsed_flags.difference(&embed_flags).collect();
+        // In the embed but no longer declared by the source (renamed/dropped).
+        let missing: Vec<&String> = embed_flags.difference(&parsed_flags).collect();
+        return Err(format!(
+            "pyramid embed/source flag drift vs cli/rust/main.rs @doc-flag annotations:\n  \
+             in source but not embed (extra): {extra:?}\n  \
+             in embed but not source (missing): {missing:?}"
+        ));
+    }
+    Ok(())
+}
+
 fn string_array(v: Option<&Value>) -> Option<Vec<String>> {
     let arr = v?.as_array()?;
     let mut out = Vec::with_capacity(arr.len());
@@ -561,8 +622,22 @@ fn parse(source: &str) -> BTreeMap<String, Command> {
 
         if let Some(end) = find_marker(raw_line, "@doc-snippet:end") {
             let attrs = parse_attrs(end);
-            if let Some(slot_id) = attrs.get("slot") {
-                if let Some(pos) = stack.iter().rposition(|(_, s)| s == slot_id) {
+            if let Some(slot_id) = attrs.get("slot").cloned() {
+                // Resolve the end marker's command the SAME way as begin (§1.2):
+                // explicit `command=`, else the active snippet's command, else
+                // the `pyramid` default. Match the (command, slot) PAIR so that
+                // freely-interleaved ops both using e.g. `slot=apply` (§1.5) pop
+                // the correct frame instead of the most-recent same-named slot.
+                let command = resolve_command(&attrs, &stack);
+                if let Some(pos) = stack
+                    .iter()
+                    .rposition(|(c, s)| c == &command && s == &slot_id)
+                {
+                    stack.remove(pos);
+                } else if let Some(pos) = stack.iter().rposition(|(_, s)| s == &slot_id) {
+                    // Tolerant fallback: no (command, slot) match (e.g. a stray
+                    // command= typo) — fall back to the last same-named slot so a
+                    // single-command file still closes cleanly.
                     stack.remove(pos);
                 }
             } else if !stack.is_empty() {
@@ -1154,5 +1229,70 @@ fn main() {
             split_csv("Foo, Bar ,Baz"),
             vec!["Foo".to_string(), "Bar".to_string(), "Baz".to_string()]
         );
+    }
+
+    #[test]
+    fn interleaved_two_ops_close_correct_slots() {
+        // §1.5 free interleaving: erode and dilate BOTH use slot=apply, opened
+        // in a nested/interleaved order and closed by (command, slot) pair.
+        // Closing erode/apply while dilate/apply is on top of the stack must pop
+        // the ERODE frame — not the most-recent same-named slot (the old bug).
+        let src = r#"
+// @doc-command:begin name=erode  slot-order=apply imports-base=decode_file
+// @doc-command:begin name=dilate slot-order=apply imports-base=decode_file
+
+    // @doc-snippet:begin command=erode slot=apply
+    let e = raster.try_erode(&mask)?;
+    // @doc-snippet:begin command=dilate slot=apply
+    let d = raster.try_dilate(&mask)?;
+    // @doc-snippet:end command=erode slot=apply
+    let d2 = d.clone();
+    // @doc-snippet:end command=dilate slot=apply
+"#;
+        let commands = parse(src);
+        let erode = &cmd(&commands, "erode").slots["apply"].lines;
+        let dilate = &cmd(&commands, "dilate").slots["apply"].lines;
+
+        // erode captured only its own line (closed before d2).
+        assert!(erode.iter().any(|l| l.contains("try_erode")));
+        assert!(!erode.iter().any(|l| l.contains("try_dilate")));
+        assert!(!erode.iter().any(|l| l.contains("d.clone()")));
+
+        // dilate captured its line AND the post-erode-close line d2 (it was the
+        // remaining open frame), and never erode's line.
+        assert!(dilate.iter().any(|l| l.contains("try_dilate")));
+        assert!(dilate.iter().any(|l| l.contains("d.clone()")));
+        assert!(!dilate.iter().any(|l| l.contains("try_erode")));
+    }
+
+    #[test]
+    fn pyramid_source_flags_match_embed() {
+        // The real §4 cross-check: the flag-id set the frozen cli/rust/main.rs
+        // declares for `pyramid` must equal the embed's flag-id set.
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../rust/main.rs");
+        let src = std::fs::read_to_string(path).expect("read cli/rust/main.rs");
+        let commands = parse(&src);
+        let parsed_pyramid = commands
+            .get(DEFAULT_COMMAND)
+            .expect("pyramid parsed from main.rs annotations");
+        let embed: Value = serde_json::from_str(PYRAMID_COMMAND_JSON).unwrap();
+        assert_pyramid_cross_check(parsed_pyramid, &embed)
+            .expect("main.rs pyramid @doc-flag ids match the embed");
+    }
+
+    #[test]
+    fn cross_check_fires_on_extra_source_flag() {
+        // A new / mis-scoped @doc-flag that resolves to the pyramid default but
+        // is absent from the embed must fail the cross-check loud.
+        let src = r#"
+    // @doc-snippet:begin slot=planner
+    let p = build(); // @doc-flag: ghost-flag kind=param param_name=ghost
+    // @doc-snippet:end slot=planner
+"#;
+        let parsed = parse(src);
+        let parsed_pyramid = parsed.get(DEFAULT_COMMAND).unwrap();
+        let embed: Value = serde_json::from_str(PYRAMID_COMMAND_JSON).unwrap();
+        let err = assert_pyramid_cross_check(parsed_pyramid, &embed).unwrap_err();
+        assert!(err.contains("ghost-flag"), "got: {err}");
     }
 }

@@ -1,37 +1,47 @@
 name: ci
 
-# SCHEMA_V2 §5 — the three docs-generator gates, all required on `main`:
-#   1. sync      — the frozen CLI copy is byte-identical to canonical libviprs-cli
-#   2. extract   — the extractor regenerates snippets.generated.json with no drift
-#                  (enforces the pyramid baseline §4 internally) + node test-flags
-#   3. test-flags— every flag still produces a code diff (per-flag audit)
+# SCHEMA_V2 §5 — the docs-generator gates, all required on `main`:
+#   1. sync           — the frozen CLI copy is byte-identical to canonical libviprs-cli
+#   2. extract        — the extractor regenerates snippets.generated.json with no drift
+#                       (enforces the pyramid baseline §4 internally) + unit tests
+#   3. test-flags     — every flag still produces a code diff (per-flag audit) + anchors
+#   4. gen-op-sections— the data-driven op sections regenerate with no drift, and the
+#                       oracle_class/shape enums validate
 #
 # The repo pins the CLI SHA it synced from via CLI_COUNTERPART_REV (§7); the sync
 # gate checks out libviprs-cli at that ref. When libviprs-cli is not available to
-# the workflow the sync job is continue-on-error (§5.1) — the extract + test-flags
-# gates still run against the committed frozen copy.
+# the workflow the sync check is SKIPPED at the step level (§5.1) — the job still
+# reports (green on skip, red on real drift), and the other gates always run
+# against the committed frozen copy. This single workflow subsumes the retired
+# cli-sync.yml (B6): no two workflows race the same triggers.
 
 on:
+  # No path filter: SCHEMA_V2 §5 makes these jobs REQUIRED checks on `main`, so
+  # a PR that doesn't touch cli/** must still run them — otherwise the required
+  # contexts sit perpetually 'Expected' and the PR can never merge. The jobs are
+  # cheap, so they run on every push/PR (B7).
   push:
     branches: [main]
-    paths:
-      - 'cli/**'
-      - '.github/workflows/ci.yml'
   pull_request:
-    paths:
-      - 'cli/**'
-      - '.github/workflows/ci.yml'
+  # Daily drift sweep (converged from the retired cli-sync.yml, B6): catches an
+  # upstream flag rename in libviprs-cli even when no push lands in this repo.
+  schedule:
+    - cron: '17 6 * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  # 1. sync — byte-identical frozen copy check (continue-on-error when the
-  #    canonical CLI repo is unavailable to the workflow).
+  # 1. sync — byte-identical frozen copy check. This is a BLOCKING gate: the
+  #    CLI-absent case is handled at the STEP level (the checkout_cli step is
+  #    continue-on-error, and the drift assertion is guarded by
+  #    `if: steps.checkout_cli.outcome == 'success'`), so CLI-unavailable skips
+  #    green while CLI-present + drift fails the job red. A job-level
+  #    continue-on-error would make the whole gate non-blocking — always
+  #    reporting success even on real drift (B1).
   sync:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - name: Check out libviprs-org (this repo)
         uses: actions/checkout@v4
@@ -98,3 +108,23 @@ jobs:
 
       - name: Flag-anchor test
         run: node cli/tools/test-flags/anchors.js
+
+  # 4. gen-op-sections — regenerate the data-driven op sections and assert no
+  #    drift (same no-drift pattern as the extract gate). Running the generator
+  #    also exercises the oracle_class/shape enum validation (B5, B8), so an
+  #    invalid dump fails the job.
+  gen-op-sections:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Regenerate op sections (validates oracle_class/shape enums)
+        run: node cli/tools/gen-op-sections/index.js --out cli/tools/gen-op-sections/generated-op-sections.html
+
+      - name: Assert committed HTML matches regeneration (no drift)
+        run: git diff --exit-code cli/tools/gen-op-sections/generated-op-sections.html
