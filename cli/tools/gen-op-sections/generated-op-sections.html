@@ -1,0 +1,136 @@
+<!-- BEGIN generated op sections (tools/gen-op-sections) -->
+<section class="op-section" data-command="countlines">
+  <h2 id="countlines">countlines</h2>
+  <p>Count the number of black-white transitions along a scan direction.</p>
+  <p class="op-meta">morphology &middot; image-&gt;scalar &middot; EXACT</p>
+
+  <div class="cmd-base-setup">
+    <button type="button" class="cmd-base-setup-toggle" aria-expanded="false">Show Rust equivalent</button>
+    <div class="cmd-base-setup-body">
+      <div class="code-wrap">
+        <button class="copy-btn">&#x2398; Copy</button>
+        <pre><code class="language-shell">viprs countlines in.png --direction horizontal</code></pre>
+      </div>
+      <div class="code-wrap">
+        <button class="copy-btn">&#x2398; Copy</button>
+        <pre><code class="language-rust">let raster = decode_file(&amp;input)?;
+let value = raster.try_countlines(direction)?;
+println!("{value}");</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <dl class="flags">
+    <dt><code>&lt;IN&gt;</code></dt>
+    <dd><p>Input image (single-band, thresholded). <span class="required-val">Required.</span></p></dd>
+
+    <dt id="countlines-flag-direction"><code>--direction</code>, <code>-d</code> <code>&lt;DIR&gt;</code></dt>
+    <dd><p>Scan direction for counting transitions. <span class="enum-val">One of: <code>horizontal</code>, <code>vertical</code>.</span> <span class="default-val">Default: horizontal</span></p></dd>
+  </dl>
+</section>
+
+<section class="op-section" data-command="labelregions">
+  <h2 id="labelregions">labelregions</h2>
+  <p>Label discrete connected regions with unique integer labels.</p>
+  <p class="op-meta">morphology &middot; image-&gt;image &middot; EXACT</p>
+
+  <div class="cmd-base-setup">
+    <button type="button" class="cmd-base-setup-toggle" aria-expanded="false">Show Rust equivalent</button>
+    <div class="cmd-base-setup-body">
+      <div class="code-wrap">
+        <button class="copy-btn">&#x2398; Copy</button>
+        <pre><code class="language-shell">viprs labelregions in.png out.v</code></pre>
+      </div>
+      <div class="code-wrap">
+        <button class="copy-btn">&#x2398; Copy</button>
+        <pre><code class="language-rust">let raster = decode_file(&amp;input)?;
+let result = raster.try_labelregions()?;
+save_file(&amp;result, &amp;output)?;</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <dl class="flags">
+    <dt><code>&lt;IN&gt;</code></dt>
+    <dd><p>Input image (single-band mask). <span class="required-val">Required.</span></p></dd>
+
+    <dt><code>&lt;OUT&gt;</code></dt>
+    <dd><p>Output labelled image. <span class="required-val">Required.</span></p></dd>
+  </dl>
+</section>
+
+<section class="op-section" data-command="morph">
+  <h2 id="morph">morph</h2>
+  <p>Apply a morphological operation (erode or dilate) using a structuring mask.</p>
+  <p class="op-meta">morphology &middot; image-&gt;image &middot; EXACT</p>
+
+  <div class="cmd-base-setup">
+    <button type="button" class="cmd-base-setup-toggle" aria-expanded="false">Show Rust equivalent</button>
+    <div class="cmd-base-setup-body">
+      <div class="code-wrap">
+        <button class="copy-btn">&#x2398; Copy</button>
+        <pre><code class="language-shell">viprs morph in.png out.v --mask MASK --operation erode</code></pre>
+      </div>
+      <div class="code-wrap">
+        <button class="copy-btn">&#x2398; Copy</button>
+        <pre><code class="language-rust">let raster = decode_file(&amp;input)?;
+let result = raster.try_morph(mask, operation)?;
+save_file(&amp;result, &amp;output)?;</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <dl class="flags">
+    <dt><code>&lt;IN&gt;</code></dt>
+    <dd><p>Input image. <span class="required-val">Required.</span></p></dd>
+
+    <dt><code>&lt;OUT&gt;</code></dt>
+    <dd><p>Output image. <span class="required-val">Required.</span></p></dd>
+
+    <dt id="morph-flag-mask"><code>--mask</code>, <code>-m</code> <code>&lt;MASK&gt;</code></dt>
+    <dd><p>Structuring-element mask file (e.g. a 3x3 matrix). <span class="required-val">Required.</span></p></dd>
+
+    <dt id="morph-flag-operation"><code>--operation</code>, <code>-o</code> <code>&lt;OP&gt;</code></dt>
+    <dd><p>Morphological operation to apply. <span class="enum-val">One of: <code>erode</code>, <code>dilate</code>.</span> <span class="default-val">Default: erode</span></p></dd>
+  </dl>
+</section>
+
+<section class="op-section" data-command="rank">
+  <h2 id="rank">rank</h2>
+  <p>Rank filter: replace each pixel with the nth ranked value in a window.</p>
+  <p class="op-meta">morphology &middot; image-&gt;image &middot; APPROX</p>
+
+  <div class="cmd-base-setup">
+    <button type="button" class="cmd-base-setup-toggle" aria-expanded="false">Show Rust equivalent</button>
+    <div class="cmd-base-setup-body">
+      <div class="code-wrap">
+        <button class="copy-btn">&#x2398; Copy</button>
+        <pre><code class="language-shell">viprs rank in.png out.v --width 3 --height 3</code></pre>
+      </div>
+      <div class="code-wrap">
+        <button class="copy-btn">&#x2398; Copy</button>
+        <pre><code class="language-rust">let raster = decode_file(&amp;input)?;
+let result = raster.try_rank(width, height, index)?;
+save_file(&amp;result, &amp;output)?;</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <dl class="flags">
+    <dt><code>&lt;IN&gt;</code></dt>
+    <dd><p>Input image. <span class="required-val">Required.</span></p></dd>
+
+    <dt><code>&lt;OUT&gt;</code></dt>
+    <dd><p>Output image. <span class="required-val">Required.</span></p></dd>
+
+    <dt id="rank-flag-width"><code>--width</code>, <code>-w</code> <code>&lt;N&gt;</code></dt>
+    <dd><p>Window width in pixels. <span class="default-val">Default: 3</span></p></dd>
+
+    <dt id="rank-flag-height"><code>--height</code>, <code>-h</code> <code>&lt;N&gt;</code></dt>
+    <dd><p>Window height in pixels. <span class="default-val">Default: 3</span></p></dd>
+
+    <dt id="rank-flag-index"><code>--index</code>, <code>-i</code> <code>&lt;I&gt;</code></dt>
+    <dd><p>Rank index within the window (0 = min, size-1 = max, size/2 = median). <span class="default-val">Default: 4</span></p></dd>
+  </dl>
+</section>
+<!-- END generated op sections -->

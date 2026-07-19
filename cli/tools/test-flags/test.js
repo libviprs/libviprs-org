@@ -237,6 +237,56 @@ function diagnose(name, def, slots) {
   return 'unknown kind ' + def.kind;
 }
 
+// SCHEMA v2: the manifest is command-scoped ({version:2, commands:{…}}). Return
+// the list of [name, commandObj] to audit — every command that is interactive
+// or carries slots. Falls back to a v1 (flat, pyramid-shaped) document.
+function commandsToAudit(json) {
+  if (json && json.commands && typeof json.commands === 'object') {
+    return Object.keys(json.commands)
+      .sort()
+      .map((name) => [name, json.commands[name]])
+      .filter(([, cmd]) => cmd && (cmd.interactive || (cmd.slots && Object.keys(cmd.slots).length)));
+  }
+  return [['pyramid', json]];
+}
+
+// For param-kind flags the default value is already folded into the baseline
+// (so ticking at default produces zero diff — a false positive). Pick a clearly
+// non-default value so substitution actually shows up.
+function nonDefaultValue(def) {
+  if (def.kind !== 'param') return def.default != null ? String(def.default) : '';
+  if (def.options && def.options.length) {
+    const variant = def.options.find((o) => String(o) !== String(def.default));
+    return variant != null ? String(variant) : String(def.options[0]);
+  }
+  if (def.type === 'int') {
+    const d = parseInt(def.default, 10);
+    return Number.isNaN(d) ? '999' : String(d + 999);
+  }
+  return def.default ? def.default + ' (changed)' : 'changed';
+}
+
+// Audit one command object → array of per-flag results.
+function auditCommand(command, cmdName) {
+  const baseline = render(command, {});
+  const flagNames = Object.keys(command.flags || {}).sort();
+  return flagNames.map((name) => {
+    const def = command.flags[name];
+    const value = nonDefaultValue(def);
+    const out = render(command, { [name]: value });
+    const ok = out !== baseline;
+    return {
+      command: cmdName,
+      name,
+      kind: def.kind,
+      slot: def.slot || '-',
+      value,
+      ok,
+      why: ok ? '' : diagnose(name, def, command.slots || {}),
+    };
+  });
+}
+
 function main() {
   const args = process.argv.slice(2);
   const mode = args.includes('--markdown') ? 'markdown'
@@ -244,69 +294,49 @@ function main() {
              : args.includes('--diff') ? 'diff'
              : 'human';
   const json = JSON.parse(fs.readFileSync(JSON_PATH, 'utf8'));
+  const commands = commandsToAudit(json);
 
   if (mode === 'diff') {
     const flag = args[args.indexOf('--diff') + 1];
-    if (!flag || !json.flags[flag]) { console.error('flag not found'); process.exit(2); }
-    const baseline = render(json, {});
-    const def = json.flags[flag];
+    // Find the flag in any audited command.
+    const hit = commands.find(([, cmd]) => cmd.flags && cmd.flags[flag]);
+    if (!flag || !hit) { console.error('flag not found'); process.exit(2); }
+    const command = hit[1];
+    const baseline = render(command, {});
+    const def = command.flags[flag];
     const value = def.default != null ? String(def.default) : '';
-    const out = render(json, { [flag]: value });
-    console.log('--- baseline ---'); console.log(baseline);
+    const out = render(command, { [flag]: value });
+    console.log('--- baseline (' + hit[0] + ') ---'); console.log(baseline);
     console.log('--- with --' + flag + '=' + value + ' ---'); console.log(out);
     return;
   }
 
-  const baseline = render(json, {});
-  const flagNames = Object.keys(json.flags).sort();
-
-  // For param-kind flags the default value is already folded into the
-  // baseline (so ticking at default produces zero diff — false positive).
-  // Pick a clearly non-default value so substitution actually shows up.
-  function nonDefaultValue(def) {
-    if (def.kind !== 'param') return def.default != null ? String(def.default) : '';
-    if (def.options && def.options.length) {
-      const variant = def.options.find((o) => String(o) !== String(def.default));
-      return variant != null ? String(variant) : String(def.options[0]);
-    }
-    if (def.type === 'int') {
-      const d = parseInt(def.default, 10);
-      return Number.isNaN(d) ? '999' : String(d + 999);
-    }
-    return def.default ? def.default + ' (changed)' : 'changed';
-  }
-
-  const results = flagNames.map((name) => {
-    const def = json.flags[name];
-    const value = nonDefaultValue(def);
-    const out = render(json, { [name]: value });
-    const ok = out !== baseline;
-    return { name, kind: def.kind, slot: def.slot || '-', value, ok, why: ok ? '' : diagnose(name, def, json.slots) };
-  });
+  const results = [];
+  commands.forEach(([name, cmd]) => { results.push(...auditCommand(cmd, name)); });
 
   if (mode === 'json') {
     console.log(JSON.stringify(results, null, 2));
-    return;
+    process.exit(results.some((r) => !r.ok) ? 1 : 0);
   }
   if (mode === 'markdown') {
-    console.log('| Flag | Kind | Slot | Status | Notes |');
-    console.log('|---|---|---|---|---|');
+    console.log('| Command | Flag | Kind | Slot | Status | Notes |');
+    console.log('|---|---|---|---|---|---|');
     results.forEach((r) => {
-      console.log(`| \`--${r.name}\` | \`${r.kind}\` | \`${r.slot}\` | ${r.ok ? '✅ OK' : '❌ BROKEN'} | ${r.why || '—'} |`);
+      console.log(`| \`${r.command}\` | \`--${r.name}\` | \`${r.kind}\` | \`${r.slot}\` | ${r.ok ? '✅ OK' : '❌ BROKEN'} | ${r.why || '—'} |`);
     });
     const broken = results.filter((r) => !r.ok);
-    console.log('\n**Total:** ' + results.length + ' flags · **Broken:** ' + broken.length);
-    return;
+    console.log('\n**Total:** ' + results.length + ' flags across ' + commands.length + ' command(s) · **Broken:** ' + broken.length);
+    process.exit(broken.length ? 1 : 0);
   }
 
   // human mode
   const broken = results.filter((r) => !r.ok);
   results.forEach((r) => {
     const tag = r.ok ? '\x1b[32mOK     \x1b[0m' : '\x1b[31mBROKEN \x1b[0m';
-    console.log(`${tag} --${r.name}  (kind=${r.kind}, slot=${r.slot})${r.why ? '   →  ' + r.why : ''}`);
+    console.log(`${tag} [${r.command}] --${r.name}  (kind=${r.kind}, slot=${r.slot})${r.why ? '   →  ' + r.why : ''}`);
   });
   console.log('');
-  console.log(broken.length + ' / ' + results.length + ' flags broken');
+  console.log(broken.length + ' / ' + results.length + ' flags broken across ' + commands.length + ' command(s)');
   process.exit(broken.length ? 1 : 0);
 }
 

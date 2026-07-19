@@ -185,8 +185,17 @@
         return r.json();
       })
       .then(function (data) {
-        window.VIPRS_SNIPPETS = data;
-        return data;
+        // SCHEMA v2: the manifest is command-scoped. Keep the whole document on
+        // VIPRS_MANIFEST, and point VIPRS_SNIPPETS at the pyramid command so
+        // every existing pyramid function (which reads snippets.flags / .slots /
+        // .slot_order / .imports_base) works unchanged.
+        window.VIPRS_MANIFEST = data;
+        var pyramid = (data && data.commands && data.commands.pyramid)
+          ? data.commands.pyramid
+          // Back-compat: a v1 (flat) document is already pyramid-shaped.
+          : data;
+        window.VIPRS_SNIPPETS = pyramid;
+        return pyramid;
       });
   }
 
@@ -257,10 +266,15 @@
   function buildTestHref(test) {
     if (!test || !test.file) return null;
     var line = test.line ? ('#L' + test.line) : '';
-    if (test.repo === 'libviprs-tests') {
-      return 'https://github.com/libviprs/libviprs-tests/blob/main/tests/' + test.file + line;
+    // SCHEMA v2 §2.4: repo is tri-state.
+    if (test.repo === 'libviprs-cli') {
+      return 'https://github.com/libviprs/libviprs-cli/blob/main/' + test.file + line;
     }
-    return 'https://github.com/libviprs/libviprs/blob/main/' + test.file + line;
+    if (test.repo === 'libviprs') {
+      return 'https://github.com/libviprs/libviprs/blob/main/' + test.file + line;
+    }
+    // Default (libviprs-tests): files live under tests/.
+    return 'https://github.com/libviprs/libviprs-tests/blob/main/tests/' + test.file + line;
   }
 
   function buildTestRefHref(test) {

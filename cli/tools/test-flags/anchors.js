@@ -60,7 +60,20 @@ function main() {
 
   const source = fs.readFileSync(MAIN_RS, 'utf8');
   const json = JSON.parse(fs.readFileSync(JSON_PATH, 'utf8'));
-  const flagKeys = new Set(Object.keys(json.flags || {}));
+  // SCHEMA v2: flags are command-scoped. The `#flag-<name>` anchors the
+  // interactive page renders come from the pyramid command. Fall back to a v1
+  // (flat) document. Union all commands' flag keys so cross-command anchors
+  // (if any) also resolve.
+  var flagKeys;
+  if (json.commands && typeof json.commands === 'object') {
+    flagKeys = new Set();
+    Object.keys(json.commands).forEach(function (name) {
+      Object.keys((json.commands[name] && json.commands[name].flags) || {})
+        .forEach(function (k) { flagKeys.add(k); });
+    });
+  } else {
+    flagKeys = new Set(Object.keys(json.flags || {}));
+  }
 
   const refs = collectAnchorRefs(source);
   const results = [];
