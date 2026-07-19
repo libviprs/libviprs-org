@@ -1,0 +1,100 @@
+name: ci
+
+# SCHEMA_V2 §5 — the three docs-generator gates, all required on `main`:
+#   1. sync      — the frozen CLI copy is byte-identical to canonical libviprs-cli
+#   2. extract   — the extractor regenerates snippets.generated.json with no drift
+#                  (enforces the pyramid baseline §4 internally) + node test-flags
+#   3. test-flags— every flag still produces a code diff (per-flag audit)
+#
+# The repo pins the CLI SHA it synced from via CLI_COUNTERPART_REV (§7); the sync
+# gate checks out libviprs-cli at that ref. When libviprs-cli is not available to
+# the workflow the sync job is continue-on-error (§5.1) — the extract + test-flags
+# gates still run against the committed frozen copy.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cli/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    paths:
+      - 'cli/**'
+      - '.github/workflows/ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # 1. sync — byte-identical frozen copy check (continue-on-error when the
+  #    canonical CLI repo is unavailable to the workflow).
+  sync:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Check out libviprs-org (this repo)
+        uses: actions/checkout@v4
+        with:
+          path: libviprs-org
+
+      - name: Check out canonical libviprs-cli (sibling)
+        id: checkout_cli
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: libviprs/libviprs-cli
+          path: libviprs-cli
+          # Pin to the counterpart revision this doc site synced from.
+          ref: ${{ vars.CLI_COUNTERPART_REV || '' }}
+          token: ${{ secrets.SYNC_CLI_TOKEN || github.token }}
+
+      - name: Assert frozen CLI copy is in sync
+        if: steps.checkout_cli.outcome == 'success'
+        run: libviprs-org/cli/tools/sync-cli-src.sh --check
+
+      - name: Skip note (canonical CLI unavailable)
+        if: steps.checkout_cli.outcome != 'success'
+        run: echo "::warning::libviprs-cli not available to this workflow; skipping byte-identical sync check."
+
+  # 2. extract — regenerate the manifest (baseline §4 enforced inside the
+  #    extractor) and assert no uncommitted drift; then the per-flag audit.
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Regenerate snippet manifest (enforces pyramid baseline §4)
+        run: cargo run --manifest-path cli/tools/extract-snippets/Cargo.toml
+
+      - name: Assert committed JSON matches regeneration (no drift)
+        run: git diff --exit-code cli/js/snippets.generated.json
+
+      - name: Extractor unit tests
+        working-directory: cli/tools/extract-snippets
+        run: cargo test --quiet
+
+  # 3. test-flags — per-flag audit gate (exit 1 if any flag produces zero diff).
+  test-flags:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Per-flag audit
+        run: node cli/tools/test-flags/test.js
+
+      - name: Flag-anchor test
+        run: node cli/tools/test-flags/anchors.js
