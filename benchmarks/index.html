@@ -98,13 +98,13 @@
   <p class="byline">Benchmark methodology &middot; v0.3.0 &middot; In-process FFI comparison on identical pixel buffers</p>
 </header>
 
-<p>A pure-Rust image pyramiding library is outperforming the C heavyweight it was designed to replace. In head-to-head benchmarks on a 47-megapixel raster &mdash; the kind of image AEC firms tile every day from scanned blueprint PDFs &mdash; libviprs generates tiles 1.8&times; to 2.4&times; faster than libvips while using up to 10.7&times; less memory. Those aren't typos. And this isn't a rigged comparison: both libraries receive the same raw pixel buffer in process memory, both produce DeepZoom tile pyramids with identical parameters, and both are measured with the same clock. The difference is architectural.</p>
+<p>A pure-Rust image pyramiding library is outperforming the C heavyweight it was designed to replace. In head-to-head benchmarks on a 47-megapixel raster &mdash; the kind of large scanned document or gigapixel image that gets tiled for interactive viewing every day &mdash; libviprs generates tiles 1.8&times; to 2.4&times; faster than libvips while using up to 10.7&times; less memory. Those aren't typos. And this isn't a rigged comparison: both libraries receive the same raw pixel buffer in process memory, both produce DeepZoom tile pyramids with identical parameters &mdash; the kind of tiled output a WebGL map engine like MapLibre GL renders for smooth pan-and-zoom &mdash; and both are measured with the same clock. The difference is architectural.</p>
 
 <h2>How We Tested</h2>
 
 <p>Fair benchmarking between libraries written in different languages is notoriously difficult. Shell out to a CLI and you're measuring process spawn time. Write to disk and you're measuring your SSD. To eliminate every variable except the tiling pipeline itself, we linked both libraries into the same Rust process using <code>libvips-rs</code> FFI bindings to call <code>vips_image_new_from_memory</code> and <code>vips_dzsave</code> directly. Both libraries start from an identical <code>RGB8</code> pixel buffer already resident in memory. libvips writes raw tiles to a tmpdir (the minimum <code>dzsave</code> allows); libviprs writes to a <code>MemorySink</code> (in-memory collection). Neither side encodes to PNG or JPEG &mdash; this is pure pyramid generation throughput.</p>
 
-<p>We tested six image sizes from 0.2 megapixels (512&times;360) to 47 megapixels (8192&times;5760), using the aspect ratio of a real construction blueprint PDF (43551_California_South.pdf, 4608&times;3240 pts). <a href="../cli/#flag-tile-size" style="color:var(--primary);">Tile size</a> was 256&times;256 with no <a href="../cli/#flag-overlap" style="color:var(--primary);">overlap</a> &mdash; standard DeepZoom configuration. libviprs was tested across all three of its engine modes: monolithic, sequential streaming, and <a href="../cli/#flag-parallel" style="color:var(--primary);">parallel MapReduce</a>.</p>
+<p>We tested six image sizes from 0.2 megapixels (512&times;360) to 47 megapixels (8192&times;5760), using the aspect ratio of a real large-format scanned document (a 4608&times;3240 pt page). <a href="../cli/#flag-tile-size" style="color:var(--primary);">Tile size</a> was 256&times;256 with no <a href="../cli/#flag-overlap" style="color:var(--primary);">overlap</a> &mdash; standard DeepZoom configuration. libviprs was tested across all three of its engine modes: monolithic, sequential streaming, and <a href="../cli/#flag-parallel" style="color:var(--primary);">parallel MapReduce</a>.</p>
 
 <h2>The Numbers</h2>
 
@@ -206,7 +206,7 @@
   <p class="chart-caption"><span class="fig-num">Figure&nbsp;4.</span>Resource cost (MB&middot;s per tile). Lower is better. Captures both memory and time in a single metric &mdash; what you'd pay in a billed environment.</p>
 </div>
 
-<p>The resource cost chart puts a price tag on each tile (Figure&nbsp;4). At 47 MP, libvips costs 0.192 MB&middot;s per tile. The monolithic engine costs 0.024. Streaming costs 0.012. MapReduce costs 0.010 &mdash; 19&times; cheaper than libvips per tile produced. For a batch pipeline processing thousands of blueprint PDFs per day, that's the difference between one machine and twenty.</p>
+<p>The resource cost chart puts a price tag on each tile (Figure&nbsp;4). At 47 MP, libvips costs 0.192 MB&middot;s per tile. The monolithic engine costs 0.024. Streaming costs 0.012. MapReduce costs 0.010 &mdash; 19&times; cheaper than libvips per tile produced. For a batch pipeline processing thousands of large documents per day, that's the difference between one machine and twenty.</p>
 
 <h2>Raw Speed Still Matters</h2>
 
@@ -295,7 +295,7 @@
 <div class="conclusion">
   <h2>Conclusion</h2>
   <p>libviprs is not a replacement for libvips. It's a specialised tool that does one job &mdash; tile pyramid generation &mdash; and does it significantly faster and leaner than the general-purpose library it draws inspiration from. At 47 megapixels, the MapReduce engine produces tiles 19&times; more efficiently per megabyte than libvips, fits in a 42 MB memory envelope that libvips cannot match, and still completes 1.8&times; faster in wall time. The monolithic engine is 2.4&times; faster when memory is unconstrained.</p>
-  <p>For AEC firms tiling thousands of blueprint PDFs daily in containerised pipelines, these numbers translate directly to fewer machines, smaller pods, and faster turnaround. libviprs brings the Rust performance story to a domain that has relied on C for decades &mdash; and the benchmarks show it was worth the rewrite.</p>
+  <p>For teams tiling thousands of large scans, gigapixel images, and multi-page PDFs daily in containerised pipelines &mdash; feeding the tiled pyramids to a MapLibre GL viewer or any other Deep Zoom / XYZ client &mdash; these numbers translate directly to fewer machines, smaller pods, and faster turnaround. libviprs brings the Rust performance story to a workload that has relied on C for decades &mdash; and the benchmarks show it was worth the rewrite.</p>
 </div>
 
 </article>
