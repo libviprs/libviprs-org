@@ -1,6 +1,3007 @@
 {
   "version": 2,
   "commands": {
+    "add": {
+      "about": "Add two images pixel-by-pixel (8-bit widens to 16-bit to avoid wrap).",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    // Guard the three conditions core's `add` asserts on, so a bad input is exit",
+            "    // 1 (a clear message) and NEVER a process abort (exit 101).",
+            "    if left.format().is_float() || right.format().is_float() {",
+            "        bail!(",
+            "            \"add: float inputs are not supported yet (a later arithmetic batch adds float \\",
+            "             addition); cast to an unsigned 8-bit format first\"",
+            "        );",
+            "    }",
+            "    // Reject 16-bit (and any non-uchar) inputs: vips `add` promotes ushort→uint",
+            "    // and returns the true sum, but core keeps 16-bit at 16-bit and SATURATES at",
+            "    // 65535 (raster_ops.rs). Accepting them would emit a silently-wrong result,",
+            "    // so the accepted surface is restricted to 8-bit (uchar), where core == vips.",
+            "    // Wide-input addition lands with a later arithmetic batch (see the module",
+            "    // docs / OP_MAP `add` note).",
+            "    if left.format().bytes_per_channel() != 1 || right.format().bytes_per_channel() != 1 {",
+            "        bail!(",
+            "            \"add: 16-bit inputs are not supported yet (a later arithmetic batch adds \\",
+            "             ushort→uint promotion; core would saturate the sum at 65535 instead of \\",
+            "             promoting like vips); cast to an unsigned 8-bit format first\"",
+            "        );",
+            "    }",
+            "    if (left.width(), left.height()) != (right.width(), right.height()) {",
+            "        bail!(",
+            "            \"add: dimension mismatch — LEFT is {}x{} but RIGHT is {}x{}\",",
+            "            left.width(),",
+            "            left.height(),",
+            "            right.width(),",
+            "            right.height()",
+            "        );",
+            "    }",
+            "    if left.format().channels() != right.format().channels() {",
+            "        bail!(",
+            "            \"add: channel-count mismatch — LEFT has {} band(s) but RIGHT has {}\",",
+            "            left.format().channels(),",
+            "            right.format().channels()",
+            "        );",
+            "    }",
+            "    let out = left.add(&right);"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let left = io::load(&left_path, &limits)?;",
+            "    let right = io::load(&right_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "addalpha": {
+      "about": "Append a fully-opaque alpha channel to an image.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_addalpha()?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "affine": {
+      "about": "Apply a 2x2 affine matrix transform to an image.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_affine(matrix, interpolate)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "arrayjoin": {
+      "about": "Tile an array of images into a grid.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let refs: Vec<&Raster> = rasters.iter().collect();",
+            "    let out = Raster::try_arrayjoin(&refs, across, shim)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let rasters: Vec<Raster> = inputs",
+            "        .iter()",
+            "        .map(|p| io::load(p, &limits))",
+            "        .collect::<Result<_>>()?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "autorot": {
+      "about": "Auto-rotate an image by its EXIF orientation tag.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_autorot()?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "bandbool": {
+      "about": "Fold an image's bands with a bitwise boolean operation.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = match op {",
+            "        \"and\" => raster.try_bandand()?,",
+            "        \"or\" => raster.try_bandor()?,",
+            "        \"eor\" => raster.try_bandeor()?,",
+            "        other => bail!(\"unknown bandbool operation {other:?} (expected and|or|eor)\"),",
+            "    };"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "bandfold": {
+      "about": "Fold the x axis into bands.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_bandfold(factor)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "bandjoin": {
+      "about": "Join the bands of two or more images into one image.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    for path in &inputs[1..] {",
+            "        let next = io::load(path, &limits)?;",
+            "        acc = acc.try_bandjoin(&next)?;",
+            "    }"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let mut acc = io::load(&inputs[0], &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&acc, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "bandjoin_const": {
+      "about": "Append one constant band per element of a vector to an image.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_bandjoin_vec(&consts)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "bandmean": {
+      "about": "Average an image's bands into a single-band image.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_bandmean()?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "bandrank": {
+      "about": "Select a per-sample rank statistic across a set of images.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let (first, rest) = rasters",
+            "        .split_first()",
+            "        .expect(\"inputs_and_out guarantees at least one input\");",
+            "    let others: Vec<&Raster> = rest.iter().collect();",
+            "    let out = first.try_bandrank(&others, index)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let rasters: Vec<Raster> = inputs",
+            "        .iter()",
+            "        .map(|p| io::load(p, &limits))",
+            "        .collect::<Result<_>>()?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "bandunfold": {
+      "about": "Unfold image bands into the x axis.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_bandunfold(factor)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "black": {
+      "about": "Make an all-zero uchar image.",
+      "interactive": false,
+      "imports_base": [
+        "save_file"
+      ],
+      "slot_order": [
+        "create",
+        "save"
+      ],
+      "slots": {
+        "create": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out_raster = Raster::try_black_bands(dim(m, \"WIDTH\"), dim(m, \"HEIGHT\"), bands)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out_raster, &out_path(m))?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "byteswap": {
+      "about": "Swap the byte order within every sample.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    // `byteswap` is infallible (it can never fail on any input): a straight",
+            "    // per-sample byte reversal, so there is no `try_byteswap` to call.",
+            "    let out = raster.byteswap();"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "cast": {
+      "about": "Cast an image to a new pixel format (uchar, ushort, or float).",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    // The target keeps the input's band count (try_cast rejects a band-count",
+            "    // change); only the per-channel byte width changes.",
+            "    let channels = raster.format().channels();",
+            "    let bytes = match fmt_name {",
+            "        \"uchar\" => 1,",
+            "        \"ushort\" => 2,",
+            "        \"float\" => 4,",
+            "        other => bail!(\"unsupported cast format {other:?} (expected uchar|ushort|float)\"),",
+            "    };",
+            "    let target = PixelFormat::with_channels(channels, bytes)",
+            "        .ok_or_else(|| anyhow!(\"no {fmt_name} format exists for a {channels}-band image\"))?;",
+            "    let out = raster.try_cast(target)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "colourspace": {
+      "about": "Convert an image to a new colour space.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    // `--source-space` re-tags the input's interpretation (the core reads the",
+            "    // source space from the raster's tag) before the conversion; absent, the",
+            "    // input's own interpretation is used, mirroring vips.",
+            "    let input = match source {",
+            "        Some(space) => raster.copy().interpretation(space).build(),",
+            "        None => raster,",
+            "    };",
+            "    let out = input.try_colourspace(target)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "compass": {
+      "about": "Convolve with a rotating compass mask and combine the results.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_compass(&kernel, times, angle, combine, precision)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "composite2": {
+      "about": "Blend a base and an overlay image with a blend mode.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = base.try_composite2(&overlay, mode)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let base = io::load(&base_path, &limits)?;",
+            "    let overlay = io::load(&overlay_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "conv": {
+      "about": "Convolve an image with a mask matrix.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_conv(&kernel, precision)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "convsep": {
+      "about": "Separably convolve an image with a 1xN or Nx1 mask.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_convsep(&kernel, precision)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "copy": {
+      "about": "Copy an image, tweaking header fields (interpretation, resolution, offset).",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let mut builder = raster.copy();",
+            "    if let Some(s) = m.get_one::<String>(\"interpretation\") {",
+            "        builder = builder.interpretation(interpretation_from_str(s)?);",
+            "    }",
+            "    if let Some(&v) = m.get_one::<f64>(\"xres\") {",
+            "        builder = builder.xres(v);",
+            "    }",
+            "    if let Some(&v) = m.get_one::<f64>(\"yres\") {",
+            "        builder = builder.yres(v);",
+            "    }",
+            "    if let Some(&v) = m.get_one::<i32>(\"xoffset\") {",
+            "        builder = builder.xoffset(v);",
+            "    }",
+            "    if let Some(&v) = m.get_one::<i32>(\"yoffset\") {",
+            "        builder = builder.yoffset(v);",
+            "    }",
+            "    if let Some(&v) = m.get_one::<u8>(\"orientation\") {",
+            "        builder = builder.orientation(v);",
+            "    }",
+            "    let out = builder.build();"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "countlines": {
+      "about": "Count the average number of lines in a one-band image and print it.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let nolines = raster.try_countlines(direction)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "dE76": {
+      "about": "CIE76 colour difference between two images.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = match kind {",
+            "        DeKind::E76 => left.try_de76(&right)?,",
+            "        DeKind::E00 => left.try_de00(&right)?,",
+            "        DeKind::Cmc => left.try_de_cmc(&right)?,",
+            "    };"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let left = io::load(&left_path, &limits)?;",
+            "    let right = io::load(&right_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "draw_circle": {
+      "about": "Draw a circle outline (or a filled disc with --fill) on an image.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    if fill {",
+            "        raster.try_draw_circle_filled(&ink, cx, cy, radius)?;",
+            "    } else {",
+            "        raster.try_draw_circle(&ink, cx, cy, radius)?;",
+            "    }"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let mut raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&raster, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "draw_flood": {
+      "about": "Flood-fill a region of an image from a seed point.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    // The flood wrappers are inherently fallible (ink width + off-canvas seed);",
+            "    // `--equal` selects the \"flood while equal to the seed value\" blob variant.",
+            "    if equal {",
+            "        raster.draw_flood_blob(&ink, x, y)?;",
+            "    } else {",
+            "        raster.draw_flood(&ink, x, y)?;",
+            "    }"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let mut raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&raster, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "draw_image": {
+      "about": "Paste a sub-image into an image at a given offset.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    raster.draw_image(&sub, x, y);"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let mut raster = io::load(&in_path, &limits)?;",
+            "    let sub = io::load(&sub_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&raster, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "draw_line": {
+      "about": "Draw a 1px line between two points on an image.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    raster.try_draw_line(&ink, x1, y1, x2, y2)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let mut raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&raster, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "draw_mask": {
+      "about": "Paint ink through a single-band 8-bit stencil onto an image.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    // `try_draw_mask` rejects a float target with a typed error (the blend",
+            "    // decodes unsigned 8/16-bit samples); the single-band 8-bit stencil is",
+            "    // validated above (a non-conforming mask is a documented core no-op).",
+            "    raster.try_draw_mask(&ink, &mask, x, y)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let mut raster = io::load(&in_path, &limits)?;",
+            "    let mask = io::load(&mask_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&raster, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "draw_rect": {
+      "about": "Draw a rectangle outline (or a filled rectangle with --fill) on an image.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    if fill {",
+            "        raster.try_draw_rect_filled(&ink, left, top, width, height)?;",
+            "    } else {",
+            "        raster.try_draw_rect(&ink, left, top, width, height)?;",
+            "    }"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let mut raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&raster, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "draw_smudge": {
+      "about": "Box-blur a rectangular region of an image in place.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    raster.draw_smudge(left, top, width, height);"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let mut raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&raster, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "embed": {
+      "about": "Embed an image in a larger canvas at a given position.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_embed(x, y, width, height, extend, background.as_deref())?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "extract_area": {
+      "about": "Extract a rectangular region from an image.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_extract_area(left, top, width, height)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "extract_band": {
+      "about": "Extract one band, or --n consecutive bands, from an image.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    // A single `extract_band BAND` is `--n 1`; both go through the range API so",
+            "    // the `--n` case is one code path (mirrors vips's single `extract_band` op).",
+            "    let out = raster.try_extract_bands(band, n)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "falsecolour": {
+      "about": "Map an image through the libvips PET false-colour scale.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_falsecolour()?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "fastcor": {
+      "about": "Fast (sum-of-squared-differences) correlation of an image against a template.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_fastcor(&template)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;",
+            "    let template = io::load(&ref_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "flatten": {
+      "about": "Flatten an alpha channel out against a background.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_flatten(background.as_deref())?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "flip": {
+      "about": "Flip an image horizontally or vertically.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = match dir {",
+            "        \"horizontal\" => raster.try_fliphor()?,",
+            "        \"vertical\" => raster.try_flipver()?,",
+            "        other => bail!(\"unknown flip direction {other:?} (expected horizontal|vertical)\"),",
+            "    };"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "freqmult": {
+      "about": "Multiply an image by a mask in Fourier space.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_freqmult(&mask)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;",
+            "    let mask = io::load(&mask_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "fwfft": {
+      "about": "Forward 2D fast Fourier transform (real or complex input → complex spectrum).",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_fwfft()?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "gamma": {
+      "about": "Apply a gamma curve to an image.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_gamma(exponent)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "gaussblur": {
+      "about": "Gaussian-blur an image.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_gaussblur(sigma, min_ampl, precision)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "gaussmat": {
+      "about": "Make a Gaussian mask matrix.",
+      "interactive": false,
+      "imports_base": [
+        "save_file"
+      ],
+      "slot_order": [
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let kernel = Kernel::try_gaussmat(sigma, min_ampl, separable, precision)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    save_matrix(&kernel, &out)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "getpoint": {
+      "about": "Read one pixel and print its per-band values in vips numeric format.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    // Bounds-check before the call: core's getpoint asserts `x < width` /",
+            "    // `y < height`, so an out-of-range coordinate must become exit 1, not abort.",
+            "    if x >= raster.width() || y >= raster.height() {",
+            "        bail!(",
+            "            \"getpoint: coordinate ({x}, {y}) is out of bounds for a {}x{} image\",",
+            "            raster.width(),",
+            "            raster.height()",
+            "        );",
+            "    }",
+            "    let pixel = raster.getpoint(x, y);"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "globalbalance": {
+      "about": "Balance the brightness of an assembled viprs mosaic.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    // Errors (no / corrupt join-tree metadata, unsolvable factor system) become",
+            "    // exit 1; the output is always float, so callers write a `.v` sink.",
+            "    let out = mosaic.try_global_balance()?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let mosaic = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "gravity": {
+      "about": "Place an image within a larger canvas at a compass position.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_gravity(direction, width, height, extend, background.as_deref())?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "grey": {
+      "about": "Create a horizontal grey ramp image.",
+      "interactive": false,
+      "imports_base": [
+        "save_file"
+      ],
+      "slot_order": [
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = Raster::try_grey(width, height, uchar)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "grid": {
+      "about": "Re-tile a tall stack of tiles into a grid.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_grid(tile_height, across, down)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "hist_cum": {
+      "about": "Form the cumulative histogram (running sum).",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_hist_cum()?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "hist_entropy": {
+      "about": "Print the Shannon entropy (bits) of a histogram.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let entropy = raster.try_hist_entropy()?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "hist_equal": {
+      "about": "Histogram-equalise an image (each band independently).",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.hist_equal();"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "hist_find": {
+      "about": "Find the per-band value histogram of an image.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = match band {",
+            "        None => raster.try_hist_find()?,",
+            "        Some(b) => raster.try_hist_find_band(b)?,",
+            "    };"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "hist_find_indexed": {
+      "about": "Sum image samples into bins selected by an index image.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_hist_find_indexed(&index)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;",
+            "    let index = io::load(&index_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "hist_find_ndim": {
+      "about": "Find an up-to-3-dimensional histogram of an image.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_hist_find_ndim(Some(bins))?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "hist_ismonotonic": {
+      "about": "Print whether a histogram is monotonically non-decreasing.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let monotonic = raster.try_hist_ismonotonic()?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "hist_local": {
+      "about": "Local (CLAHE) histogram equalisation over a sliding window.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_hist_local(width, height, max_slope)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "hist_match": {
+      "about": "Build a LUT matching one histogram to a reference histogram.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_hist_match(&reference)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;",
+            "    let reference = io::load(&ref_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "hist_norm": {
+      "about": "Normalise a histogram so each band's maximum equals the max index.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_hist_norm()?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "hist_plot": {
+      "about": "Plot a one-band histogram as a bar-graph image.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_hist_plot()?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "icc_export": {
+      "about": "Export a PCS image to a device colour space with an ICC profile.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_icc_export_with(depth, intent, output_profile.as_deref())?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "icc_import": {
+      "about": "Import a device image to the profile connection space with an ICC profile.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_icc_import_with(intent, input_profile.as_deref(), Some(pcs))?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "icc_transform": {
+      "about": "Transform a device image to another device profile in one step.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    // Compose import→export uniformly so `--intent`/`--depth` are honoured on",
+            "    // both the `--input-profile` and the embedded-profile (input_profile=None)",
+            "    // paths — the core `try_icc_transform` wrapper would silently substitute",
+            "    // perceptual intent and the input's own depth.",
+            "    let out = raster",
+            "        .try_icc_import_with(intent, input_profile.as_deref(), None)?",
+            "        .try_icc_export_with(depth, intent, Some(&output_profile))?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "identity": {
+      "about": "Create a 1-D identity look-up table image.",
+      "interactive": false,
+      "imports_base": [
+        "save_file"
+      ],
+      "slot_order": [
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    // Both constructors are infallible (fixed-size LUTs), so there is no",
+            "    // `try_identity` to call.",
+            "    let out = if ushort {",
+            "        Raster::identity_ushort()",
+            "    } else {",
+            "        Raster::identity()",
+            "    };"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "ifthenelse": {
+      "about": "Select pixels from two images under a condition image.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = cond.try_ifthenelse(&then, &otherwise)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let cond = io::load(&cond_path, &limits)?;",
+            "    let then = io::load(&in1_path, &limits)?;",
+            "    let otherwise = io::load(&in2_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "insert": {
+      "about": "Insert one image onto another at a position.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = main.try_insert(&sub, x, y, expand, background.as_deref())?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let main = io::load(&main_path, &limits)?;",
+            "    let sub = io::load(&sub_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "invertlut": {
+      "about": "Build an inverse look-up table from a matrix of measured (x, f(x)) rows.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = matrix.try_invertlut_size(size)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let matrix = load_matrix(&in_path)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "invfft": {
+      "about": "Inverse 2D fast Fourier transform; --real keeps only the real part.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = if real {",
+            "        raster.try_invfft_real()?",
+            "    } else {",
+            "        raster.try_invfft()?",
+            "    };"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "labelregions": {
+      "about": "Label 4-connected regions; write the label mask and print the segment count.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let (mask, segments) = raster.try_label_regions()?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&mask, &mask_out)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "logmat": {
+      "about": "Make a Laplacian-of-Gaussian mask matrix.",
+      "interactive": false,
+      "imports_base": [
+        "save_file"
+      ],
+      "slot_order": [
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let kernel = Kernel::try_logmat(sigma, min_ampl, separable, precision)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    save_matrix(&kernel, &out)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "mapim": {
+      "about": "Resample an image through a two-band coordinate index image.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_mapim(&index, interpolate)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;",
+            "    let index = io::load(&index_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "maplut": {
+      "about": "Map every sample of an image through a look-up table.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_maplut(&lut)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;",
+            "    let lut = io::load(&lut_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "matrixinvert": {
+      "about": "Invert a square matrix read from a vips text-matrix file.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = matrix.try_matrixinvert()?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let matrix = load_matrix(&in_path)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "merge": {
+      "about": "Merge two overlapping images with a feathered seam.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = reference.try_merge(&secondary, dir, dx, dy)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let reference = io::load(&ref_path, &limits)?;",
+            "    let secondary = io::load(&sec_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "morph": {
+      "about": "Erode or dilate a binary image with a morphological mask.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = match op {",
+            "        \"erode\" => raster.try_erode(&mask_refs)?,",
+            "        \"dilate\" => raster.try_dilate(&mask_refs)?,",
+            "        other => bail!(\"unknown morph operation {other:?} (expected erode|dilate)\"),",
+            "    };"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "mosaic": {
+      "about": "Join two images by refining an approximate tie-point.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    // The discrete tie-point search runs entirely inside try_mosaic (the search",
+            "    // failure modes surface as typed errors → exit 1, never a panic).",
+            "    let out = reference.try_mosaic(&secondary, dir, xref, yref, xsec, ysec)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let reference = io::load(&ref_path, &limits)?;",
+            "    let secondary = io::load(&sec_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "msb": {
+      "about": "Pick the most-significant byte of each sample.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_msb(band)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "percent": {
+      "about": "Print the threshold below which a given percent of pixels lie.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let threshold = raster.try_percent(percent)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "phasecor": {
+      "about": "Phase correlation of two images (the peak is their translation).",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_phasecor(&other)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;",
+            "    let other = io::load(&in2_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
     "pyramid": {
       "interactive": true,
       "about": "Generate a tile pyramid from a PDF or image file.",
@@ -664,6 +3665,586 @@
           "fragment": ""
         }
       }
+    },
+    "rank": {
+      "about": "Rank (order-statistic) filter over a sliding window.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_rank(width, height, index)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "reduce": {
+      "about": "Downsample an image with an anti-aliasing kernel.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_reduce(hshrink, vshrink, kernel)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "replicate": {
+      "about": "Tile an image across and down.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_replicate(across, down)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "resize": {
+      "about": "Resize an image by a scale factor.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let options = ResizeOptions {",
+            "        vscale,",
+            "        kernel,",
+            "        ..ResizeOptions::default()",
+            "    };",
+            "    let out = raster.try_resize_with(scale, options)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "rot": {
+      "about": "Rotate an image by a multiple of 90 degrees.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_rot(angle)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "rot45": {
+      "about": "Rotate an odd-sided square image by a multiple of 45 degrees.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_rot45(angle)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "sharpen": {
+      "about": "Unsharp-mask an image for print.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_sharpen(sigma, m1, m2)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "shrink": {
+      "about": "Shrink an image by integer or fractional factors with a box filter.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_shrink(hshrink, vshrink)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "smartcrop": {
+      "about": "Crop to the most interesting area of an image.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let (out, ax, ay) = raster.try_smartcrop(width, height, interesting, premultiplied)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "spcor": {
+      "about": "Normalised spatial cross-correlation of an image against a template.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_spcor(&template)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;",
+            "    let template = io::load(&ref_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "spectrum": {
+      "about": "Make a displayable log-scaled power spectrum.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_spectrum()?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "subsample": {
+      "about": "Subsample (point-decimate) an image by integer factors.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_subsample(xfac, yfac)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "switch": {
+      "about": "Find the index of the first non-zero condition image at each pixel.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let refs: Vec<&Raster> = rasters.iter().collect();",
+            "    let out = Raster::try_switch(&refs)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let rasters: Vec<Raster> = inputs",
+            "        .iter()",
+            "        .map(|p| io::load(p, &limits))",
+            "        .collect::<Result<_>>()?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "wrap": {
+      "about": "Wrap the image origin to its centre, swapping quadrants.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_wrap()?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
+    "zoom": {
+      "about": "Zoom in by integer pixel replication.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_zoom(xfac, yfac)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
     }
   }
 }

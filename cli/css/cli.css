@@ -142,6 +142,55 @@
     dl.flags dd p { margin-bottom: 0.35rem; }
 
     .default-val { font-size: 0.85rem; color: var(--text-light); }
+    .enum-val { font-size: 0.85rem; color: var(--text-light); }
+    .required-val { font-size: 0.85rem; color: var(--accent); font-weight: 600; }
+
+    /* Generated op sections: table of contents (grouped by family) */
+    .op-toc { margin-top: 2rem; }
+    .op-toc-groups {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1rem 1.5rem;
+      margin-top: 0.75rem;
+    }
+    .op-toc-group h3 {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--primary-dark);
+      margin: 0 0 0.4rem;
+    }
+    .op-toc-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.2rem 0.6rem;
+    }
+    .op-toc-links a {
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      font-size: 0.82rem;
+      color: var(--primary);
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+    }
+    .op-toc-links a:hover {
+      color: var(--primary-dark);
+      border-bottom-color: currentColor;
+    }
+
+    /* Generated op sections: per-command block */
+    .op-section {
+      border-top: 1px solid var(--border);
+      padding-top: 1rem;
+      margin-top: 1.5rem;
+    }
+    .op-section h2 { scroll-margin-top: 1rem; }
+    .op-meta {
+      font-size: 0.78rem;
+      color: var(--text-light);
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      margin-top: -0.25rem;
+    }
 
     /* Tables */
     table {

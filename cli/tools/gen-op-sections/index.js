@@ -231,6 +231,41 @@ function renderSection(cmd, manifestCommand) {
 </section>`;
 }
 
+// A compact in-page table of contents for the generated op sections, grouped by
+// op family and anchored to each command's <h2 id="…">. Emitted at the top of
+// the fragment so it lives inside the #generated-op-sections container and stays
+// in sync with the sections automatically (regenerated, never hand-maintained).
+// Uses only balanced <div>s so the container's depth-counted injection stays
+// idempotent.
+function tocHtml(commands) {
+  const byFamily = new Map();
+  commands.forEach((c) => {
+    const fam = c.family || 'other';
+    if (!byFamily.has(fam)) byFamily.set(fam, []);
+    byFamily.get(fam).push(c.name);
+  });
+  const groups = [...byFamily.keys()].sort().map((fam) => {
+    const links = byFamily.get(fam)
+      .slice()
+      .sort((a, b) => a.localeCompare(b))
+      .map((n) => `<a href="#${esc(n)}">${esc(n)}</a>`)
+      .join('\n        ');
+    return `    <div class="op-toc-group">
+      <h3>${esc(fam)}</h3>
+      <div class="op-toc-links">
+        ${links}
+      </div>
+    </div>`;
+  }).join('\n');
+  return `<nav class="op-toc" aria-label="Operation commands">
+  <p class="man-section">Operations</p>
+  <p>Data-generated reference for the ${commands.length} non-interactive op commands, grouped by family. Each entry links to its command section with a shell example, a &ldquo;Show Rust equivalent&rdquo; snippet, and its flags.</p>
+  <div class="op-toc-groups">
+${groups}
+  </div>
+</nav>`;
+}
+
 function generate(dump, manifest) {
   const manifestCommands = (manifest && manifest.commands) || {};
   const commands = (dump.commands || [])
@@ -247,7 +282,8 @@ function generate(dump, manifest) {
   validateCommands(commands);
 
   const sections = commands.map((c) => renderSection(c, manifestCommands[c.name]));
-  return { names: commands.map((c) => c.name), html: sections.join('\n\n') };
+  const html = tocHtml(commands) + '\n\n' + sections.join('\n\n');
+  return { names: commands.map((c) => c.name), html };
 }
 
 function injectInto(indexHtml, fragment) {

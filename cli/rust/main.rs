@@ -15,10 +15,38 @@ use libviprs::{
     EngineBuilder, EngineConfig, EngineKind, FailurePolicy, FsSink, GeoCoord, GeoTransform, Layout,
     ManifestBuilder, PyramidPlanner, Raster, ResumeMode, ResumePolicy, RetryPolicy, TileFormat,
     extract_page_image,
-    pdf::render_page_pdfium,
     streaming::{BudgetPolicy, compute_strip_height, estimate_streaming_memory},
     streaming_mapreduce::{compute_inflight_strips, estimate_mapreduce_peak_memory},
 };
+// PDFium vector rasterisation is gated behind the `pdfium` feature (on by
+// default). Without it the `--render` path is compiled out and `render_page_pdfium`
+// does not exist in the core crate, so the import is feature-gated too.
+#[cfg(feature = "pdfium")]
+use libviprs::pdf::render_page_pdfium;
+
+/// Per-family op registry (`CLI_CONTRACT.md` §6). The pyramid/info/plan/
+/// test-image commands below stay in `main.rs` untouched; every op family is
+/// additive under `src/ops/`.
+mod ops;
+
+/// Upper bound, in megabytes, accepted for `--memory-limit` and
+/// `--memory-budget`. Values above this are rejected at parse time. The cap is
+/// 16 Ti MB, so the byte conversion (`mb * 1024 * 1024`) tops out at 2^54,
+/// which stays well inside `u64` and can never wrap.
+const MEMORY_MB_CAP: u64 = 16 * 1024 * 1024;
+
+/// Convert a megabyte count into bytes.
+///
+/// Callers only pass values sourced from `--memory-limit` / `--memory-budget`,
+/// which clap caps at [`MEMORY_MB_CAP`] during parsing, so the `checked_mul`
+/// never returns `None`. The check is kept as a defensive guard: it turns any
+/// future gap in the parse-time cap into a controlled panic instead of a silent
+/// wraparound that would invert the memory guard's meaning.
+fn mb_to_bytes(mb: u64) -> u64 {
+    mb.checked_mul(1024 * 1024).expect(
+        "memory value in MB is capped at parse time, so the byte conversion cannot overflow",
+    )
+}
 
 #[derive(Parser)]
 #[command(name = "viprs", about = "Generate tile pyramids from images and PDFs")]
@@ -136,7 +164,11 @@ struct PyramidArgs {
     /// Memory limit in MB for the raster pipeline. If the estimated peak
     /// memory exceeds this limit, the command exits with an error before
     /// rendering. Use 0 to disable the check (default).
-    #[arg(long, default_value = "0")]
+    #[arg(
+        long,
+        default_value = "0",
+        value_parser = clap::value_parser!(u64).range(..=MEMORY_MB_CAP)
+    )]
     memory_limit: u64,
 
     /// Memory budget in megabytes for streaming pyramid generation.
@@ -153,7 +185,11 @@ struct PyramidArgs {
     /// When omitted, the monolithic engine is used (original behavior).
     ///
     /// See also: [interactive example](https://libviprs.org/cli/#flag-memory-budget).
-    #[arg(long, value_name = "MB")]
+    #[arg(
+        long,
+        value_name = "MB",
+        value_parser = clap::value_parser!(u64).range(..=MEMORY_MB_CAP)
+    )]
     memory_budget: Option<u64>,
 
     /// Use the parallel MapReduce engine for strip processing.
@@ -169,7 +205,7 @@ struct PyramidArgs {
     // -------------------------------------------------------------------------
     // Phase 3 hardening flags
     // -------------------------------------------------------------------------
-    /// Sink URI: fs://path, s3://bucket/prefix, or packfile://path.tar[.gz]/.zip.
+    /// Sink URI: fs://path or packfile://path.tar[.gz]/.zip.
     /// Defaults to the positional output directory as a filesystem sink.
     ///
     /// See also: [interactive example](https://libviprs.org/cli/#flag-sink).
@@ -274,10 +310,16 @@ struct PyramidArgs {
     trace_level: Option<String>,
 
     /// Shorthand for --sink packfile://<output>.tar (requires packfile feature).
-    /// Conflicts with --sink, --dedupe-all, and --dedupe-blanks.
+    /// Conflicts with --sink, --dedupe-all, --dedupe-blanks, and
+    /// --manifest-emit-checksums.
+    ///
+    /// The packfile sink writes a self-describing archive but does not carry
+    /// the versioned per-tile checksum manifest that FsSink emits, so pairing
+    /// it with --manifest-emit-checksums is rejected rather than silently
+    /// dropping the checksum request.
     #[arg(
         long,
-        conflicts_with_all = ["sink", "dedupe_all", "dedupe_blanks"],
+        conflicts_with_all = ["sink", "dedupe_all", "dedupe_blanks", "manifest_emit_checksums"],
         help_heading = "Output",
     )]
     packfile: bool,
@@ -453,14 +495,60 @@ fn parse_failure_policy(s: &str) -> Result<FailurePolicy, String> {
     }
 }
 
-fn main() {
-    let cli = Cli::parse();
+/// The derived `viprs` command (pyramid/info/plan/test-image only), before the
+/// op families and `__dump-commands` are unioned in by [`ops::assembled_cli`].
+///
+/// Kept as a tiny seam so the op registry can rebuild the same base without
+/// depending on the private [`Cli`] type directly.
+pub(crate) fn base_cli() -> clap::Command {
+    use clap::CommandFactory;
+    Cli::command()
+}
 
-    match cli.command {
-        Command::Pyramid(args) => run_pyramid(*args),
-        Command::Info(args) => run_info(args),
-        Command::Plan(args) => run_plan(args),
-        Command::TestImage(args) => run_test_image(args),
+fn main() {
+    use clap::FromArgMatches;
+
+    // In debug builds, fail loud at startup if the command registry is
+    // inconsistent — a duplicate command name across families/built-ins, or a
+    // command with no meta (or vice-versa) would otherwise mis-route silently
+    // (`CLI_CONTRACT.md` §6).
+    debug_assert!(
+        ops::registry_is_consistent(),
+        "CLI command registry is inconsistent (duplicate command name or command/meta mismatch)"
+    );
+
+    // Assemble the full CLI: frozen derived commands ∪ every family's commands
+    // ∪ hidden `__dump-commands` (`CLI_CONTRACT.md` §6). Dispatch on the matched
+    // subcommand: built-ins deserialize through the derive `Cli`; op families
+    // route to their `run()`.
+    let matches = ops::assembled_cli().get_matches();
+
+    match matches.subcommand() {
+        Some(("pyramid" | "info" | "plan" | "test-image", _)) => {
+            let cli = Cli::from_arg_matches(&matches)
+                .expect("a built-in subcommand deserializes through the derive Cli");
+            match cli.command {
+                Command::Pyramid(args) => run_pyramid(*args),
+                Command::Info(args) => run_info(args),
+                Command::Plan(args) => run_plan(args),
+                Command::TestImage(args) => run_test_image(args),
+            }
+        }
+        Some(("__dump-commands", sub)) => ops::run_dump(sub),
+        Some((name, sub)) => {
+            // Op failure → exit 1 (`CLI_CONTRACT.md` §8); usage errors already
+            // exited 2 inside clap parsing above.
+            if let Err(e) = ops::dispatch(name, sub) {
+                eprintln!("Error: {e:#}");
+                process::exit(1);
+            }
+        }
+        None => {
+            // clap enforces the required subcommand and exits 2 before we get
+            // here; this stays as a defensive usage-error path.
+            let _ = ops::assembled_cli().print_help();
+            process::exit(2);
+        }
     }
 }
 
@@ -628,7 +716,7 @@ fn run_pyramid(args: PyramidArgs) {
     // @doc-test: streaming_engine.rs::estimate_streaming_memory_reasonable:435
     if args.memory_limit > 0 {
         // @doc-flag: memory-limit kind=param param_name=memory-limit
-        let limit_bytes = args.memory_limit * 1024 * 1024;
+        let limit_bytes = mb_to_bytes(args.memory_limit);
         if peak_memory > limit_bytes {
             eprintln!(
                 "Error: estimated peak memory ({:.1} MB) exceeds --memory-limit ({} MB)",
@@ -819,7 +907,7 @@ fn run_generate(
                 let mono_est = plan.estimate_peak_memory_for_format(raster.format());
                 mono_est / 4
             } else {
-                budget_mb * 1024 * 1024
+                mb_to_bytes(budget_mb)
             };
             let mono_est = plan.estimate_peak_memory_for_format(raster.format());
 
@@ -833,8 +921,36 @@ fn run_generate(
                 } else {
                     let strip_h = compute_strip_height(plan, raster.format(), budget_bytes);
                     let sh = strip_h.unwrap_or(2 * args.tile_size);
-                    let inflight = compute_inflight_strips(plan, raster.format(), sh, budget_bytes);
-                    let est = estimate_mapreduce_peak_memory(plan, raster.format(), sh, inflight);
+                    // Mirror the engine's channel-backlog charge (issue #103 in
+                    // core): with tile workers enabled (--concurrency > 0), the
+                    // parallel emission path holds up to `buffer_size +
+                    // concurrency` decoded tiles in its bounded channel. Charge
+                    // the same backlog here so this diagnostic matches what
+                    // `generate_pyramid_mapreduce` will actually compute from
+                    // the --memory-budget the user supplied.
+                    let channel_bytes = if engine_config.concurrency > 0 {
+                        let tile_bytes = plan.tile_size as u64
+                            * plan.tile_size as u64
+                            * raster.format().bytes_per_pixel() as u64;
+                        (engine_config.buffer_size as u64 + engine_config.concurrency as u64)
+                            * tile_bytes
+                    } else {
+                        0
+                    };
+                    let inflight = compute_inflight_strips(
+                        plan,
+                        raster.format(),
+                        sh,
+                        channel_bytes,
+                        budget_bytes,
+                    );
+                    let est = estimate_mapreduce_peak_memory(
+                        plan,
+                        raster.format(),
+                        sh,
+                        inflight,
+                        channel_bytes,
+                    );
                     eprintln!(
                         "MapReduce: budget {:.1} MB, strip_height={}, {} in-flight strips, estimated peak {:.1} MB",
                         budget_bytes as f64 / (1024.0 * 1024.0),
@@ -1256,21 +1372,37 @@ fn load_source(args: &PyramidArgs) -> Raster {
         // @doc-test: pdfium_integration.rs::libviprs_pdfium_render_paths:34
         if args.render {
             // @doc-flag: render kind=override
+            // `--render` requires the `pdfium` feature. When the binary is built
+            // `--no-default-features` (pdfium-free), `render_page_pdfium` is absent,
+            // so this path is compiled out and the flag fails loudly instead.
+            #[cfg(not(feature = "pdfium"))]
+            {
+                eprintln!(
+                    "Error: --render needs the `pdfium` feature, which was not compiled into this binary."
+                );
+                eprintln!(
+                    "Hint: use a default-features build (pdfium enabled), or omit --render to extract embedded images instead."
+                );
+                process::exit(1);
+            }
             // Use PDFium to render the page (vector PDFs)
-            eprintln!(
-                "Rendering PDF page {} at {} DPI (pdfium)...",
-                args.page, args.dpi
-            );
-            // @doc-test: pdfium_integration.rs::libviprs_pdfium_render_paths:34
-            match render_page_pdfium(&path, args.page, args.dpi) {
-                // @doc-flag: dpi kind=param param_name=dpi
-                Ok(r) => r,
-                Err(e) => {
-                    eprintln!("Error rendering PDF with pdfium: {e}");
-                    eprintln!(
-                        "Hint: ensure libpdfium is installed. Run without --render to extract embedded images instead."
-                    );
-                    process::exit(1);
+            #[cfg(feature = "pdfium")]
+            {
+                eprintln!(
+                    "Rendering PDF page {} at {} DPI (pdfium)...",
+                    args.page, args.dpi
+                );
+                // @doc-test: pdfium_integration.rs::libviprs_pdfium_render_paths:34
+                match render_page_pdfium(&path, args.page, args.dpi) {
+                    // @doc-flag: dpi kind=param param_name=dpi
+                    Ok(r) => r,
+                    Err(e) => {
+                        eprintln!("Error rendering PDF with pdfium: {e}");
+                        eprintln!(
+                            "Hint: ensure libpdfium is installed. Run without --render to extract embedded images instead."
+                        );
+                        process::exit(1);
+                    }
                 }
             }
         } else {
@@ -1384,4 +1516,259 @@ fn parse_coord_pair(s: &str, name: &str) -> (f64, f64) {
         process::exit(1);
     });
     (x, y)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Parse a `viprs pyramid`-style invocation from just the flags under test,
+    /// filling in the two required positionals.
+    fn parse_pyramid(extra: &[&str]) -> Result<PyramidArgs, clap::Error> {
+        let mut argv = vec!["viprs", "in.pdf", "out"];
+        argv.extend_from_slice(extra);
+        PyramidArgs::try_parse_from(argv)
+    }
+
+    #[test]
+    fn mb_to_bytes_converts_within_u64() {
+        assert_eq!(mb_to_bytes(0), 0);
+        assert_eq!(mb_to_bytes(1), 1024 * 1024);
+        // The cap value still fits, proving the byte math never wraps.
+        assert_eq!(mb_to_bytes(MEMORY_MB_CAP), MEMORY_MB_CAP * 1024 * 1024);
+    }
+
+    #[test]
+    fn memory_limit_at_cap_is_accepted() {
+        let args = parse_pyramid(&["--memory-limit", &MEMORY_MB_CAP.to_string()])
+            .expect("the cap value must parse");
+        assert_eq!(args.memory_limit, MEMORY_MB_CAP);
+    }
+
+    #[test]
+    fn memory_limit_over_cap_is_rejected() {
+        let err = parse_pyramid(&["--memory-limit", &(MEMORY_MB_CAP + 1).to_string()])
+            .err()
+            .expect("an over-cap memory limit must be rejected at parse time");
+        assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
+    }
+
+    #[test]
+    fn memory_budget_over_cap_is_rejected() {
+        let err = parse_pyramid(&["--memory-budget", &(MEMORY_MB_CAP + 1).to_string()])
+            .err()
+            .expect("an over-cap memory budget must be rejected at parse time");
+        assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
+    }
+
+    #[test]
+    fn former_overflow_value_is_now_rejected() {
+        // Before the cap, `u64::MAX * 1024 * 1024` panicked in debug and wrapped
+        // to a tiny limit in release, inverting the guard. It must now be
+        // rejected up front rather than reaching the byte arithmetic.
+        let err = parse_pyramid(&["--memory-limit", &u64::MAX.to_string()])
+            .err()
+            .expect("u64::MAX must be rejected instead of wrapping");
+        assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
+    }
+
+    #[test]
+    fn packfile_with_manifest_checksums_is_rejected() {
+        // The packfile sink cannot carry per-tile checksums, so requesting them
+        // alongside --packfile must fail loudly at parse time rather than
+        // exiting 0 with the checksum request silently dropped.
+        let err = parse_pyramid(&["--packfile", "--manifest-emit-checksums"])
+            .err()
+            .expect("--packfile with --manifest-emit-checksums must be rejected");
+        assert_eq!(err.kind(), clap::error::ErrorKind::ArgumentConflict);
+    }
+
+    #[test]
+    fn packfile_alone_still_parses() {
+        // The new conflict must not regress the plain --packfile shorthand.
+        let args = parse_pyramid(&["--packfile"]).expect("--packfile alone must still parse");
+        assert!(args.packfile);
+        assert!(!args.manifest_emit_checksums);
+    }
+
+    #[test]
+    fn help_does_not_advertise_s3() {
+        // The s3:// sink is a compiled-in stub, so the help must not advertise
+        // an `s3://` scheme users cannot actually use.
+        use clap::CommandFactory;
+        let help = PyramidArgs::command().render_long_help().to_string();
+        assert!(
+            !help.contains("s3://"),
+            "help text must not advertise the unimplemented s3:// sink scheme, got:\n{help}"
+        );
+    }
+
+    // ----------------------------------------------------------------------
+    // parse_duration_literal
+    // ----------------------------------------------------------------------
+
+    #[test]
+    fn duration_ms_wins_over_s() {
+        // The regression the issue calls out: if the `s` suffix were stripped
+        // before `ms`, `"50ms"` would resolve to 50 seconds. Pin the correct
+        // millisecond reading so a reordered strip-suffix chain fails here.
+        assert_eq!(
+            parse_duration_literal("50ms").unwrap(),
+            std::time::Duration::from_millis(50)
+        );
+    }
+
+    #[test]
+    fn duration_bare_number_is_milliseconds() {
+        // A bare number means milliseconds, matching the old
+        // --retry-backoff semantics.
+        assert_eq!(
+            parse_duration_literal("250").unwrap(),
+            std::time::Duration::from_millis(250)
+        );
+    }
+
+    #[test]
+    fn duration_seconds_micros_nanos_units() {
+        assert_eq!(
+            parse_duration_literal("2s").unwrap(),
+            std::time::Duration::from_secs(2)
+        );
+        assert_eq!(
+            parse_duration_literal("500us").unwrap(),
+            std::time::Duration::from_micros(500)
+        );
+        // The subtlety noted in the issue: `"50ns"` parses as nanoseconds
+        // rather than being mistaken for a bare `ns`-less number.
+        assert_eq!(
+            parse_duration_literal("50ns").unwrap(),
+            std::time::Duration::from_nanos(50)
+        );
+    }
+
+    #[test]
+    fn duration_trims_surrounding_whitespace() {
+        assert_eq!(
+            parse_duration_literal("  10ms  ").unwrap(),
+            std::time::Duration::from_millis(10)
+        );
+    }
+
+    #[test]
+    fn duration_empty_is_rejected() {
+        assert!(parse_duration_literal("").is_err());
+        assert!(parse_duration_literal("   ").is_err());
+    }
+
+    #[test]
+    fn duration_non_numeric_is_rejected() {
+        assert!(parse_duration_literal("abcms").is_err());
+        assert!(parse_duration_literal("ms").is_err());
+    }
+
+    #[test]
+    fn duration_large_value_saturates_without_panic() {
+        // A huge nanosecond count must saturate rather than overflow-panic.
+        let d = parse_duration_literal(&format!("{}s", u64::MAX)).unwrap();
+        assert_eq!(d, std::time::Duration::from_nanos(u64::MAX));
+    }
+
+    // ----------------------------------------------------------------------
+    // parse_failure_policy
+    // ----------------------------------------------------------------------
+
+    #[test]
+    fn failure_policy_fail_fast() {
+        assert!(matches!(
+            parse_failure_policy("fail-fast").unwrap(),
+            FailurePolicy::FailFast
+        ));
+    }
+
+    #[test]
+    fn failure_policy_retry_reads_count_and_backoff() {
+        // `retry=3,50ms` must yield RetryThenFail with 3 retries and a 50 ms
+        // (not 50 s) backoff, guarding the ms-over-s ordering end to end.
+        match parse_failure_policy("retry=3,50ms").unwrap() {
+            FailurePolicy::RetryThenFail(policy) => {
+                assert_eq!(policy.max_retries, 3);
+                assert_eq!(policy.initial_backoff, std::time::Duration::from_millis(50));
+            }
+            other => panic!("expected RetryThenFail, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn failure_policy_retry_skip_variant() {
+        match parse_failure_policy("retry-skip=5,2s").unwrap() {
+            FailurePolicy::RetryThenSkip(policy) => {
+                assert_eq!(policy.max_retries, 5);
+                assert_eq!(policy.initial_backoff, std::time::Duration::from_secs(2));
+            }
+            other => panic!("expected RetryThenSkip, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn failure_policy_rejects_missing_separators() {
+        // No `=`, no `,`, and an unknown kind must all be rejected.
+        assert!(parse_failure_policy("retry").is_err());
+        assert!(parse_failure_policy("retry=3").is_err());
+        assert!(parse_failure_policy("bogus=3,50ms").is_err());
+    }
+
+    #[test]
+    fn failure_policy_rejects_non_numeric_count() {
+        assert!(parse_failure_policy("retry=x,50ms").is_err());
+    }
+
+    // ----------------------------------------------------------------------
+    // resolve_sink_uri
+    // ----------------------------------------------------------------------
+
+    #[test]
+    fn sink_uri_defaults_to_fs() {
+        let args = parse_pyramid(&[]).expect("bare invocation must parse");
+        assert_eq!(resolve_sink_uri(&args), "fs://out");
+    }
+
+    #[test]
+    fn sink_uri_packfile_shorthand() {
+        let args = parse_pyramid(&["--packfile"]).expect("--packfile must parse");
+        assert_eq!(resolve_sink_uri(&args), "packfile://out.tar");
+    }
+
+    #[test]
+    fn sink_uri_explicit_sink_passthrough() {
+        let args = parse_pyramid(&["--sink", "s3://bucket/key"]).expect("--sink must parse");
+        assert_eq!(resolve_sink_uri(&args), "s3://bucket/key");
+    }
+
+    // ----------------------------------------------------------------------
+    // resolve_resume_mode
+    // ----------------------------------------------------------------------
+
+    #[test]
+    fn resume_mode_defaults_to_overwrite() {
+        let args = parse_pyramid(&[]).expect("bare invocation must parse");
+        assert_eq!(resolve_resume_mode(&args), ResumeMode::Overwrite);
+    }
+
+    #[test]
+    fn resume_mode_resume_flag() {
+        let args = parse_pyramid(&["--resume"]).expect("--resume must parse");
+        assert_eq!(resolve_resume_mode(&args), ResumeMode::Resume);
+    }
+
+    #[test]
+    fn resume_mode_verify_flag() {
+        let args = parse_pyramid(&["--verify"]).expect("--verify must parse");
+        assert_eq!(resolve_resume_mode(&args), ResumeMode::Verify);
+    }
+
+    #[test]
+    fn resume_mode_overwrite_flag_is_explicit() {
+        let args = parse_pyramid(&["--overwrite"]).expect("--overwrite must parse");
+        assert_eq!(resolve_resume_mode(&args), ResumeMode::Overwrite);
+    }
 }

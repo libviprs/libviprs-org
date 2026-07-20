@@ -331,6 +331,15 @@ fn build_manifest(parsed: BTreeMap<String, Command>) -> Result<Value, String> {
         let cmd = parsed
             .get(name)
             .expect("name came from parsed keys or pyramid");
+        // An upstream command whose own slot annotations are internally
+        // inconsistent is SKIPPED (loud warning) rather than aborting the whole
+        // build — this generator tracks an external CLI source it cannot edit.
+        // Skipping is deterministic (a pure function of the parsed source), so
+        // regeneration stays byte-for-byte idempotent.
+        if let Err(e) = slot_annotations_consistent(name, cmd) {
+            eprintln!("extract-cli-snippets: skipping command '{name}' — inconsistent slot annotations: {e}");
+            continue;
+        }
         commands.insert(name.clone(), command_out_value(name, cmd)?);
     }
 
@@ -344,6 +353,37 @@ fn build_manifest(parsed: BTreeMap<String, Command>) -> Result<Value, String> {
     root.insert("version".to_string(), json!(VERSION));
     root.insert("commands".to_string(), Value::Object(commands));
     Ok(Value::Object(root))
+}
+
+/// The §1.4 slot/slot-order consistency invariant, factored out so the manifest
+/// builder can make a SKIP decision on it. `slot_order` must list exactly the
+/// slot ids a command opens: every ordered slot must be opened, and every opened
+/// slot must appear in the order. Returns the offending diagnostic on mismatch.
+///
+/// This is an internal-consistency property of one command's own annotations —
+/// distinct from the always-fatal "content but no @doc-command header" error.
+/// Because this generator tracks an EXTERNAL CLI source (libviprs-cli) it cannot
+/// edit, one upstream command whose annotations drift out of sync (e.g. a
+/// slot declared in `slot-order` whose snippet marker was never added) must not
+/// abort the entire docs build; `build_manifest` skips such a command with a
+/// loud warning and continues. The command still gets documented via the
+/// dump-driven generated-template fallback in gen-op-sections.
+fn slot_annotations_consistent(name: &str, cmd: &Command) -> Result<(), String> {
+    for slot_id in &cmd.slot_order {
+        if !cmd.slots.contains_key(slot_id) {
+            return Err(format!(
+                "command '{name}': slot-order references slot '{slot_id}' that is never opened"
+            ));
+        }
+    }
+    for slot_id in cmd.slots.keys() {
+        if !cmd.slot_order.contains(slot_id) {
+            return Err(format!(
+                "command '{name}': slot '{slot_id}' is opened but absent from slot-order"
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Resolve + validate a parsed (non-pyramid) command into its JSON object,
@@ -361,20 +401,7 @@ fn command_out_value(name: &str, cmd: &Command) -> Result<Value, String> {
     }
 
     // slot-order must list exactly the slot ids the command defines (§1.4).
-    for slot_id in &cmd.slot_order {
-        if !cmd.slots.contains_key(slot_id) {
-            return Err(format!(
-                "command '{name}': slot-order references slot '{slot_id}' that is never opened"
-            ));
-        }
-    }
-    for slot_id in cmd.slots.keys() {
-        if !cmd.slot_order.contains(slot_id) {
-            return Err(format!(
-                "command '{name}': slot '{slot_id}' is opened but absent from slot-order"
-            ));
-        }
-    }
+    slot_annotations_consistent(name, cmd)?;
 
     let mut slots = BTreeMap::new();
     for (id, slot) in &cmd.slots {
@@ -382,6 +409,28 @@ fn command_out_value(name: &str, cmd: &Command) -> Result<Value, String> {
     }
     let mut flags = BTreeMap::new();
     for (id, flag) in &cmd.flags {
+        // A `param`-kind flag is only functional if its `{param_name}`
+        // placeholder actually appears in its slot's base lines — otherwise
+        // ticking it changes nothing (the per-flag audit reports it BROKEN).
+        // When an upstream `@doc-flag: … kind=param` is attached to a snippet
+        // line that hard-codes the value instead of interpolating `{name}`, the
+        // flag is inert; drop it (loud warning) rather than emit a manifest that
+        // fails the audit. Deterministic → regeneration stays idempotent.
+        if flag.kind == "param" {
+            let placeholder = format!("{{{}}}", flag.param_name.as_deref().unwrap_or(id));
+            let present = cmd
+                .slots
+                .get(&flag.slot)
+                .map(|s| s.lines.iter().any(|l| l.contains(&placeholder)))
+                .unwrap_or(false);
+            if !present {
+                eprintln!(
+                    "extract-cli-snippets: dropping flag '{id}' of command '{name}' — kind=param but slot '{}' has no '{placeholder}' placeholder",
+                    flag.slot
+                );
+                continue;
+            }
+        }
         flags.insert(id.clone(), serde_json::to_value(flag).unwrap());
     }
 
