@@ -279,7 +279,7 @@
       <h1 class="brand-name">libviprs</h1>
     </a>
     <p class="pronunciation">/l&#618;b-&#712;va&#618;&#183;p&#601;rz/</p>
-    <p class="tagline">A pure-Rust, thread-safe image pyramiding engine for the AEC/construction domain.</p>
+    <p class="tagline">A pure-Rust, thread-safe image pyramiding engine for large images and multi-page documents.</p>
     <div class="badges">
       <a href="https://github.com/libviprs/libviprs/actions/workflows/ci.yml"><img src="https://github.com/libviprs/libviprs/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
       <a href="https://github.com/libviprs/libviprs/actions/workflows/merge-gate.yml"><img src="https://github.com/libviprs/libviprs/actions/workflows/merge-gate.yml/badge.svg" alt="Merge Gate"></a>
@@ -357,20 +357,20 @@
 <main>
 
   <section>
-    <p>Takes blueprint PDFs and images, extracts raster data, optionally geo-references it, and generates <a href="cli/#pyramid" style="color:var(--primary);">tile pyramids</a> (DeepZoom, XYZ, Google Maps) suitable for web-based viewers. Inspired by <a href="https://www.libvips.org/" style="color:var(--primary);">libvips</a>, built from scratch.</p>
+    <p>Takes large images and multi-page documents of many kinds — high-resolution scans, PDFs, aerial and satellite imagery, gigapixel photographs, historical maps, digitised archives — extracts raster data, optionally geo-references it, and generates <a href="cli/#pyramid" style="color:var(--primary);">tile pyramids</a> (DeepZoom, XYZ, Google Maps) ready to serve to web-based viewers such as <a href="https://maplibre.org/" style="color:var(--primary);">MapLibre GL</a>, the open-source WebGL map engine, for interactive pan and zoom. Inspired by <a href="https://www.libvips.org/" style="color:var(--primary);">libvips</a>, built from scratch.</p>
   </section>
 
   <a href="benchmarks/" class="clipping">
     <span class="clipping-tag">Benchmark</span>
-    <p>A pure-Rust image pyramiding library is outperforming the C heavyweight it was designed to replace. In head-to-head benchmarks on a 47-megapixel raster &mdash; the kind of image AEC firms tile every day from scanned blueprint PDFs &mdash; libviprs generates tiles 1.8&times; to 2.4&times; faster than libvips while using up to 10.7&times; less memory. Those aren't typos. And this isn't a rigged comparison: both libraries receive the same raw pixel buffer in process memory, both produce DeepZoom tile pyramids with identical parameters, and both are measured with the same clock. The difference is architectural.</p>
+    <p>A pure-Rust image pyramiding library is outperforming the C heavyweight it was designed to replace. In head-to-head benchmarks on a 47-megapixel raster &mdash; the kind of image produced every day from gigapixel scans and multi-page document PDFs &mdash; libviprs generates tiles 1.8&times; to 2.4&times; faster than libvips while using up to 10.7&times; less memory. Those aren't typos. And this isn't a rigged comparison: both libraries receive the same raw pixel buffer in process memory, both produce DeepZoom tile pyramids with identical parameters, and both are measured with the same clock. The difference is architectural.</p>
     <span class="clipping-read">Read the full benchmark &rarr;</span>
   </a>
 
   <section>
     <h2>Features</h2>
     <ul>
-      <li><strong>PDF extraction</strong> — extract embedded raster images from scanned blueprint PDFs via lopdf (pure Rust, no C dependencies)</li>
-      <li><strong>PDF rendering</strong> — render vector PDFs (AutoCAD exports, text, paths) via PDFium, with optional <a href="cli/#flag-memory-budget" style="color:var(--primary);">memory-budgeted rendering</a></li>
+      <li><strong>PDF extraction</strong> — extract embedded raster images from scanned document PDFs via lopdf (pure Rust, no C dependencies)</li>
+      <li><strong>PDF rendering</strong> — render vector PDFs (text, paths, and other vector exports) via PDFium, with optional <a href="cli/#flag-memory-budget" style="color:var(--primary);">memory-budgeted rendering</a></li>
       <li><strong>Image decoding</strong> — JPEG, PNG, TIFF via the <code>image</code> crate</li>
       <li><strong>Tile pyramid generation</strong> — multi-threaded engine with backpressure, configurable <a href="cli/#flag-tile-size" style="color:var(--primary);">tile size</a> and <a href="cli/#flag-overlap" style="color:var(--primary);">overlap</a>; optional <strong>streaming mode</strong> processes images in horizontal strips for bounded peak memory</li>
       <li><strong>True source-side PDF streaming</strong> — <code>PdfiumStripSource</code> renders one strip of a vector PDF at a time via PDFium's clipped matrix path, including correct <code>/Rotate</code> handling, so multi-gigapixel pages stay inside the configured memory budget</li>
@@ -418,7 +418,7 @@
 <span class="cm">//    use libviprs::decode_file for plain image inputs (PNG/JPEG/TIFF).</span>
 <span class="cm">// ──────────────────────────────────────────────────────────────────────</span>
 <span class="kw">let</span> raster = <span class="fn">extract_page_image</span>(
-    <span class="ty">Path</span>::<span class="fn">new</span>(<span class="str">"blueprint.pdf"</span>),  <span class="cm">// input path (PDF here; any image works too)</span>
+    <span class="ty">Path</span>::<span class="fn">new</span>(<span class="str">"document.pdf"</span>),  <span class="cm">// input path (PDF here; any image works too)</span>
     <span class="num">1</span>,                           <span class="cm">// 1-based PDF page number</span>
 ).<span class="fn">unwrap</span>();
 
@@ -496,8 +496,8 @@
 
   <section>
     <h2>Streaming Engine</h2>
-    <p>Large raster images — scanned blueprints at 300 DPI, aerial surveys, architectural sheets — can easily exceed available RAM when the monolithic engine materialises the full canvas. The streaming engine solves this by processing the pyramid in horizontal strips, reducing peak memory by orders of magnitude while producing <strong>pixel-exact</strong> output.</p>
-    <p>Unlike <a href="https://www.libvips.org/" style="color:var(--primary);">libvips</a>, which implements a fully lazy demand-driven pipeline where each pixel is computed on demand through a complex DAG of operations, libviprs takes a pragmatic middle ground: strips are processed eagerly within each band, but the full canvas is never materialised. This keeps the pipeline architecture simple and auditable while delivering the memory savings that matter for AEC-scale images.</p>
+    <p>Large raster images — scanned documents at 300 DPI, aerial surveys, gigapixel photographs — can easily exceed available RAM when the monolithic engine materialises the full canvas. The streaming engine solves this by processing the pyramid in horizontal strips, reducing peak memory by orders of magnitude while producing <strong>pixel-exact</strong> output.</p>
+    <p>Unlike <a href="https://www.libvips.org/" style="color:var(--primary);">libvips</a>, which implements a fully lazy demand-driven pipeline where each pixel is computed on demand through a complex DAG of operations, libviprs takes a pragmatic middle ground: strips are processed eagerly within each band, but the full canvas is never materialised. This keeps the pipeline architecture simple and auditable while delivering the memory savings that matter for gigapixel-scale images.</p>
 
     <table>
       <thead>
@@ -655,7 +655,7 @@ libviprs = { version = <span class="str">"0.3"</span>, features = [<span class="
     <p>Archive the entire pyramid into a single file instead of a directory tree. Useful for cold storage, artifact upload, or reproducible builds.</p>
     <div class="code-wrap">
       <pre><code><span class="cm"># .tar, .tar.gz, and .zip are all supported</span>
-viprs pyramid blueprint.pdf <span class="sh-flag">--sink</span> <span class="str">packfile://output.tar.gz</span></code></pre>
+viprs pyramid document.pdf <span class="sh-flag">--sink</span> <span class="str">packfile://output.tar.gz</span></code></pre>
     </div>
 
     <h3>Extended EngineResult metrics</h3>
