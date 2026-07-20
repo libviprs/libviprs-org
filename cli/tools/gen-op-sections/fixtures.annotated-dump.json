@@ -1,0 +1,9 @@
+{
+  "viprs_version": "fixture",
+  "commands": [
+    { "name": "morph", "about": "Erode or dilate with a morphological mask.", "family": "morphology", "shape": "image->image", "oracle_class": "EXACT",
+      "positionals": [ {"name":"IN","index":1,"required":true,"help":"Input image"}, {"name":"OUT","index":2,"required":true,"help":"Output image"} ],
+      "flags": [ {"long":"operation","value_name":"OP","takes_value":true,"required":false,"default":"erode","possible_values":["erode","dilate"],"help":"Morphological operation"},
+                 {"long":"mask","value_name":"MASK","takes_value":true,"required":false,"default":"mask.mat","possible_values":null,"help":"Structuring element (.mat)"} ] }
+  ]
+}

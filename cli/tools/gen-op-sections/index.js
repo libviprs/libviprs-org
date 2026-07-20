@@ -103,6 +103,39 @@ function cliLine(cmd) {
   return parts.join(' ');
 }
 
+// A representative value for a flag, for both the CLI line and placeholder
+// substitution: the first enum choice, else the default, else the value_name.
+function representativeValue(f) {
+  if (f.possible_values && f.possible_values.length) return f.possible_values[0];
+  if (f.options && f.options.length) return f.options[0];
+  if (f.default != null && f.default !== '') return f.default;
+  return f.value_name || (f.long ? f.long.toUpperCase() : 'VALUE');
+}
+
+// Build the `{param_name}` → value map used to render an annotated snippet's
+// Rust body, mirroring cli.js's substitute(): op-family snippet lines carry
+// `{flag}` placeholders keyed by each flag's `param_name` (manifest) — resolve
+// them from the manifest command's flags, then from the dump command's flags.
+function placeholderParams(cmd, manifestCommand) {
+  const params = {};
+  const mflags = (manifestCommand && manifestCommand.flags) || {};
+  Object.keys(mflags).forEach((key) => {
+    const f = mflags[key];
+    params[f.param_name || key] = representativeValue(f);
+  });
+  (cmd.flags || []).forEach((f) => {
+    if (params[f.long] == null) params[f.long] = representativeValue(f);
+  });
+  return params;
+}
+
+// Substitute `{key}` tokens (cli.js convention: [A-Za-z_][A-Za-z0-9_-]*) with
+// the params map; leave any unresolved token verbatim (as cli.js does).
+function substitutePlaceholders(text, params) {
+  return String(text).replace(/\{([a-zA-Z_][a-zA-Z0-9_-]*)\}/g, (whole, key) =>
+    Object.prototype.hasOwnProperty.call(params, key) ? String(params[key]) : whole);
+}
+
 // The Rust body: prefer an annotated snippet from the manifest; else a generated
 // load → try_<op> → save template (§3.2).
 function rustBody(cmd, manifestCommand) {
@@ -112,7 +145,13 @@ function rustBody(cmd, manifestCommand) {
       const slot = manifestCommand.slots[slotId];
       if (slot && slot.lines) lines.push(...slot.lines);
     });
-    if (lines.length) return lines.join('\n');
+    if (lines.length) {
+      // #53: substitute {flag} placeholders (like cli.js) so a generated
+      // "Rust equivalent" for an annotated op family renders real values, not
+      // literal {mask}/{operation} tokens.
+      const params = placeholderParams(cmd, manifestCommand);
+      return lines.map((l) => substitutePlaceholders(l, params)).join('\n');
+    }
   }
   // Generated template.
   const fn = 'try_' + cmd.name.replace(/-/g, '_');

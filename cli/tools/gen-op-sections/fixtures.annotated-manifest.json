@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "commands": {
+    "morph": {
+      "interactive": false,
+      "about": "Erode or dilate with a morphological mask.",
+      "imports_base": ["decode_file", "save_file", "Morphology"],
+      "slot_order": ["apply"],
+      "slots": {
+        "apply": { "lines": ["let mask = Morphology::from_file(\"{mask}\")?;", "let out = raster.try_morph(&mask, \"{operation}\")?;"] }
+      },
+      "flags": {
+        "operation": { "param_name": "operation", "default": "erode", "options": ["erode", "dilate"] },
+        "mask": { "param_name": "mask", "default": "mask.mat" }
+      }
+    }
+  }
+}

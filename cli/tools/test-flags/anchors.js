@@ -31,27 +31,46 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..', '..');
 const MAIN_RS = path.join(ROOT, 'rust', 'main.rs');
 const JSON_PATH = path.join(ROOT, 'js', 'snippets.generated.json');
+const DUMP_PATH = path.join(ROOT, 'tools', 'gen-op-sections', 'sample-dump.json');
 
-// Matches the fragment in links like
-//   https://libviprs.org/cli/#flag-tile-size
-// Anchor names are the client-side `flag-` + flagName, and flag names are
-// kebab-case (lowercase letters, digits, dashes).
-const ANCHOR_RE = /#flag-([a-z0-9][a-z0-9-]*)/g;
+// Two distinct anchor schemes reach the page:
+//   * `#flag-<name>`         — rendered CLIENT-SIDE by cli.js ONLY for the
+//                              interactive `pyramid` command (dt.id = 'flag-'+key).
+//   * `#<cmd>-flag-<long>`   — rendered by tools/gen-op-sections for every
+//                              data-generated op command's flag rows.
+// The op scheme is matched first (it is the more specific pattern) so a link
+// like `#morph-flag-mask` is not mis-read as a pyramid `#flag-<name>`.
+const OP_ANCHOR_RE = /#([a-z0-9][a-z0-9-]*)-flag-([a-z0-9][a-z0-9-]*)/g;
+const PYRAMID_ANCHOR_RE = /#flag-([a-z0-9][a-z0-9-]*)/g;
 
+// Collect both anchor schemes from `source`. Returns { pyramid: Map(name->[line]),
+// op: Map("cmd/long"->{cmd,long,lines}) }. A span matched as an op anchor is
+// removed from the line before the pyramid pass so it cannot double-count.
 function collectAnchorRefs(source) {
-  // name -> array of 1-based line numbers where it is referenced
-  const refs = new Map();
+  const pyramid = new Map();
+  const op = new Map();
   const lines = source.split('\n');
   for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
     let m;
-    ANCHOR_RE.lastIndex = 0;
-    while ((m = ANCHOR_RE.exec(lines[i])) !== null) {
+    OP_ANCHOR_RE.lastIndex = 0;
+    while ((m = OP_ANCHOR_RE.exec(line)) !== null) {
+      // A pyramid anchor `#flag-<name>` must not be read as op cmd="flag".
+      if (m[1] === 'flag') continue;
+      const key = `${m[1]}/${m[2]}`;
+      if (!op.has(key)) op.set(key, { cmd: m[1], long: m[2], lines: [] });
+      op.get(key).lines.push(i + 1);
+    }
+    // Blank out op-anchor spans so the pyramid pass ignores their tail.
+    line = line.replace(OP_ANCHOR_RE, (whole) => (whole.startsWith('#flag-') ? whole : ' '.repeat(whole.length)));
+    PYRAMID_ANCHOR_RE.lastIndex = 0;
+    while ((m = PYRAMID_ANCHOR_RE.exec(line)) !== null) {
       const name = m[1];
-      if (!refs.has(name)) refs.set(name, []);
-      refs.get(name).push(i + 1);
+      if (!pyramid.has(name)) pyramid.set(name, []);
+      pyramid.get(name).push(i + 1);
     }
   }
-  return refs;
+  return { pyramid, op };
 }
 
 function main() {
@@ -60,27 +79,39 @@ function main() {
 
   const source = fs.readFileSync(MAIN_RS, 'utf8');
   const json = JSON.parse(fs.readFileSync(JSON_PATH, 'utf8'));
-  // SCHEMA v2: flags are command-scoped. The `#flag-<name>` anchors the
-  // interactive page renders come from the pyramid command. Fall back to a v1
-  // (flat) document. Union all commands' flag keys so cross-command anchors
-  // (if any) also resolve.
-  var flagKeys;
+
+  // SCHEMA v2: flags are command-scoped. `#flag-<name>` anchors are rendered
+  // ONLY for the interactive `pyramid` command, so scope the check to pyramid's
+  // flag keys (a v1 flat document falls back to its top-level flags).
+  let pyramidFlagKeys;
   if (json.commands && typeof json.commands === 'object') {
-    flagKeys = new Set();
-    Object.keys(json.commands).forEach(function (name) {
-      Object.keys((json.commands[name] && json.commands[name].flags) || {})
-        .forEach(function (k) { flagKeys.add(k); });
-    });
+    const pyr = json.commands.pyramid || {};
+    pyramidFlagKeys = new Set(Object.keys(pyr.flags || {}));
   } else {
-    flagKeys = new Set(Object.keys(json.flags || {}));
+    pyramidFlagKeys = new Set(Object.keys(json.flags || {}));
   }
 
-  const refs = collectAnchorRefs(source);
-  const results = [];
-  for (const [name, atLines] of refs) {
-    results.push({ name, lines: atLines, ok: flagKeys.has(name) });
+  // Op-section `#<cmd>-flag-<long>` anchors resolve against the command dump
+  // that tools/gen-op-sections renders from: cmd -> Set(flag long names).
+  const opFlags = new Map();
+  if (fs.existsSync(DUMP_PATH)) {
+    const dump = JSON.parse(fs.readFileSync(DUMP_PATH, 'utf8'));
+    (dump.commands || []).forEach((c) => {
+      opFlags.set(c.name, new Set((c.flags || []).map((f) => f.long)));
+    });
   }
-  results.sort((a, b) => a.name.localeCompare(b.name));
+
+  const { pyramid, op } = collectAnchorRefs(source);
+
+  const results = [];
+  for (const [name, atLines] of pyramid) {
+    results.push({ scheme: 'pyramid', label: `#flag-${name}`, lines: atLines, ok: pyramidFlagKeys.has(name) });
+  }
+  for (const [, ref] of op) {
+    const known = opFlags.has(ref.cmd) && opFlags.get(ref.cmd).has(ref.long);
+    results.push({ scheme: 'op', label: `#${ref.cmd}-flag-${ref.long}`, lines: ref.lines, ok: known });
+  }
+  results.sort((a, b) => a.label.localeCompare(b.label));
 
   const broken = results.filter((r) => !r.ok);
 
@@ -90,27 +121,30 @@ function main() {
   }
 
   const relMain = path.relative(process.cwd(), MAIN_RS);
-  const relJson = path.relative(process.cwd(), JSON_PATH);
-  console.log(`flag-anchor test: ${results.length} \`#flag-*\` links in ${relMain}`);
-  console.log(`checked against ${flagKeys.size} flags in ${relJson}\n`);
+  console.log(`flag-anchor test: ${results.length} anchor link(s) in ${relMain}`);
+  console.log(`checked #flag-* against ${pyramidFlagKeys.size} pyramid flags; `
+    + `#<cmd>-flag-* against ${opFlags.size} dump command(s)\n`);
 
   for (const r of results) {
     const tag = r.ok ? '\x1b[32mOK    \x1b[0m' : '\x1b[31mBROKEN\x1b[0m';
-    console.log(`${tag} #flag-${r.name}  (main.rs:${r.lines.join(',')})`);
+    console.log(`${tag} ${r.label}  (main.rs:${r.lines.join(',')})`);
   }
   console.log('');
 
   if (broken.length) {
-    console.error(`${broken.length} / ${results.length} --help anchors point at a flag that does not exist in snippets.generated.json:`);
+    console.error(`${broken.length} / ${results.length} --help anchors point at a flag that does not exist:`);
     for (const r of broken) {
-      console.error(`  - #flag-${r.name} referenced at main.rs:${r.lines.join(',')} — no such flag key`);
+      const where = r.scheme === 'pyramid'
+        ? 'no such pyramid flag key in snippets.generated.json'
+        : 'no such command/flag in the op-command dump';
+      console.error(`  - ${r.label} referenced at main.rs:${r.lines.join(',')} — ${where}`);
     }
-    console.error('\nEither the flag was renamed and the JSON is stale (re-run cli/tools/sync-cli-src.sh');
-    console.error('and commit the regenerated snippets.generated.json), or the --help link is wrong.');
+    console.error('\nEither the flag was renamed and the source is stale (re-run cli/tools/sync-cli-src.sh');
+    console.error('and commit the regenerated snippets.generated.json / dump), or the --help link is wrong.');
     process.exit(1);
   }
 
-  console.log(`ok: all ${results.length} --help anchors resolve to a flag in snippets.generated.json`);
+  console.log(`ok: all ${results.length} --help anchors resolve`);
   process.exit(0);
 }
 

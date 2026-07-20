@@ -128,3 +128,6 @@ jobs:
 
       - name: Assert committed HTML matches regeneration (no drift)
         run: git diff --exit-code cli/tools/gen-op-sections/generated-op-sections.html
+
+      - name: Placeholder substitution — annotated op bodies render real values (#53)
+        run: node cli/tools/gen-op-sections/placeholder-substitution.test.js
