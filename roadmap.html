@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>libviprs — libvips Parity Roadmap</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Code+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="topbar.css">
+  <script src="topbar.js" defer></script>
+  <style>
+    :root, [data-theme="light"] {
+      --primary: #be6e34;
+      --primary-dark: #6d2c0f;
+      --accent: #d0704d;
+      --bg: #fafaf8;
+      --text: #2d2d2d;
+      --text-light: #555;
+      --code-bg: #f0ede8;
+      --border: #e0dcd4;
+      --white: #fff;
+      --hero-bg: #6d2c0f;
+      --table-header-bg: #f0ede8;
+      --max-width: 980px;
+    }
+
+    [data-theme="dark"] {
+      --primary: #d4894e;
+      --primary-dark: #e0a06a;
+      --accent: #d0704d;
+      --bg: #1a1a1a;
+      --text: #e0e0e0;
+      --text-light: #aaa;
+      --code-bg: #2a2a2a;
+      --border: #3a3a3a;
+      --white: #fff;
+      --hero-bg: #2c1608;
+      --table-header-bg: #2a2a2a;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: "Source Code Pro", "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-anchor: none;
+    }
+
+    /* Hero / topbar styling lives in topbar.css. */
+
+    main {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 4rem;
+    }
+
+    section { margin-bottom: 2.5rem; }
+
+    h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--primary-dark);
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.35rem;
+      border-bottom: 2px solid var(--border);
+    }
+
+    h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--primary-dark);
+      margin: 1.25rem 0 0.5rem;
+    }
+
+    p { margin-bottom: 0.75rem; color: var(--text-light); }
+
+    p a, li a, td a { color: var(--primary); text-decoration: none; }
+    p a:hover, li a:hover, td a:hover { text-decoration: underline; }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      margin-bottom: 0.75rem;
+    }
+
+    ul li {
+      position: relative;
+      padding: 0.35rem 0 0.35rem 1.4rem;
+      color: var(--text-light);
+    }
+
+    ul li::before {
+      content: "▸";
+      position: absolute;
+      left: 0;
+      color: var(--primary);
+      font-weight: bold;
+    }
+
+    ul li strong { color: var(--text); }
+
+    /* Tables */
+    .tbl-wrap { overflow-x: auto; margin-bottom: 0.75rem; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 0.75rem;
+      font-size: 0.85rem;
+    }
+
+    .tbl-wrap table { margin-bottom: 0; min-width: 720px; }
+
+    th, td {
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    th {
+      font-weight: 600;
+      color: var(--primary-dark);
+      background: var(--code-bg);
+      white-space: nowrap;
+    }
+
+    td code, p code, li code {
+      background: var(--code-bg);
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      font-size: 0.85em;
+    }
+
+    code {
+      font-family: "Source Code Pro", "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
+    }
+
+    td.nowrap { white-space: nowrap; }
+
+    /* Priority / effort pills */
+    .pill {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      padding: 0.05rem 0.45rem;
+      border-radius: 3px;
+      border: 1px solid var(--border);
+      background: var(--code-bg);
+      color: var(--text-light);
+      white-space: nowrap;
+    }
+
+    .pill.p0 { color: var(--white); background: var(--primary); border-color: var(--primary); }
+    .pill.p1 { color: var(--primary); border-color: var(--primary); background: transparent; }
+
+    /* Headline coverage banner */
+    .coverage-banner {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .coverage-stat {
+      flex: 1 1 180px;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--primary);
+      border-radius: 0 6px 6px 0;
+      padding: 0.9rem 1.1rem;
+    }
+
+    [data-theme="dark"] .coverage-stat { background: var(--code-bg); }
+
+    .coverage-stat .num {
+      display: block;
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--primary-dark);
+      line-height: 1.2;
+    }
+
+    .coverage-stat .lbl {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--text-light);
+      margin-top: 0.2rem;
+    }
+
+    /* Phase intro card */
+    .phase-note {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      font-size: 0.88rem;
+      color: var(--text-light);
+      margin-bottom: 1rem;
+    }
+
+    .phase-note strong { color: var(--text); }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 2rem 1.5rem;
+      color: var(--text-light);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border);
+      max-width: var(--max-width);
+      margin: 0 auto;
+    }
+
+    footer a { color: var(--primary); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<header class="topbar collapsed" id="topbar">
+  <div class="topbar-content">
+    <a class="topbar-brand" href="index.html">
+      <img src="https://raw.githubusercontent.com/libviprs/libviprs/main/images/libviprs-logo-claws.svg" alt="">
+      <span class="brand-name">libviprs</span>
+      <span class="brand-sub">Roadmap</span>
+    </a>
+  </div>
+  <button class="topbar-burger" id="topbarBurger" type="button"
+          aria-label="Toggle menu" aria-expanded="false" aria-controls="topbar-menu">
+    <span class="burger-icon" aria-hidden="true"></span>
+  </button>
+  <nav class="topbar-menu" id="topbar-menu" aria-hidden="true">
+    <div class="topbar-menu-inner">
+      <a href="index.html" class="nav-item nav-item-home">
+        <svg class="nav-icon nav-icon-home" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+          <path d="M12 3 2 12h3v8h5v-5h4v5h5v-8h3L12 3z"/>
+        </svg>
+        <span class="nav-label nav-label-full">Home</span>
+      </a>
+
+      <a href="cli/" class="nav-item">
+        <span class="nav-label nav-label-full">CLI Documentation</span>
+        <span class="nav-label nav-label-short">CLI Docs</span>
+      </a>
+
+      <a href="benchmarks/" class="nav-item">
+        <span class="nav-label nav-label-full">Benchmarks</span>
+        <span class="nav-label nav-label-short">Bench</span>
+      </a>
+
+      <a href="roadmap.html" class="nav-item is-current">
+        <span class="nav-label nav-label-full">Roadmap</span>
+      </a>
+
+      <a href="https://github.com/libviprs/libviprs" target="_blank" rel="noopener" class="nav-item nav-item-github" aria-label="GitHub repository">
+        <svg class="nav-icon nav-icon-github" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+          <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+        </svg>
+        <span class="nav-label nav-label-full">GitHub</span>
+      </a>
+
+      <a href="https://docs.rs/libviprs" target="_blank" rel="noopener" class="nav-item">
+        <span class="nav-label nav-label-full">API Docs</span>
+      </a>
+
+      <a href="https://github.com/libviprs/libviprs-dep/releases" target="_blank" rel="noopener" class="nav-item">
+        <span class="nav-label nav-label-full">Downloads</span>
+      </a>
+
+      <a href="https://github.com/libviprs/libviprs-dep/blob/main/MANUAL.md" target="_blank" rel="noopener" class="nav-item">
+        <span class="nav-label nav-label-full">Build Tools Manual</span>
+        <span class="nav-label nav-label-short">Build Man</span>
+      </a>
+
+      <a href="https://github.com/libviprs/libviprs/issues" target="_blank" rel="noopener" class="nav-item">
+        <span class="nav-label nav-label-full">Issues</span>
+      </a>
+
+      <hr class="menu-divider">
+
+      <button type="button" class="topbar-theme-toggle" id="themeToggle" role="switch" aria-checked="false" aria-label="Toggle theme">
+        <span class="theme-glyph" aria-hidden="true">☾</span>
+        <span class="theme-label">Dark mode</span>
+        <span class="theme-slider" aria-hidden="true">
+          <span class="theme-slider-track">
+            <span class="theme-slider-sun">☀</span>
+            <span class="theme-slider-moon">☾</span>
+            <span class="theme-slider-knob"></span>
+          </span>
+        </span>
+      </button>
+    </div>
+  </nav>
+</header>
+
+<main>
+
+  <section>
+    <h2>libvips Parity Roadmap</h2>
+    <p><strong>The core is done.</strong> libviprs already implements the full core image-processing surface of <a href="https://www.libvips.org/">libvips</a> &mdash; arithmetic, conversion, morphology, convolution, colour, resample, histogram, create, draw, mosaicing, frequency filtering, band and matrix operations &mdash; as <strong>~168 CLI commands / 247 API operations</strong>, every one pinned differential- or golden-tested against a libvips&nbsp;8.18.4 oracle. What remains on the road to <em>full</em> libvips parity is not core processing: it is missing <strong>file formats</strong>, a short tail of <strong>niche operations</strong>, and deeper <strong>numeric pixel carriers</strong> (signed, 32-bit, double, and complex band formats). This page tracks exactly that remainder, phased by dependency and demand.</p>
+
+    <div class="coverage-banner">
+      <div class="coverage-stat">
+        <span class="num">~62%</span>
+        <span class="lbl">of libvips 8.18.4's ~262 distinct callable operations shipped (~163); <strong>~67%</strong> crediting shipped format I/O</span>
+      </div>
+      <div class="coverage-stat">
+        <span class="num">~87%</span>
+        <span class="lbl">of non-codec operations covered (188 of 215 addressable: 163 direct commands + 25 subsumed via <code>colourspace</code>/<code>conv</code> folds)</span>
+      </div>
+      <div class="coverage-stat">
+        <span class="num">8 / ~22</span>
+        <span class="lbl">format families with real codecs (PNG, JPEG, TIFF, PDF, CSV, matrix, PPM, <code>.v</code>) &mdash; ~55&ndash;60% weighted by real-world demand</span>
+      </div>
+      <div class="coverage-stat">
+        <span class="num">3 / 10</span>
+        <span class="lbl">band-format depths carried natively (u8, u16, f32) &mdash; the numeric axis closed by issues <a href="https://github.com/libviprs/libviprs/issues/516">#516</a>&ndash;<a href="https://github.com/libviprs/libviprs/issues/519">#519</a></span>
+      </div>
+    </div>
+
+    <p>A small set of libvips operations is <strong>excluded by design</strong> and never planned: <code>system</code> (external command execution), <code>sequential</code> / <code>tilecache</code> / <code>linecache</code> (libvips demand-cache plumbing, replaced by the viprs planner and streaming engine), and the <code>thumbnail_buffer</code> / <code>thumbnail_source</code> streaming variants. libvips load-vs-save asymmetries also pin the target honestly: SVG, OpenSlide, camera RAW, and OpenEXR are <em>load-only in libvips itself</em>, so libviprs owes no encoder there.</p>
+  </section>
+
+  <section>
+    <h2>Phase 1 — Near-term</h2>
+    <div class="phase-note"><strong>Constraint: pure Rust only.</strong> No new C dependencies, no new pixel carriers required (the <a href="https://github.com/libviprs/libviprs/issues/517">#517</a> uint carrier kicks off in parallel). Phase 1 closes the bulk of remaining everyday format demand &mdash; lifting format-family coverage to 12/22 &mdash; and 10 missing op nicknames, taking non-codec op coverage to ~92%.</div>
+
+    <h3>Formats</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Gap</th><th>vips reference / C lib</th><th>libviprs today</th><th>Effort</th><th>Priority</th><th>Tracking</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>WebP</strong> — still decode + lossless encode</td>
+            <td><code>webpload</code> / <code>webpsave</code> (libwebp)</td>
+            <td>Typed-<code>Unsupported</code> stub. Pure-Rust path: <code>image-webp</code> via the existing <code>image</code> 0.25 dep. Lossy encode has no mature pure-Rust encoder (libwebp FFI later, or ship lossless-first); animated WebP moves to Phase&nbsp;2 behind the multi-page model.</td>
+            <td class="nowrap"><span class="pill">M</span></td>
+            <td class="nowrap"><span class="pill p0">P0</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/497">#497</a></td>
+          </tr>
+          <tr>
+            <td><strong>GIF</strong> — still load + save</td>
+            <td><code>gifload</code> / <code>gifsave</code> (libnsgif / cgif in vips)</td>
+            <td>Stub. Pure-Rust <code>gif</code> crate covers still decode/encode incl. palette quantisation; animated GIF moves to Phase&nbsp;2 behind the multi-page model.</td>
+            <td class="nowrap"><span class="pill">M</span></td>
+            <td class="nowrap"><span class="pill p0">P0</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/499">#499</a></td>
+          </tr>
+          <tr>
+            <td><strong>SVG</strong> — load (rasterise)</td>
+            <td><code>svgload</code> (librsvg in vips); load-only &mdash; vips has no <code>svgsave</code></td>
+            <td>Absent. Pure-Rust <code>resvg</code> reaches parity without C; no encoder owed.</td>
+            <td class="nowrap"><span class="pill">M</span></td>
+            <td class="nowrap"><span class="pill p0">P0</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/502">#502</a></td>
+          </tr>
+          <tr>
+            <td><strong>Radiance HDR</strong> (.hdr/.pic) load + save</td>
+            <td><code>radload</code> / <code>radsave</code> (native vips code, RGBE coding); includes the <code>rad2float</code> / <code>float2rad</code> coding pair</td>
+            <td>Stub. Pure-Rust reachable; f32 carrier already exists.</td>
+            <td class="nowrap"><span class="pill">S</span></td>
+            <td class="nowrap"><span class="pill p1">P1</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/506">#506</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Operations</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Gap</th><th>vips reference / C lib</th><th>libviprs today</th><th>Effort</th><th>Priority</th><th>Tracking</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>sobel / scharr / prewitt</strong> named edge operators</td>
+            <td><code>VipsSobel</code> / <code>VipsScharr</code> / <code>VipsPrewitt</code> (native vips <code>VipsEdge</code> subclasses; fixed separable kernel pairs + magnitude combine)</td>
+            <td>Missing &mdash; but <code>conv</code> / <code>convsep</code> / <code>compass</code> (9 base convolution ops) exist to build on; uchar path can be EXACT-oracle. Three ops share one kernel/magnitude core &mdash; do first.</td>
+            <td class="nowrap"><span class="pill">M</span></td>
+            <td class="nowrap"><span class="pill p1">P1</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/512">#512</a></td>
+          </tr>
+          <tr>
+            <td><strong>canny</strong> edge detector</td>
+            <td><code>canny</code> (native vips: gaussian blur &rarr; gradient &rarr; non-max suppression)</td>
+            <td>Missing; builds directly on the #512 kernel/magnitude core.</td>
+            <td class="nowrap"><span class="pill">M</span></td>
+            <td class="nowrap"><span class="pill p1">P1</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/511">#511</a></td>
+          </tr>
+          <tr>
+            <td><strong>matrixmultiply</strong></td>
+            <td><code>matrixmultiply</code> (native vips)</td>
+            <td>Missing; matrix container (<code>.mat</code> text) and matrix ops already shipped.</td>
+            <td class="nowrap"><span class="pill">S</span></td>
+            <td class="nowrap"><span class="pill">P2</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/513">#513</a></td>
+          </tr>
+          <tr>
+            <td><strong>join</strong> + 2-image <strong>remainder</strong></td>
+            <td><code>join</code> / <code>remainder</code> (native vips)</td>
+            <td>Missing as generic 2-image forms; constant-remainder and insert/embed primitives exist.</td>
+            <td class="nowrap"><span class="pill">S</span></td>
+            <td class="nowrap"><span class="pill">P2</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/514">#514</a></td>
+          </tr>
+          <tr>
+            <td><strong>Oklab / Oklch</strong> — residual only</td>
+            <td><code>colourspace</code> Oklab/Oklch routes (native vips, Ottosson matrices)</td>
+            <td><strong>~80% already done:</strong> <code>viprs colourspace &hellip; oklab</code> and <code>oklch</code> verified bit-exact against vips (max-abs-diff 0.000000). Only the packed <code>LabQ</code> coding route fails; issue to be re-scoped to that residual (full LabQ exactness lands with the Phase&nbsp;3 carriers).</td>
+            <td class="nowrap"><span class="pill">S</span></td>
+            <td class="nowrap"><span class="pill">P2</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/515">#515</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Pixel carriers — kickoff</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Gap</th><th>vips reference / C lib</th><th>libviprs today</th><th>Effort</th><th>Priority</th><th>Tracking</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>uint (u32) carrier</strong> &mdash; starts alongside Phase&nbsp;1</td>
+            <td><code>VipsBandFormat</code> <code>uint</code> (native vips band format + promotion rules)</td>
+            <td>Absent; <code>cast</code> rejects the target. Pure-Rust enum/codec/op work; first of the four foundational carriers (see Phase&nbsp;3) and biggest oracle-class payoff together with #516.</td>
+            <td class="nowrap"><span class="pill">L</span></td>
+            <td class="nowrap"><span class="pill p0">P0</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/517">#517</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Phase 2 — Mid-term</h2>
+    <div class="phase-note"><strong>Theme: the multi-page/animation raster model, plus the first optional FFI codecs.</strong> The libvips <em>n-pages "toilet-roll"</em> model is shared infrastructure, not a codec &mdash; it gates animated GIF, animated WebP, and HEIF sequences all at once. New C bindings (libheif, libwebp-lossy) stay behind off-by-default Cargo features, preserving the pure-Rust default build.</div>
+
+    <h3>Formats</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Gap</th><th>vips reference / C lib</th><th>libviprs today</th><th>Effort</th><th>Priority</th><th>Tracking</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Multi-page / animation raster model</strong> (shared infrastructure)</td>
+            <td>vips <code>n-pages</code> "toilet-roll" representation (page-height metadata over a tall raster)</td>
+            <td>Absent; prerequisite for animated GIF/WebP and HEIF sequences. Not a codec &mdash; lands once, unblocks three formats.</td>
+            <td class="nowrap"><span class="pill">L</span></td>
+            <td class="nowrap"><span class="pill p0">P0</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/497">#497</a> / <a href="https://github.com/libviprs/libviprs/issues/499">#499</a></td>
+          </tr>
+          <tr>
+            <td><strong>Animated GIF + animated WebP</strong> (completes #497/#499)</td>
+            <td><code>gifload</code>/<code>gifsave</code>, <code>webpload</code>/<code>webpsave</code> with <code>n</code>/<code>page</code> args</td>
+            <td>Still halves land in Phase&nbsp;1; animation follows the multi-page model.</td>
+            <td class="nowrap"><span class="pill">M</span></td>
+            <td class="nowrap"><span class="pill p1">P1</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/497">#497</a> / <a href="https://github.com/libviprs/libviprs/issues/499">#499</a></td>
+          </tr>
+          <tr>
+            <td><strong>HEIF / AVIF</strong> load + save</td>
+            <td><code>heifload</code> / <code>heifsave</code> (libheif + libde265/x265 or libaom)</td>
+            <td>Stub. No mature pure-Rust HEVC path &mdash; libheif FFI behind an off-by-default feature; AVIF decode has partial pure-Rust options. HEIF sequences need the multi-page model.</td>
+            <td class="nowrap"><span class="pill">L</span></td>
+            <td class="nowrap"><span class="pill p1">P1</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/498">#498</a></td>
+          </tr>
+          <tr>
+            <td><strong>JPEG-XL</strong> load + save</td>
+            <td><code>jxlload</code> / <code>jxlsave</code> (libjxl)</td>
+            <td>Stub. Pure-Rust decode reachable (<code>jxl-oxide</code>); encode needs libjxl FFI or lossless-only first.</td>
+            <td class="nowrap"><span class="pill">L</span></td>
+            <td class="nowrap"><span class="pill">P2</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/500">#500</a></td>
+          </tr>
+          <tr>
+            <td><strong>OpenEXR</strong> load</td>
+            <td><code>openexrload</code> (OpenEXR C++ lib); load-only in vips &mdash; no save op exists</td>
+            <td>Stub. Pure-Rust <code>exr</code> crate reaches parity; f32 carrier exists.</td>
+            <td class="nowrap"><span class="pill">M</span></td>
+            <td class="nowrap"><span class="pill">P2</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/504">#504</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Operations — unfiled gaps (to be filed as issues)</h3>
+    <p>Nine further op workstreams were found in the 8.18.4 diff with no tracking issue yet. They are recorded here so nothing silently drops; each will get its own issue before work starts.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Gap</th><th>vips reference</th><th>Notes</th><th>Tracking</th></tr></thead>
+        <tbody>
+          <tr><td><strong>invert</strong> (photographic negative)</td><td><code>invert</code></td><td>Explicitly documented as absent in <code>OP_MAP.md</code>; simple on existing carriers.</td><td class="nowrap">unfiled</td></tr>
+          <tr><td><strong>case</strong> (image-array form)</td><td><code>case</code></td><td>Scalar/two-image forms shipped; N-image-array selector missing.</td><td class="nowrap">unfiled</td></tr>
+          <tr><td><strong>fill_nearest</strong></td><td><code>fill_nearest</code></td><td>Morphology-adjacent; existing distance-transform infra to build on.</td><td class="nowrap">unfiled</td></tr>
+          <tr><td><strong>conva / convasep</strong></td><td><code>conva</code> / <code>convasep</code></td><td>Approximate convolution variants; exact <code>conv</code>/<code>convsep</code> already shipped.</td><td class="nowrap">unfiled</td></tr>
+          <tr><td><strong>quadratic</strong></td><td><code>quadratic</code></td><td>Polynomial resample transform.</td><td class="nowrap">unfiled</td></tr>
+          <tr><td><strong>transpose3d</strong></td><td><code>transpose3d</code></td><td>Toilet-roll page transpose; pairs naturally with the Phase&nbsp;2 multi-page model.</td><td class="nowrap">unfiled</td></tr>
+          <tr><td><strong>match / mosaic1</strong></td><td><code>match</code> / <code>mosaic1</code></td><td>First-order mosaicing extras; core <code>mosaic</code>/<code>merge</code> shipped.</td><td class="nowrap">unfiled</td></tr>
+          <tr><td><strong>profile_load</strong></td><td><code>profile_load</code></td><td>Named ICC profile loader.</td><td class="nowrap">unfiled</td></tr>
+          <tr><td><strong>complex2</strong> and <strong>remosaic</strong></td><td><code>complex2</code> / <code>remosaic</code></td><td>Complete only after Phase&nbsp;3: <code>complex2</code> needs the native complex carrier (<a href="https://github.com/libviprs/libviprs/issues/519">#519</a>); <code>remosaic</code> needs the join-tree metadata channel.</td><td class="nowrap">unfiled</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Phase 3 — Foundational carriers &amp; long tail</h2>
+    <div class="phase-note"><strong>The pixel carriers are foundations, not afterthoughts.</strong> They sit in Phase&nbsp;3 only because nothing in Phases&nbsp;1&ndash;2 hard-blocks on them &mdash; libviprs deliberately ships subset surfaces (<code>cast</code> rejects unsupported targets with a typed error rather than deferring ops). But they are what upgrades ~43 <code>OP_MAP.md</code> rows from EXACT-AFTER-CAST / FOURIER / GOLDEN-ONLY oracle classes to fully EXACT, and they gate the scientific formats below. Recommended landing order: <a href="https://github.com/libviprs/libviprs/issues/516">#516</a> and <a href="https://github.com/libviprs/libviprs/issues/517">#517</a> first (independent, biggest payoff; #517 starts back in Phase&nbsp;1), then <a href="https://github.com/libviprs/libviprs/issues/518">#518</a>, then <a href="https://github.com/libviprs/libviprs/issues/519">#519</a>. All four are pure-Rust; no C bindings needed.</div>
+
+    <h3>Pixel carriers</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Gap</th><th>vips reference / C lib</th><th>libviprs today</th><th>Effort</th><th>Priority</th><th>Tracking</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Signed integer carriers</strong> (char / short / int)</td>
+            <td><code>VipsBandFormat</code> <code>char</code>/<code>short</code>/<code>int</code> + full promotion lattice</td>
+            <td>Absent &mdash; source of most of the 29 EXACT-AFTER-CAST oracle rows. Blast radius: <code>pixel.rs</code> exhaustive matches, stride math, <code>.v</code> codec, round-half-even save-cast rules, every promotion table, test-harness oracle classes.</td>
+            <td class="nowrap"><span class="pill">L</span></td>
+            <td class="nowrap"><span class="pill p0">P0</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/516">#516</a></td>
+          </tr>
+          <tr>
+            <td><strong>uint (u32) carrier</strong> &mdash; completion</td>
+            <td><code>VipsBandFormat</code> <code>uint</code></td>
+            <td>Kickoff in Phase&nbsp;1; full-surface promotion/oracle work completes here (e.g. the <code>hist_match</code> uchar-vs-uint LUT GOLDEN-ONLY row).</td>
+            <td class="nowrap"><span class="pill">L</span></td>
+            <td class="nowrap"><span class="pill p0">P0</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/517">#517</a></td>
+          </tr>
+          <tr>
+            <td><strong>double (f64) carrier</strong></td>
+            <td><code>VipsBandFormat</code> <code>double</code></td>
+            <td>Absent; prerequisite for the dpcomplex half of #519 and for FITS/scientific formats.</td>
+            <td class="nowrap"><span class="pill">L</span></td>
+            <td class="nowrap"><span class="pill p1">P1</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/518">#518</a></td>
+          </tr>
+          <tr>
+            <td><strong>Native complex carriers</strong> (complex / dpcomplex)</td>
+            <td><code>VipsBandFormat</code> <code>complex</code>/<code>dpcomplex</code> (vips FFT side uses fftw3; viprs uses rustfft)</td>
+            <td>Worked around today as float-pair Fourier bands in the <code>.v</code> container &mdash; the cause of all 12 FOURIER oracle rows. dpcomplex half hard-depends on #518.</td>
+            <td class="nowrap"><span class="pill">XL</span></td>
+            <td class="nowrap"><span class="pill p1">P1</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/519">#519</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Formats — niche &amp; scientific</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Gap</th><th>vips reference / C lib</th><th>libviprs today</th><th>Effort</th><th>Priority</th><th>Tracking</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>JPEG 2000</strong> load + save</td>
+            <td><code>jp2kload</code> / <code>jp2ksave</code> (OpenJPEG)</td>
+            <td>Stub; pure-Rust JP2K options are immature &mdash; likely optional OpenJPEG FFI.</td>
+            <td class="nowrap"><span class="pill">L</span></td>
+            <td class="nowrap"><span class="pill">P2</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/501">#501</a></td>
+          </tr>
+          <tr>
+            <td><strong>OpenSlide</strong> load (whole-slide images)</td>
+            <td><code>openslideload</code> (libopenslide); load-only in vips</td>
+            <td>Absent; C FFI behind an optional feature. No encoder owed.</td>
+            <td class="nowrap"><span class="pill">L</span></td>
+            <td class="nowrap"><span class="pill">P2</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/503">#503</a></td>
+          </tr>
+          <tr>
+            <td><strong>FITS</strong> load + save (astronomy)</td>
+            <td><code>fitsload</code> / <code>fitssave</code> (cfitsio)</td>
+            <td>Stub; gated on the signed (<a href="https://github.com/libviprs/libviprs/issues/516">#516</a>) and double (<a href="https://github.com/libviprs/libviprs/issues/518">#518</a>) carriers.</td>
+            <td class="nowrap"><span class="pill">M</span></td>
+            <td class="nowrap"><span class="pill">P2</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/505">#505</a></td>
+          </tr>
+          <tr>
+            <td><strong>Camera RAW</strong> load</td>
+            <td><code>rawload</code>-style dcraw path (libraw/dcraw); load-only in vips</td>
+            <td>Absent; no encoder owed. Pure-Rust <code>rawloader</code>-class crates partially reach parity.</td>
+            <td class="nowrap"><span class="pill">L</span></td>
+            <td class="nowrap"><span class="pill">P2</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/507">#507</a></td>
+          </tr>
+          <tr>
+            <td><strong>Ultra HDR</strong> (gain-map JPEG) load + save</td>
+            <td><code>uhdrload</code>-family (libultrahdr); includes the <code>uhdr2scRGB</code> coding op</td>
+            <td>Absent; builds on the shipped JPEG codec plus gain-map metadata.</td>
+            <td class="nowrap"><span class="pill">M</span></td>
+            <td class="nowrap"><span class="pill">P2</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/508">#508</a></td>
+          </tr>
+          <tr>
+            <td><strong>Scientific volumes</strong> — MAT / NIfTI / Analyze load</td>
+            <td><code>matload</code> / <code>niftiload</code> / <code>analyzeload</code> (matio / niftiio)</td>
+            <td>Absent; gated on the #516/#518 carriers. Caveat: NIfTI is not compiled into the local vips reference build, so that half has no local differential oracle (golden-only).</td>
+            <td class="nowrap"><span class="pill">M</span></td>
+            <td class="nowrap"><span class="pill">P2</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/510">#510</a></td>
+          </tr>
+          <tr>
+            <td><strong>ImageMagick fallback loader</strong></td>
+            <td><code>magickload</code> / <code>magicksave</code> (ImageMagick/GraphicsMagick)</td>
+            <td>Deliberate strategic fork: ImageMagick FFI contradicts the pure-Rust / untrusted-input posture. Recommendation on the issue: formally scope out, or gate behind an off-by-default FFI feature.</td>
+            <td class="nowrap"><span class="pill">&mdash;</span></td>
+            <td class="nowrap"><span class="pill">scope decision</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/509">#509</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>How this roadmap was grounded</h2>
+    <ul>
+      <li><strong>Oracle</strong> — every number was reproduced against live surfaces: <code>vips -l</code> on libvips 8.18.4 (404 lines &rarr; 328 leaf classes &rarr; ~262 distinct callable operations after collapsing <code>_buffer</code>/<code>_source</code>/<code>_target</code>/<code>_file</code>/<code>_mime</code> loader/saver variants and deduplicating aliases), diffed against <code>viprs __dump-commands</code> (168 commands, 163 exact vips nicknames) and the 247-row <code>OP_MAP.md</code> parity ledger.</li>
+      <li><strong>Honest crediting</strong> — "subsumed" ops (the 21 pairwise colour transforms folded into <code>colourspace --source-space</code>, <code>convf</code>/<code>convi</code> folded into <code>conv --precision</code>) are counted as covered only where the fold is behaviour-complete; format I/O is credited only for codecs that really ship.</li>
+      <li><strong>Verification classes</strong> — shipped ops are pinned as EXACT, EXACT-AFTER-CAST, FOURIER, or GOLDEN-ONLY against the 8.18.4 differential oracle; the Phase&nbsp;3 carriers exist precisely to promote the ~43 non-EXACT rows.</li>
+      <li><strong>Posture</strong> — the default build stays pure Rust. Any C codec (libwebp-lossy, libheif, OpenJPEG, libopenslide) lands behind an off-by-default Cargo feature, mirroring the existing <code>pdfium</code> precedent.</li>
+    </ul>
+    <p>Tracking: <a href="https://github.com/libviprs/libviprs/issues">all open issues</a> &middot; formats <a href="https://github.com/libviprs/libviprs/issues/497">#497</a>&ndash;<a href="https://github.com/libviprs/libviprs/issues/510">#510</a> &middot; operations <a href="https://github.com/libviprs/libviprs/issues/511">#511</a>&ndash;<a href="https://github.com/libviprs/libviprs/issues/515">#515</a> &middot; pixel carriers <a href="https://github.com/libviprs/libviprs/issues/516">#516</a>&ndash;<a href="https://github.com/libviprs/libviprs/issues/519">#519</a>.</p>
+  </section>
+
+</main>
+
+<footer>
+  <p>libviprs is MIT licensed. <a href="https://github.com/libviprs/libviprs">View on GitHub</a></p>
+</footer>
+
+</body>
+</html>
