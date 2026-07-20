@@ -374,7 +374,7 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
 
 <section>
   <p class="man-section">Description</p>
-  <p><strong>viprs</strong> converts large raster images and PDF documents into multi-resolution tile pyramids suitable for Deep Zoom viewers, slippy-map UIs, and GIS applications. It supports three tile layouts (DeepZoom, XYZ, Google Maps), three image formats (PNG, JPEG, raw), and three engine modes (monolithic, streaming, parallel MapReduce) to balance throughput and memory usage for images of any size.</p>
+  <p><strong>viprs</strong> converts large raster images and multi-page documents of many kinds &mdash; high-resolution scans, PDFs, gigapixel photographs, aerial and satellite imagery, historical maps, and digitised archives &mdash; into multi-resolution tile pyramids so very large sources can be delivered and viewed at interactive speed. The output is suitable for Deep Zoom viewers, slippy-map UIs such as MapLibre GL (the open-source WebGL map/tile engine), and GIS applications. It supports three tile layouts (DeepZoom, XYZ, Google Maps), three image formats (PNG, JPEG, raw), and three engine modes (monolithic, streaming, parallel MapReduce) to balance throughput and memory usage for images of any size.</p>
 </section>
 
 <!-- ================================================================== -->
@@ -437,7 +437,7 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
 
     <dt><code>--skip-blank</code></dt>
     <dd>
-      <p>Replace blank (uniform-color) tiles with a 1-byte placeholder instead of encoding the full image. Scanned blueprints have large white margins that produce many identical tiles &mdash; placeholder files reduce output size dramatically. Consumers detect them by file size and render a solid color.</p>
+      <p>Replace blank (uniform-color) tiles with a 1-byte placeholder instead of encoding the full image. Scanned documents have large white margins that produce many identical tiles &mdash; placeholder files reduce output size dramatically. Consumers detect them by file size and render a solid color.</p>
     </dd>
 
     <dt><code>--blank-tolerance &lt;N&gt;</code></dt>
@@ -450,7 +450,7 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
   <dl class="flags">
     <dt><code>--dpi &lt;N&gt;</code></dt>
     <dd>
-      <p>Resolution for PDF rendering and page-size scaling. Higher DPI produces more pixels (and more tiles). 72 matches libvips' default; use 150&ndash;300 for print-quality blueprints. <span class="default-val">Default: 72</span></p>
+      <p>Resolution for PDF rendering and page-size scaling. Higher DPI produces more pixels (and more tiles). 72 matches libvips' default; use 150&ndash;300 for print-quality documents. <span class="default-val">Default: 72</span></p>
     </dd>
 
     <dt><code>--page &lt;N&gt;</code></dt>
@@ -460,7 +460,7 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
 
     <dt><code>--render</code></dt>
     <dd>
-      <p>Use PDFium for vector PDF rendering instead of extracting embedded raster images. Scanned blueprints embed a raster image inside the PDF &mdash; extraction is fast and lossless. AutoCAD exports and text-heavy PDFs contain vector paths that must be rendered to pixels. Use <code>--render</code> when the PDF is not a simple raster scan.</p>
+      <p>Use PDFium for vector PDF rendering instead of extracting embedded raster images. Scanned documents embed a raster image inside the PDF &mdash; extraction is fast and lossless. Vector exports and text-heavy PDFs contain vector paths that must be rendered to pixels. Use <code>--render</code> when the PDF is not a simple raster scan.</p>
     </dd>
 
     <dt><code>--match-page-size</code></dt>
@@ -488,7 +488,7 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
 
     <dt><code>--memory-budget &lt;MB&gt;</code></dt>
     <dd>
-      <p>Soft memory budget for strip-based processing. Switches from the monolithic engine to the streaming engine, which processes the image in horizontal bands. A 16820&times;11888 blueprint at 300 DPI needs ~5 GB as a monolithic canvas &mdash; the streaming engine reduces this to ~50 MB by processing strips. The strip height is maximised within the budget to balance memory and speed.</p>
+      <p>Soft memory budget for strip-based processing. Switches from the monolithic engine to the streaming engine, which processes the image in horizontal bands. A 16820&times;11888 gigapixel scan at 300 DPI needs ~5 GB as a monolithic canvas &mdash; the streaming engine reduces this to ~50 MB by processing strips. The strip height is maximised within the budget to balance memory and speed.</p>
       <p>When set to <code>0</code>: auto-selects a budget (1/4 of estimated monolithic peak). When omitted: uses the monolithic engine (original behavior).</p>
     </dd>
 
@@ -664,12 +664,12 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
     <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> aerial.tiff map_tiles/ <span class="sh-flag">\
     --layout</span> <span class="sh-value">xyz</span> <span class="sh-flag">--format</span> <span class="sh-value">jpeg</span> <span class="sh-flag">--quality</span> <span class="sh-value">90</span></code></pre>
   </div>
-  <p>Outputs <code>{z}/{x}/{y}.jpeg</code> tiles for Leaflet or Mapbox. JPEG reduces tile size ~5&times; vs PNG for photographic content.</p>
+  <p>Outputs <code>{z}/{x}/{y}.jpeg</code> tiles for MapLibre GL, Leaflet, or Mapbox. JPEG reduces tile size ~5&times; vs PNG for photographic content.</p>
 
   <h4>Google Maps layout with centring</h4>
   <div class="code-wrap">
     <button class="copy-btn">&#x2398; Copy</button>
-    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> blueprint.png google_tiles/ <span class="sh-flag">\
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> gigapixel.png google_tiles/ <span class="sh-flag">\
     --layout</span> <span class="sh-value">google</span> <span class="sh-flag">--centre</span></code></pre>
   </div>
   <p>Google layout uses power-of-2 tile grids. <code>--centre</code> places the image in the middle of the canvas with even padding.</p>
@@ -684,20 +684,20 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
 
   <h3>PDF inputs</h3>
 
-  <h4>Scanned blueprint (raster extraction)</h4>
+  <h4>Scanned document (raster extraction)</h4>
   <div class="code-wrap">
     <button class="copy-btn">&#x2398; Copy</button>
-    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> blueprint.pdf tiles/ <span class="sh-flag">--page</span> <span class="sh-value">2</span></code></pre>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> scan.pdf tiles/ <span class="sh-flag">--page</span> <span class="sh-value">2</span></code></pre>
   </div>
   <p>Extracts the embedded raster image from page 2 of the PDF. Fast and lossless &mdash; no rendering needed for scanned documents.</p>
 
   <h4>Vector PDF rendering with PDFium</h4>
   <div class="code-wrap">
     <button class="copy-btn">&#x2398; Copy</button>
-    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> floorplan.pdf tiles/ <span class="sh-flag">\
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> document.pdf tiles/ <span class="sh-flag">\
     --render</span> <span class="sh-flag">--dpi</span> <span class="sh-value">300</span></code></pre>
   </div>
-  <p>Renders the vector PDF at 300 DPI using PDFium. Required for AutoCAD exports, text-heavy documents, and PDFs with paths/shapes instead of embedded images.</p>
+  <p>Renders the vector PDF at 300 DPI using PDFium. Required for vector exports, text-heavy documents, and PDFs with paths/shapes instead of embedded images.</p>
 
   <h4>Match page dimensions after extraction</h4>
   <div class="code-wrap">
@@ -780,7 +780,7 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
   <h4>MapReduce with auto budget and blank skipping</h4>
   <div class="code-wrap">
     <button class="copy-btn">&#x2398; Copy</button>
-    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> blueprint.pdf tiles/ <span class="sh-flag">\
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> scan.pdf tiles/ <span class="sh-flag">\
     --memory-budget</span> <span class="sh-value">0</span> <span class="sh-flag">--parallel</span> <span class="sh-flag">--skip-blank</span> <span class="sh-flag">\
     --layout</span> <span class="sh-value">google</span> <span class="sh-flag">--centre</span></code></pre>
   </div>
@@ -791,19 +791,19 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
   <h4>Geo-referenced DeepZoom pyramid</h4>
   <div class="code-wrap">
     <button class="copy-btn">&#x2398; Copy</button>
-    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> site_plan.png tiles/ <span class="sh-flag">\
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> aerial.png tiles/ <span class="sh-flag">\
     --geo-origin</span> <span class="sh-value">"-73.9857,40.7484"</span> <span class="sh-flag">--geo-scale</span> <span class="sh-value">"0.00001,-0.00001"</span></code></pre>
   </div>
-  <p>Maps the top-left pixel to (73.9857&deg;W, 40.7484&deg;N) with ~1.1m per pixel. Enables map viewers to overlay the pyramid on a world map.</p>
+  <p>Maps the top-left pixel to (73.9857&deg;W, 40.7484&deg;N) with ~1.1m per pixel. Enables map viewers such as MapLibre GL to overlay the pyramid on a world map.</p>
 
   <h3>Inspection and planning</h3>
 
   <h4>Inspect a PDF file</h4>
   <div class="code-wrap">
     <button class="copy-btn">&#x2398; Copy</button>
-    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs info</span> blueprint.pdf
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs info</span> scan.pdf
 
-<span class="sh-output">PDF: blueprint.pdf</span>
+<span class="sh-output">PDF: scan.pdf</span>
 <span class="sh-output">Pages: 3</span>
 <span class="sh-output">  Page 1: 841.89 x 595.28 pt (A4 landscape)</span>
 <span class="sh-output">    Image: 3508 x 2480 px (JPEG, 1234567 bytes)</span>
@@ -817,7 +817,7 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
   <h4>Preview the pyramid plan</h4>
   <div class="code-wrap">
     <button class="copy-btn">&#x2398; Copy</button>
-    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs plan</span> blueprint.pdf <span class="sh-flag">--tile-size</span> <span class="sh-value">256</span> <span class="sh-flag">--layout</span> <span class="sh-value">google</span> <span class="sh-flag">--centre</span></code></pre>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs plan</span> scan.pdf <span class="sh-flag">--tile-size</span> <span class="sh-value">256</span> <span class="sh-flag">--layout</span> <span class="sh-value">google</span> <span class="sh-flag">--centre</span></code></pre>
   </div>
   <p>Shows levels, tile counts, and canvas dimensions without generating any tiles. Use this to estimate output size and pick the right tile parameters.</p>
 
@@ -860,7 +860,7 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
   <h4>Write pyramid directly to S3</h4>
   <div class="code-wrap">
     <button class="copy-btn">&#x2398; Copy</button>
-    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> blueprint.pdf <span class="sh-flag">--sink</span> <span class="sh-value">s3://my-bucket/blueprints/site-a/</span> <span class="sh-flag">\
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> scan.pdf <span class="sh-flag">--sink</span> <span class="sh-value">s3://my-bucket/pyramids/doc-a/</span> <span class="sh-flag">\
     --format</span> <span class="sh-value">png</span> <span class="sh-flag">--manifest-emit-checksums</span></code></pre>
   </div>
   <p>Tiles are streamed to S3 without a local temp directory. Credentials are read from the standard AWS credential chain (<code>AWS_ACCESS_KEY_ID</code>, instance role, etc.). Requires compile-time <code>--features s3</code>.</p>
@@ -904,7 +904,7 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
   <h4>Retry transient errors, skip permanently failing tiles</h4>
   <div class="code-wrap">
     <button class="copy-btn">&#x2398; Copy</button>
-    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> blueprint.pdf <span class="sh-flag">--sink</span> <span class="sh-value">s3://my-bucket/out/</span> <span class="sh-flag">\
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> scan.pdf <span class="sh-flag">--sink</span> <span class="sh-value">s3://my-bucket/out/</span> <span class="sh-flag">\
     --on-failure</span> <span class="sh-value">retry-skip=5,500ms</span></code></pre>
   </div>
   <p>Each failing tile is retried up to 5 times with 500 ms initial back-off. If still failing, the tile is recorded as missing in the manifest and the job continues. Useful for long-running S3 uploads over unreliable links.</p>
@@ -925,7 +925,7 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
   <h4>Emit Blake3 checksums and deduplicate blank tiles</h4>
   <div class="code-wrap">
     <button class="copy-btn">&#x2398; Copy</button>
-    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> blueprint.pdf tiles/ <span class="sh-flag">\
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> scan.pdf tiles/ <span class="sh-flag">\
     --manifest-emit-checksums</span> <span class="sh-flag">--checksum-algo</span> <span class="sh-value">blake3</span> <span class="sh-flag">\
     --dedupe-blanks</span></code></pre>
   </div>
@@ -934,16 +934,16 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
   <h4>Full deduplication with content hashing</h4>
   <div class="code-wrap">
     <button class="copy-btn">&#x2398; Copy</button>
-    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> blueprint.pdf tiles/ <span class="sh-flag">--dedupe-all</span></code></pre>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> scan.pdf tiles/ <span class="sh-flag">--dedupe-all</span></code></pre>
   </div>
-  <p>Every tile is hashed after encoding. Duplicate content (common in tiled vector drawings) is stored once. Inode count can drop by 40&ndash;60% on typical blueprint pyramids.</p>
+  <p>Every tile is hashed after encoding. Duplicate content (common in tiled vector documents) is stored once. Inode count can drop by 40&ndash;60% on typical document pyramids.</p>
 
   <h3>Tracing</h3>
 
   <h4>Emit info-level spans</h4>
   <div class="code-wrap">
     <button class="copy-btn">&#x2398; Copy</button>
-    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> blueprint.pdf tiles/ <span class="sh-flag">--trace-level</span> <span class="sh-value">info</span></code></pre>
+    <pre><code><span class="sh-prompt">$</span> <span class="sh-cmd">viprs pyramid</span> scan.pdf tiles/ <span class="sh-flag">--trace-level</span> <span class="sh-value">info</span></code></pre>
   </div>
   <p>Emits <code>pipeline</code> and <code>level</code> spans on the <code>libviprs</code> target plus per-tile events on the <code>libviprs::tile</code> target. The argument is passed straight to <code>EnvFilter</code>, so directives such as <code>info,libviprs::tile=trace</code> are accepted. Requires compile-time <code>--features tracing</code>.</p>
 </section>
