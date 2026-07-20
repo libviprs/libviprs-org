@@ -21,11 +21,12 @@
     "showcase_mp_target": 47,
     "engine_order": ["libvips", "monolithic", "streaming", "mapreduce"],
     "columns": [
-      { "key": "wall_time_ms",            "header": "Wall time (ms)",                   "format": "int",         "thousands": true  },
-      { "key": "peak_memory_mb",          "header": "Peak memory (MB)",                 "format": "int",         "thousands": true  },
-      { "key": "tiles_per_second",        "header": "Throughput (tiles/s)",             "format": "int",         "thousands": true  },
-      { "key": "tiles_per_second_per_mb", "header": "Memory efficiency (tiles/s/MB)",   "format": "fixed1"                          },
-      { "key": "resource_cost",           "header": "Resource cost (MB·s/tile)",   "format": "fixed3"                          }
+      { "key": "wall_time_ms",            "header": "Wall time (ms)",                          "format": "int",   "thousands": true  },
+      { "key": "peak_rss_mb",             "header": "Peak RSS (MB)",                           "format": "int",   "thousands": true  },
+      { "key": "tracked_memory_mb",       "header": "Working set (MB)",                        "format": "int",   "thousands": true, "zero_as_dash": true },
+      { "key": "tiles_per_second",        "header": "Throughput (tiles/s)",                    "format": "int",   "thousands": true  },
+      { "key": "tiles_per_second_per_mb", "header": "Memory efficiency (tiles/s per RSS-MB)",  "format": "fixed1"                    },
+      { "key": "resource_cost",           "header": "Resource cost (RSS-MB·s/tile)",           "format": "fixed3"                    }
     ]
   },
 
@@ -44,14 +45,14 @@
         "scenario": "Container, limited RAM",
         "engine_id": "streaming",
         "memory_complexity": "O(width × strip)",
-        "speed_template": "Good — {throughput} tiles/s in a {memory} MB envelope",
+        "speed_template": "Good — {throughput} tiles/s in a {memory} MB working set",
         "best_when": "Tight memory ceiling (e.g. 512 MB pod) on potentially huge images."
       },
       {
         "scenario": "Multi-core, bounded RAM",
         "engine_id": "mapreduce",
         "memory_complexity": "O(width × strip)",
-        "speed_template": "Fast — {throughput} tiles/s, same {memory} MB envelope",
+        "speed_template": "Fast — {throughput} tiles/s, same {memory} MB working set",
         "best_when": "Spare cores you can spend on parallel strip rendering."
       },
       {

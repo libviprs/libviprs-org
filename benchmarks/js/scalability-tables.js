@@ -29,6 +29,11 @@
 
   function fmt(value, spec) {
     if (value == null || Number.isNaN(value)) return '—';
+    // Some columns (e.g. an engine's own working set) carry a real 0 for
+    // engines the bench doesn't instrument that way — libvips reports no
+    // tracked working set. Render those as an em-dash rather than "0",
+    // which would falsely read as "uses no memory".
+    if (spec && spec.zero_as_dash && value === 0) return '—';
     const f = (spec && spec.format) || 'auto';
     let n;
     switch (f) {
@@ -95,6 +100,19 @@
     return null;
   }
 
+  // Read a metric off a bench row, tolerating the v0.4.0 schema rename of
+  // the memory column: the peak-memory field is now `peak_rss_mb` (process
+  // RSS), where older exports used `peak_memory_mb`. A column keyed on
+  // either name resolves to the RSS field when present and falls back to
+  // the legacy field so pre-v0.4.0 JSON still renders.
+  function readMetric(row, key) {
+    if (!row) return null;
+    if (key === 'peak_rss_mb' || key === 'peak_memory_mb') {
+      return row.peak_rss_mb != null ? row.peak_rss_mb : row.peak_memory_mb;
+    }
+    return row[key];
+  }
+
   // ---------------------------------------------------------------------------
   // Engine-comparison table renderer
   // ---------------------------------------------------------------------------
@@ -145,7 +163,7 @@
       if (!display_) return '';
       const row = findRow(results, engineId, showcaseMp);
       const cells = cfg.columns.map(function (c) {
-        const val = row ? row[c.key] : null;
+        const val = readMetric(row, c.key);
         return '<td>' + fmt(val, c) + '</td>';
       }).join('');
       return (
@@ -171,7 +189,12 @@
     if (!engineRow) return template;
     const throughput = Math.round(engineRow.tiles_per_second).toLocaleString('en-US');
     const mp = engineRow.megapixels.toFixed(engineRow.megapixels >= 100 ? 0 : 1);
-    const memory = Math.round(engineRow.peak_memory_mb).toLocaleString('en-US');
+    // {memory} is the engine's working set — the constant-memory "envelope"
+    // the streaming/MapReduce scenarios talk about (tracked_memory_mb), not
+    // whole-process RSS. Fall back to RSS, then to the legacy field.
+    const memBasis = engineRow.tracked_memory_mb != null ? engineRow.tracked_memory_mb
+      : (engineRow.peak_rss_mb != null ? engineRow.peak_rss_mb : engineRow.peak_memory_mb);
+    const memory = Math.round(memBasis).toLocaleString('en-US');
     return template
       .replace(/\{throughput\}/g, throughput)
       .replace(/\{mp\}/g,         mp)
@@ -366,7 +389,15 @@
       fetchJson('scalability_results.json'),
       fetchJson('engine-scenarios.json'),
     ]).then(function (parts) {
-      const results = parts[0];
+      // v0.4.0 exports both a single-thread (concurrency 1) and a
+      // 10-thread (concurrency 10) series. The article's figures, prose
+      // and tables all report the single-thread series, so filter to it —
+      // otherwise every size would carry two rows and findRow/showcase
+      // selection would pick arbitrarily. Rows with no `concurrency`
+      // field (pre-v0.4.0 exports) are kept as-is.
+      const results = parts[0].filter(function (r) {
+        return r.concurrency == null || r.concurrency === 1;
+      });
       const cfg = parts[1];
       const target = cfg.engine_table && cfg.engine_table.showcase_mp_target;
       const showcaseMp = pickShowcaseMp(results, target);
