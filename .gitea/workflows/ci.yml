@@ -1,0 +1,182 @@
+name: gitea-ci
+
+# Migrated from GitHub Actions (.github/workflows/ci.yml) to run on the
+# self-hosted Gitea Actions runner. The four docs-generator gates (SCHEMA_V2 §5)
+# run unchanged; each reports back to GitHub as a distinct `gitea/<job>` commit
+# status via the `report` job (org secret GH_STATUS_TOKEN).
+#
+# Triggers: every branch push (the GitHub->Gitea mirror-sync replays pushes) and
+# manual workflow_dispatch. The original pull_request + daily `schedule` drift
+# sweep are GitHub-native and were dropped in the move to Gitea.
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # 1. sync — byte-identical frozen CLI copy check. CLI-absent is handled at the
+  #    step level (checkout is continue-on-error; the drift assertion is guarded),
+  #    so CLI-unavailable skips green while CLI-present + drift fails red.
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report pending (gitea/sync)
+        if: always()
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.GH_STATUS_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -d '{"state":"pending","context":"gitea/sync","description":"Running on Gitea"}' || true
+
+      - name: Check out libviprs-org (this repo)
+        uses: actions/checkout@v4
+        with:
+          path: libviprs-org
+
+      - name: Check out canonical libviprs-cli (sibling)
+        id: checkout_cli
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: libviprs/libviprs-cli
+          path: libviprs-cli
+          ref: ${{ vars.CLI_COUNTERPART_REV || '' }}
+          token: ${{ secrets.SYNC_CLI_TOKEN || github.token }}
+
+      - name: Assert frozen CLI copy is in sync
+        if: steps.checkout_cli.outcome == 'success'
+        run: libviprs-org/cli/tools/sync-cli-src.sh --check
+
+      - name: Skip note (canonical CLI unavailable)
+        if: steps.checkout_cli.outcome != 'success'
+        run: echo "::warning::libviprs-cli not available to this workflow; skipping byte-identical sync check."
+
+  # 2. extract — regenerate the manifest (baseline §4 enforced inside the
+  #    extractor) and assert no uncommitted drift; then the extractor unit tests.
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report pending (gitea/extract)
+        if: always()
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.GH_STATUS_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -d '{"state":"pending","context":"gitea/extract","description":"Running on Gitea"}' || true
+
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Regenerate snippet manifest (enforces pyramid baseline §4)
+        run: cargo run --manifest-path cli/tools/extract-snippets/Cargo.toml
+
+      - name: Assert committed JSON matches regeneration (no drift)
+        run: git diff --exit-code cli/js/snippets.generated.json
+
+      - name: Extractor unit tests
+        working-directory: cli/tools/extract-snippets
+        run: cargo test --quiet
+
+  # 3. test-flags — per-flag audit gate (exit 1 if any flag produces zero diff).
+  test-flags:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report pending (gitea/test-flags)
+        if: always()
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.GH_STATUS_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -d '{"state":"pending","context":"gitea/test-flags","description":"Running on Gitea"}' || true
+
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Per-flag audit
+        run: node cli/tools/test-flags/test.js
+
+      - name: Flag-anchor test
+        run: node cli/tools/test-flags/anchors.js
+
+  # 4. gen-op-sections — regenerate the data-driven op sections and assert no
+  #    drift (also exercises the oracle_class/shape enum validation).
+  gen-op-sections:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report pending (gitea/gen-op-sections)
+        if: always()
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.GH_STATUS_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -d '{"state":"pending","context":"gitea/gen-op-sections","description":"Running on Gitea"}' || true
+
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Regenerate op sections (validates oracle_class/shape enums)
+        run: node cli/tools/gen-op-sections/index.js --out cli/tools/gen-op-sections/generated-op-sections.html
+
+      - name: Assert committed HTML matches regeneration (no drift)
+        run: git diff --exit-code cli/tools/gen-op-sections/generated-op-sections.html
+
+      - name: Placeholder substitution — annotated op bodies render real values (#53)
+        run: node cli/tools/gen-op-sections/placeholder-substitution.test.js
+
+  # 5. report — post the final gitea/<job> commit status back to GitHub for each
+  #    gate, based on that job's result. Runs even when a gate fails so red
+  #    statuses are reported (if: always()).
+  report:
+    runs-on: ubuntu-latest
+    needs: [sync, extract, test-flags, gen-op-sections]
+    if: always()
+    steps:
+      - name: Post final statuses to GitHub
+        env:
+          GH_STATUS_TOKEN: ${{ secrets.GH_STATUS_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          post() {
+            ctx="$1"; result="$2"; state="failure"
+            case "$result" in
+              success|skipped) state="success" ;;
+            esac
+            curl -sf -X POST \
+              -H "Authorization: Bearer $GH_STATUS_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "Content-Type: application/json" \
+              "https://api.github.com/repos/$REPO/statuses/$SHA" \
+              -d "{\"state\":\"$state\",\"context\":\"$ctx\",\"description\":\"Gitea CI: $result\"}" || true
+          }
+          post "gitea/sync"            "${{ needs.sync.result }}"
+          post "gitea/extract"         "${{ needs.extract.result }}"
+          post "gitea/test-flags"      "${{ needs.test-flags.result }}"
+          post "gitea/gen-op-sections" "${{ needs.gen-op-sections.result }}"
