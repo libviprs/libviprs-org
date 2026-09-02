@@ -6751,11 +6751,9 @@ save_file(&amp;result, &amp;output)?;</code></pre>
       <div class="code-wrap">
         <button class="copy-btn">&#x2398; Copy</button>
         <pre><code class="language-rust">    let raster = io::load(&amp;in_path, &amp;limits)?;
-    let options = ResizeOptions {
-        vscale,
-        kernel,
-        ..ResizeOptions::default()
-    };
+    let options = ResizeOptions::default()
+        .with_vscale(vscale)
+        .with_kernel(kernel);
     let out = raster.try_resize_with(scale, options)?;
     io::save(&amp;out, &amp;out_path)?;</code></pre>
       </div>

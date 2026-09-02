@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 #
 # Sync the canonical libviprs-cli/src/main.rs into the doc site's frozen copy
-# at libviprs-org/cli/rust/main.rs, then re-run the extractor so
-# libviprs-org/cli/js/snippets.generated.json reflects the latest source.
+# at libviprs-org/cli/rust/main.rs, then re-run every generator that reads it, so
+# libviprs-org/cli/js/snippets.generated.json, the gen-op-sections fragment and
+# the published cli/index.html all reflect the latest source.
 #
 # Run this whenever libviprs-cli/src/main.rs changes (annotation markers
 # included).
 #
 # Usage:
-#   sync-cli-src.sh            # copy canonical -> frozen copy, regenerate JSON
+#   sync-cli-src.sh            # copy canonical -> frozen copy, regenerate everything
 #   sync-cli-src.sh --check    # assert nothing drifted; write nothing; exit 1 on drift
 #
 # --check is the drift guard CI runs. It is diff-only: it asserts the frozen
@@ -70,6 +71,13 @@ if [[ "$CHECK" -eq 1 ]]; then
   exit 1
 fi
 
+# Everything below writes. The op sections need node, so fail before touching the
+# tree rather than half-way through it.
+if ! command -v node >/dev/null 2>&1; then
+  echo "error: node not found; it is needed to regenerate the op sections." >&2
+  exit 1
+fi
+
 while IFS= read -r rel; do
   [[ -z "$rel" ]] && continue
   mkdir -p "$(dirname "$FROZEN_DIR/$rel")"
@@ -79,3 +87,16 @@ done < <(collect_rel_files)
 
 cd "$SCRIPT_DIR/extract-snippets"
 cargo run --quiet
+
+# The data-driven op sections are generated FROM snippets.generated.json, so a
+# re-sync that lands inside a @doc-snippet slot moves them too. Regenerating the
+# manifest alone is not enough: the gen-op-sections gate diffs the committed
+# fragment, so stopping here leaves that gate red and the drift error above
+# telling you to run a command that cannot clear it. $SCRIPT_DIR is absolute, so
+# the cd above does not reach these.
+GEN_OP_SECTIONS="$SCRIPT_DIR/gen-op-sections/index.js"
+node "$GEN_OP_SECTIONS" --out "$SCRIPT_DIR/gen-op-sections/generated-op-sections.html"
+# ... and the published page embeds the same fragment between its BEGIN/END
+# markers, so it goes stale in exactly the same way. Nothing in CI diffs it,
+# which is why it has to be regenerated here.
+node "$GEN_OP_SECTIONS" --inject "$SCRIPT_DIR/../index.html"
