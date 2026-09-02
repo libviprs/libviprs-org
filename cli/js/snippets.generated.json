@@ -3796,11 +3796,9 @@
         "apply": {
           "imports_when_active": [],
           "lines": [
-            "    let options = ResizeOptions {",
-            "        vscale,",
-            "        kernel,",
-            "        ..ResizeOptions::default()",
-            "    };",
+            "    let options = ResizeOptions::default()",
+            "        .with_vscale(vscale)",
+            "        .with_kernel(kernel);",
             "    let out = raster.try_resize_with(scale, options)?;"
           ]
         },
