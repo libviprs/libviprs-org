@@ -379,7 +379,7 @@
       <li><strong>Tile pyramid generation</strong> — multi-threaded engine with backpressure, configurable <a href="cli/#flag-tile-size" style="color:var(--primary);">tile size</a> and <a href="cli/#flag-overlap" style="color:var(--primary);">overlap</a>; optional <strong>streaming mode</strong> processes images in horizontal strips for bounded peak memory</li>
       <li><strong>True source-side PDF streaming</strong> — <code>PdfiumStripSource</code> renders one strip of a vector PDF at a time via PDFium's clipped matrix path, including correct <code>/Rotate</code> handling, so multi-gigapixel pages stay inside the configured memory budget</li>
       <li><strong>Memory-budget policy</strong> — <code>StreamingConfig.budget_policy</code> selects <code>BudgetPolicy::Error</code> (fail loudly when a strip cannot fit) or <code>BudgetPolicy::AutoAdjust</code> (raise the budget to the smallest workable strip); the engine also pre-flights <a href="cli/#flag-memory-budget" style="color:var(--primary);">the budget</a> against canvas geometry before any work starts and returns a typed <code>BudgetExceeded</code> error</li>
-      <li><strong>PMTiles v3 storage (default)</strong> — the whole pyramid lands in one <code>.pmtiles</code> archive via <code>PmTilesSink</code>, indexed by <code>z/x/y</code> so a viewer fetches one tile with a ranged read; <code>pmtiles::Reader</code> reads it back over any byte-range source, and <a href="cli/#pmtiles" style="color:var(--primary);"><code>--storage directory</code></a> still writes the classic tree</li>
+      <li><strong>PMTiles v3 storage (default)</strong> puts the whole pyramid in one <code>.pmtiles</code> archive via <code>PmTilesSink</code>, indexed by <code>z/x/y</code> so a viewer fetches one tile with a ranged read; <code>pmtiles::Reader</code> reads it back over any byte-range source, and <a href="cli/#pmtiles" style="color:var(--primary);"><code>--storage directory</code></a> still writes the classic tree</li>
       <li><strong>Layout formats</strong> — <a href="cli/#flag-layout" style="color:var(--primary);">DeepZoom</a> (<code>.dzi</code> + directory tree), XYZ (<code>z/x/y</code>), and Google Maps (<code>z/y/x</code>, power-of-2 grids)</li>
       <li><strong>Centre support</strong> — <a href="cli/#flag-centre" style="color:var(--primary);">centre image</a> within the tile grid with even background padding on all sides</li>
       <li><strong>Tile encoding</strong> — PNG, JPEG (configurable quality), or raw pixel output</li>
@@ -558,9 +558,8 @@
     <div class="code-wrap">
       <pre><code><span class="kw">use</span> <span class="mod">libviprs</span>::{<span class="ty">EngineBuilder</span>, <span class="ty">PmTilesSink</span>, <span class="ty">TileFormat</span>};
 
-<span class="kw">let</span> sink = <span class="ty">PmTilesSink</span>::<span class="fn">new</span>(<span class="str">"atlas.pmtiles"</span>, plan.<span class="fn">clone</span>())
-    .<span class="fn">with_format</span>(<span class="ty">TileFormat</span>::<span class="ty">Png</span>);
-<span class="ty">EngineBuilder</span>::<span class="fn">new</span>(&amp;raster, plan, sink).<span class="fn">run</span>().<span class="fn">unwrap</span>();</code></pre>
+<span class="kw">let</span> sink = <span class="ty">PmTilesSink</span>::<span class="fn">try_new</span>(<span class="str">"atlas.pmtiles"</span>, plan.<span class="fn">clone</span>(), <span class="ty">TileFormat</span>::<span class="ty">Png</span>)?;
+<span class="ty">EngineBuilder</span>::<span class="fn">new</span>(&amp;raster, plan, &amp;sink).<span class="fn">run</span>()?;</code></pre>
     </div>
     <p>Reading needs no server and no unpacking step. <code>pmtiles::Reader</code> opens an archive over anything that can answer a byte range, so the same code path serves a local file and an HTTP object, and a tile lookup touches the header, a directory and the tile rather than the whole file.</p>
     <div class="code-wrap">
