@@ -110,7 +110,7 @@
     }
     return {
       input: readField('genArgInput', 'input.pdf'),
-      output: readField('genArgOutput', 'tiles/'),
+      output: readField('genArgOutput', 'tiles'),
     };
   }
 
@@ -399,7 +399,13 @@
         refA.target = '_blank';
         refA.rel = 'noopener';
         refA.href = refHref;
-        refA.appendChild(document.createTextNode('tests/' + (flagDef.test.file || '') + ' · '));
+        // Only the libviprs-tests default keeps files under tests/; the other
+        // two repos carry their own path, so do not prefix theirs (§2.4).
+        var testRepo = flagDef.test.repo;
+        var testPath = (testRepo === 'libviprs-cli' || testRepo === 'libviprs')
+          ? (flagDef.test.file || '')
+          : 'tests/' + (flagDef.test.file || '');
+        refA.appendChild(document.createTextNode(testPath + ' · '));
         var fnCode = document.createElement('code');
         fnCode.textContent = flagDef.test.fn || '';
         refA.appendChild(fnCode);
@@ -1070,21 +1076,7 @@
       if (/\.tar\.gz$|\.tgz$/i.test(path)) fmt = 'TarGz';
       else if (/\.zip$/i.test(path)) fmt = 'Zip';
       else if (/\.tar$/i.test(path)) fmt = 'Tar';
-      // Tile format: pull from the live `format` flag if available, else Png.
-      var liveFormat = 'TileFormat::Png';
-      var dts = pyramidDts();
-      for (var i = 0; i < dts.length; i++) {
-        var dt = dts[i];
-        if (dt._flagName === 'format' && dt._flagValue) {
-          var fv = dt._flagValue.value;
-          // Be quality-aware so a checked --quality flows through.
-          var ctx = {};
-          var qDt = findDt('quality');
-          if (qDt && qDt._flagValue) ctx.quality = qDt._flagValue.value;
-          liveFormat = 'TileFormat::' + variantFor(fv, ctx);
-          break;
-        }
-      }
+      var liveFormat = liveTileFormat();
       var body2 =
         'let sink = PackfileSink::new(\n' +
         '    PathBuf::from("' + path + '"),\n' +
@@ -1094,7 +1086,47 @@
         ')?;';
       return { body: body2, imports: ['PackfileSink', 'PackfileFormat'] };
     }
+    // --storage pmtiles, and the pmtiles:// URI that spells the same thing out.
+    // This is the default backend, so the body here matches the sink slot's own
+    // lines; it exists so that ticking the flag renders what it claims to.
+    if (v === 'pmtiles' || v.indexOf('pmtiles://') === 0) {
+      var archive = v.indexOf('pmtiles://') === 0
+        ? '"' + v.slice('pmtiles://'.length) + '"'
+        : '&output';
+      var body3 =
+        'let sink = PmTilesSink::try_new(\n' +
+        '    ' + archive + ',\n' +
+        '    plan.clone(),\n' +
+        '    ' + liveTileFormat() + ',\n' +
+        ')?;';
+      return { body: body3, imports: ['PmTilesSink'] };
+    }
+    // --storage directory, and the fs:// URI that spells the same thing out.
+    if (v === 'directory' || v.indexOf('fs://') === 0) {
+      var dir = v.indexOf('fs://') === 0 ? '"' + v.slice('fs://'.length) + '"' : '&output';
+      var body4 =
+        'let sink = FsSink::new(' + dir + ', plan.clone())\n' +
+        '    .with_format(' + liveTileFormat() + ');';
+      return { body: body4, imports: ['FsSink'] };
+    }
     return null;
+  }
+
+  // The tile format the `format` flag is currently showing, as a Rust variant,
+  // so a sink body that has to name one stays in step with the rest of the
+  // snippet. Quality-aware, because Jpeg carries a payload.
+  function liveTileFormat() {
+    var dts = pyramidDts();
+    for (var i = 0; i < dts.length; i++) {
+      var dt = dts[i];
+      if (dt._flagName === 'format' && dt._flagValue) {
+        var ctx = {};
+        var qDt = findDt('quality');
+        if (qDt && qDt._flagValue) ctx.quality = qDt._flagValue.value;
+        return 'TileFormat::' + variantFor(dt._flagValue.value, ctx);
+      }
+    }
+    return 'TileFormat::Png';
   }
 
   function findDt(flagName) {

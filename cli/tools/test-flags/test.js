@@ -107,6 +107,23 @@ function resolveSinkOverride(activeOverride) {
       imports: ['PackfileSink', 'PackfileFormat'],
     };
   }
+  // --storage pmtiles / directory, and the pmtiles:// and fs:// URIs that spell
+  // the same two things out. Kept in lockstep with cli/js/cli.js, which is the
+  // browser copy of this dispatch.
+  if (v === 'pmtiles' || v.startsWith('pmtiles://')) {
+    const archive = v.startsWith('pmtiles://') ? '"' + v.slice('pmtiles://'.length) + '"' : '&output';
+    return {
+      body: 'let sink = PmTilesSink::try_new(' + archive + ', plan.clone(), TileFormat::Png)?;',
+      imports: ['PmTilesSink'],
+    };
+  }
+  if (v === 'directory' || v.startsWith('fs://')) {
+    const dir = v.startsWith('fs://') ? '"' + v.slice('fs://'.length) + '"' : '&output';
+    return {
+      body: 'let sink = FsSink::new(' + dir + ', plan.clone())\n    .with_format(TileFormat::Png);',
+      imports: ['FsSink'],
+    };
+  }
   return null;
 }
 
