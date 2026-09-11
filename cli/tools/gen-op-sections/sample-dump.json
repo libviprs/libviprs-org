@@ -1,5 +1,5 @@
 {
-  "viprs_version": "0.3.0",
+  "viprs_version": "0.4.0",
   "generated_by": "viprs __dump-commands",
   "commands": [
     {
@@ -82,7 +82,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "add",
@@ -172,7 +173,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "addalpha",
@@ -254,7 +256,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "affine",
@@ -361,7 +364,8 @@
           ],
           "help": "Point interpolator (nearest|bilinear|bicubic|nohalo|lbb)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "arrayjoin",
@@ -457,7 +461,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "autorot",
@@ -539,7 +544,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "avg",
@@ -613,7 +619,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "bandbool",
@@ -707,7 +714,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "bandfold",
@@ -800,7 +808,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "bandjoin",
@@ -874,7 +883,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "bandjoin_const",
@@ -964,7 +974,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "bandmean",
@@ -1046,7 +1057,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "bandrank",
@@ -1131,7 +1143,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "bandunfold",
@@ -1224,7 +1237,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "black",
@@ -1270,7 +1284,8 @@
           "possible_values": null,
           "help": "Number of bands (vips --bands, default 1)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "boolean",
@@ -1372,7 +1387,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "boolean_const",
@@ -1476,7 +1492,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "buildlut",
@@ -1502,7 +1519,8 @@
           "help": "Output image path"
         }
       ],
-      "flags": []
+      "flags": [],
+      "subcommands": []
     },
     {
       "name": "byteswap",
@@ -1584,7 +1602,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "cast",
@@ -1678,7 +1697,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "clamp",
@@ -1782,7 +1802,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "colourspace",
@@ -1927,7 +1948,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "compass",
@@ -2076,7 +2098,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "complex",
@@ -2170,7 +2193,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "complexform",
@@ -2260,7 +2284,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "complexget",
@@ -2353,7 +2378,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "composite",
@@ -2477,7 +2503,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "composite2",
@@ -2601,7 +2628,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "conv",
@@ -2705,7 +2733,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "convsep",
@@ -2809,7 +2838,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "copy",
@@ -2979,7 +3009,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "countlines",
@@ -3064,7 +3095,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "crop",
@@ -3178,7 +3210,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "dE00",
@@ -3268,7 +3301,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "dE76",
@@ -3358,7 +3392,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "dECMC",
@@ -3448,7 +3483,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "deviate",
@@ -3522,7 +3558,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "divide",
@@ -3612,7 +3649,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "draw_circle",
@@ -3740,7 +3778,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "draw_flood",
@@ -3860,7 +3899,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "draw_image",
@@ -3966,7 +4006,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "draw_line",
@@ -4091,7 +4132,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "draw_mask",
@@ -4208,7 +4250,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "draw_rect",
@@ -4344,7 +4387,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "draw_smudge",
@@ -4458,7 +4502,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "embed",
@@ -4601,7 +4646,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "extract_area",
@@ -4715,7 +4761,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "extract_band",
@@ -4816,7 +4863,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "eye",
@@ -4862,7 +4910,8 @@
           "possible_values": null,
           "help": "Output an unsigned char image (vips --uchar)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "falsecolour",
@@ -4944,7 +4993,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "fastcor",
@@ -5034,7 +5084,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "find_trim",
@@ -5119,7 +5170,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "flatten",
@@ -5212,7 +5264,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "flip",
@@ -5305,7 +5358,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "fractsurf",
@@ -5347,7 +5401,8 @@
           "help": "Fractal dimension (vips 2..3)"
         }
       ],
-      "flags": []
+      "flags": [],
+      "subcommands": []
     },
     {
       "name": "freqmult",
@@ -5437,7 +5492,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "fwfft",
@@ -5519,7 +5575,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "gamma",
@@ -5612,7 +5669,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "gaussblur",
@@ -5727,7 +5785,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "gaussmat",
@@ -5787,7 +5846,8 @@
           ],
           "help": "Calculation precision (integer|float; vips's approximate is not core-backed)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "gaussnoise",
@@ -5855,7 +5915,8 @@
           "possible_values": null,
           "help": "PRNG seed (vips --seed gint, default 0; negatives honored)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "getpoint",
@@ -5945,7 +6006,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "globalbalance",
@@ -6027,7 +6089,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "gravity",
@@ -6172,7 +6235,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "grey",
@@ -6218,7 +6282,8 @@
           "possible_values": null,
           "help": "Output an 8-bit Gray8 ramp instead of the default float ramp"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "grid",
@@ -6324,7 +6389,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "hist_cum",
@@ -6406,7 +6472,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "hist_entropy",
@@ -6480,7 +6547,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "hist_equal",
@@ -6562,7 +6630,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "hist_find",
@@ -6655,7 +6724,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "hist_find_indexed",
@@ -6745,7 +6815,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "hist_find_ndim",
@@ -6838,7 +6909,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "hist_ismonotonic",
@@ -6912,7 +6984,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "hist_local",
@@ -7021,7 +7094,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "hist_match",
@@ -7111,7 +7185,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "hist_norm",
@@ -7193,7 +7268,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "hist_plot",
@@ -7275,7 +7351,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "hough_circle",
@@ -7373,7 +7450,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "hough_line",
@@ -7455,7 +7533,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "icc_export",
@@ -7575,7 +7654,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "icc_import",
@@ -7698,7 +7778,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "icc_transform",
@@ -7826,7 +7907,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "identity",
@@ -7856,7 +7938,8 @@
           "possible_values": null,
           "help": "Create a 16-bit (65536×1 Gray16) LUT instead of the 8-bit (256×1) LUT"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "ifthenelse",
@@ -7954,7 +8037,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "info",
@@ -7972,7 +8056,8 @@
           "help": "PDF or image file to inspect"
         }
       ],
-      "flags": []
+      "flags": [],
+      "subcommands": []
     },
     {
       "name": "insert",
@@ -8100,7 +8185,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "invertlut",
@@ -8138,7 +8224,8 @@
           "possible_values": null,
           "help": "LUT size to generate (vips range 1..=1000000, default 256)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "invfft",
@@ -8231,7 +8318,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "labelregions",
@@ -8313,7 +8401,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "linear",
@@ -8422,7 +8511,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "logmat",
@@ -8482,7 +8572,8 @@
           ],
           "help": "Calculation precision (integer|float; vips's approximate is not core-backed)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "mapim",
@@ -8589,7 +8680,8 @@
           ],
           "help": "Point interpolator (nearest|bilinear|bicubic|nohalo|lbb)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "maplut",
@@ -8679,7 +8771,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "mask_butterworth",
@@ -8771,7 +8864,8 @@
           "possible_values": null,
           "help": "Output an unsigned char image (vips --uchar)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "mask_butterworth_band",
@@ -8879,7 +8973,8 @@
           "possible_values": null,
           "help": "Remove the DC component (vips --nodc)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "mask_butterworth_ring",
@@ -8957,7 +9052,8 @@
           "possible_values": null,
           "help": "Remove the DC component (vips --nodc)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "mask_fractal",
@@ -8999,7 +9095,8 @@
           "help": "Fractal dimension (vips 2..3)"
         }
       ],
-      "flags": []
+      "flags": [],
+      "subcommands": []
     },
     {
       "name": "mask_gaussian",
@@ -9061,7 +9158,8 @@
           "possible_values": null,
           "help": "Remove the DC component (vips --nodc)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "mask_gaussian_band",
@@ -9127,7 +9225,8 @@
           "help": "Amplitude cutoff (vips 0..1)"
         }
       ],
-      "flags": []
+      "flags": [],
+      "subcommands": []
     },
     {
       "name": "mask_gaussian_ring",
@@ -9197,7 +9296,8 @@
           "possible_values": null,
           "help": "Remove the DC component (vips --nodc)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "mask_ideal",
@@ -9251,7 +9351,8 @@
           "possible_values": null,
           "help": "Remove the DC component (vips --nodc)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "mask_ideal_band",
@@ -9309,7 +9410,8 @@
           "help": "Radius of the circle (vips >= 0)"
         }
       ],
-      "flags": []
+      "flags": [],
+      "subcommands": []
     },
     {
       "name": "mask_ideal_ring",
@@ -9371,7 +9473,8 @@
           "possible_values": null,
           "help": "Remove the DC component (vips --nodc)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "math",
@@ -9478,7 +9581,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "math2",
@@ -9580,7 +9684,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "math2_const",
@@ -9680,7 +9785,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "matrixinvert",
@@ -9706,7 +9812,8 @@
           "help": "Output matrix path (use .v: a float matrix carrier)"
         }
       ],
-      "flags": []
+      "flags": [],
+      "subcommands": []
     },
     {
       "name": "max",
@@ -9802,7 +9909,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "maxpair",
@@ -9892,7 +10000,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "measure",
@@ -9990,7 +10099,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "merge",
@@ -10118,7 +10228,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "min",
@@ -10214,7 +10325,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "minpair",
@@ -10304,7 +10416,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "morph",
@@ -10405,7 +10518,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "mosaic",
@@ -10538,7 +10652,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "msb",
@@ -10631,7 +10746,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "multiply",
@@ -10721,7 +10837,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "percent",
@@ -10803,7 +10920,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "perlin",
@@ -10849,7 +10967,8 @@
           "possible_values": null,
           "help": "PRNG seed (vips --seed gint, default 0; negatives honored)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "phasecor",
@@ -10939,7 +11058,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "plan",
@@ -11042,6 +11162,138 @@
           ],
           "help": "Centre the image within the tile grid (even padding on all sides)"
         }
+      ],
+      "subcommands": []
+    },
+    {
+      "name": "pmtiles",
+      "about": "Inspect, read and unpack a PMTiles v3 archive",
+      "family": "builtin",
+      "shape": null,
+      "oracle_class": null,
+      "positionals": [],
+      "flags": [],
+      "subcommands": [
+        {
+          "name": "extract",
+          "about": "Unpack an archive back into a loose `{z}/{x}/{y}` tile tree",
+          "family": "builtin",
+          "shape": null,
+          "oracle_class": null,
+          "positionals": [
+            {
+              "name": "archive",
+              "index": 1,
+              "required": true,
+              "value_name": "ARCHIVE",
+              "possible_values": null,
+              "help": "The `.pmtiles` archive to unpack"
+            },
+            {
+              "name": "output",
+              "index": 2,
+              "required": true,
+              "value_name": "OUTPUT",
+              "possible_values": null,
+              "help": "Directory to write the `{z}/{x}/{y}.{ext}` tree into"
+            }
+          ],
+          "flags": [],
+          "subcommands": []
+        },
+        {
+          "name": "info",
+          "about": "Summarise an archive: version, tile type, zoom range, counts, bounds",
+          "family": "builtin",
+          "shape": null,
+          "oracle_class": null,
+          "positionals": [
+            {
+              "name": "archive",
+              "index": 1,
+              "required": true,
+              "value_name": "ARCHIVE",
+              "possible_values": null,
+              "help": "The `.pmtiles` archive to summarise"
+            }
+          ],
+          "flags": [],
+          "subcommands": []
+        },
+        {
+          "name": "tile",
+          "about": "Write one tile's bytes to a file or to stdout",
+          "family": "builtin",
+          "shape": null,
+          "oracle_class": null,
+          "positionals": [
+            {
+              "name": "archive",
+              "index": 1,
+              "required": true,
+              "value_name": "ARCHIVE",
+              "possible_values": null,
+              "help": "The `.pmtiles` archive to read from"
+            },
+            {
+              "name": "z",
+              "index": 2,
+              "required": true,
+              "value_name": "Z",
+              "possible_values": null,
+              "help": "Zoom level"
+            },
+            {
+              "name": "x",
+              "index": 3,
+              "required": true,
+              "value_name": "X",
+              "possible_values": null,
+              "help": "Tile column"
+            },
+            {
+              "name": "y",
+              "index": 4,
+              "required": true,
+              "value_name": "Y",
+              "possible_values": null,
+              "help": "Tile row"
+            }
+          ],
+          "flags": [
+            {
+              "long": "output",
+              "short": "o",
+              "value_name": "FILE",
+              "takes_value": true,
+              "multiple": false,
+              "required": false,
+              "default": "-",
+              "possible_values": null,
+              "help": "Where the tile bytes go. `-` (the default) is stdout"
+            }
+          ],
+          "subcommands": []
+        },
+        {
+          "name": "verify",
+          "about": "Check an archive's header and directory structure",
+          "family": "builtin",
+          "shape": null,
+          "oracle_class": null,
+          "positionals": [
+            {
+              "name": "archive",
+              "index": 1,
+              "required": true,
+              "value_name": "ARCHIVE",
+              "possible_values": null,
+              "help": "The `.pmtiles` archive to check"
+            }
+          ],
+          "flags": [],
+          "subcommands": []
+        }
       ]
     },
     {
@@ -11124,7 +11376,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "profile",
@@ -11214,7 +11467,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "project",
@@ -11304,7 +11558,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "pyramid",
@@ -11324,10 +11579,10 @@
         {
           "name": "output",
           "index": 2,
-          "required": true,
+          "required": false,
           "value_name": "OUTPUT",
           "possible_values": null,
-          "help": "Output directory for tiles"
+          "help": "Where the pyramid goes"
         }
       ],
       "flags": [
@@ -11360,13 +11615,27 @@
           "takes_value": true,
           "multiple": false,
           "required": false,
-          "default": "deep-zoom",
+          "default": null,
           "possible_values": [
             "deep-zoom",
             "xyz",
             "google"
           ],
           "help": "Tile layout format"
+        },
+        {
+          "long": "storage",
+          "short": null,
+          "value_name": "KIND",
+          "takes_value": true,
+          "multiple": false,
+          "required": false,
+          "default": "pmtiles",
+          "possible_values": [
+            "pmtiles",
+            "directory"
+          ],
+          "help": "Where the pyramid is written: one PMTiles v3 archive, or a loose tree"
         },
         {
           "long": "format",
@@ -11561,7 +11830,7 @@
           "required": false,
           "default": null,
           "possible_values": null,
-          "help": "Sink URI: fs://path or packfile://path.tar[.gz]/.zip. Defaults to the positional output directory as a filesystem sink"
+          "help": "Sink URI: pmtiles://path.pmtiles, fs://path, or packfile://path.tar[.gz]/.zip. Defaults to the positional output as a PMTiles archive"
         },
         {
           "long": "resume",
@@ -11721,7 +11990,8 @@
           ],
           "help": "Deduplicate all tiles by content hash, using --checksum-algo (mutually exclusive with --dedupe-blanks)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "rank",
@@ -11827,7 +12097,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "recomb",
@@ -11917,7 +12188,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "reduce",
@@ -12033,7 +12305,8 @@
           ],
           "help": "Resampling kernel (nearest|linear|cubic|mitchell|lanczos2|lanczos3)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "reduceh",
@@ -12141,7 +12414,8 @@
           ],
           "help": "Resampling kernel (nearest|linear|cubic|mitchell|lanczos2|lanczos3)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "reducev",
@@ -12249,7 +12523,8 @@
           ],
           "help": "Resampling kernel (nearest|linear|cubic|mitchell|lanczos2|lanczos3)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "relational",
@@ -12354,7 +12629,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "relational_const",
@@ -12459,7 +12735,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "remainder_const",
@@ -12549,7 +12826,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "replicate",
@@ -12647,7 +12925,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "resize",
@@ -12766,7 +13045,8 @@
           ],
           "help": "Resampling kernel (nearest|linear|cubic|mitchell|lanczos2|lanczos3)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "rot",
@@ -12861,7 +13141,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "rot45",
@@ -12963,7 +13244,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "rotate",
@@ -13070,7 +13352,8 @@
           ],
           "help": "Point interpolator (nearest|bilinear|bicubic|nohalo|lbb)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "round",
@@ -13164,7 +13447,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "scale",
@@ -13257,7 +13541,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "sdf",
@@ -13349,7 +13634,8 @@
           "possible_values": null,
           "help": "rounded-box corner radii, clockwise from top-right, INTEGER (vips --corners; integer-only, §9 subset of vips's gdouble)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "sharpen",
@@ -13464,7 +13750,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "shrink",
@@ -13562,7 +13849,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "shrinkh",
@@ -13652,7 +13940,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "shrinkv",
@@ -13742,7 +14031,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "sign",
@@ -13824,7 +14114,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "similarity",
@@ -13945,7 +14236,8 @@
           ],
           "help": "Point interpolator (nearest|bilinear|bicubic|nohalo|lbb)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "sines",
@@ -13979,7 +14271,8 @@
           "help": "Image height in pixels (>= 1)"
         }
       ],
-      "flags": []
+      "flags": [],
+      "subcommands": []
     },
     {
       "name": "smartcrop",
@@ -14106,7 +14399,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "spcor",
@@ -14196,7 +14490,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "spectrum",
@@ -14278,7 +14573,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "stats",
@@ -14360,7 +14656,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "stdif",
@@ -14458,7 +14755,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "subsample",
@@ -14556,7 +14854,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "subtract",
@@ -14646,7 +14945,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "sum",
@@ -14720,7 +15020,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "switch",
@@ -14794,7 +15095,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "test-image",
@@ -14835,7 +15137,8 @@
           "possible_values": null,
           "help": "Image height in pixels"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "text",
@@ -14911,7 +15214,8 @@
           ],
           "help": "Line-wrap mode (vips --wrap, default word)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "thumbnail",
@@ -15045,7 +15349,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "thumbnail_image",
@@ -15135,7 +15440,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "tonelut",
@@ -15153,7 +15459,8 @@
           "help": "Output image path"
         }
       ],
-      "flags": []
+      "flags": [],
+      "subcommands": []
     },
     {
       "name": "unpremultiply",
@@ -15235,7 +15542,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "worley",
@@ -15281,7 +15589,8 @@
           "possible_values": null,
           "help": "PRNG seed (vips --seed gint, default 0; negatives honored)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "wrap",
@@ -15363,7 +15672,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     },
     {
       "name": "xyz",
@@ -15397,7 +15707,8 @@
           "help": "Image height in pixels (>= 1)"
         }
       ],
-      "flags": []
+      "flags": [],
+      "subcommands": []
     },
     {
       "name": "zone",
@@ -15431,7 +15742,8 @@
           "help": "Image height in pixels (>= 1)"
         }
       ],
-      "flags": []
+      "flags": [],
+      "subcommands": []
     },
     {
       "name": "zoom",
@@ -15529,7 +15841,8 @@
           "possible_values": null,
           "help": "Reject a decode allocation larger than BYTES (DecodeLimits::max_alloc_bytes)"
         }
-      ]
+      ],
+      "subcommands": []
     }
   ]
 }

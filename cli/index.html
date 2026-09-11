@@ -142,6 +142,15 @@
 viprs info &lt;INPUT&gt;
 viprs plan [OPTIONS] &lt;WIDTH_OR_INPUT&gt;
 viprs test-image [OPTIONS] &lt;OUTPUT&gt;
+viprs pmtiles info &lt;ARCHIVE&gt;
+viprs pmtiles tile &lt;ARCHIVE&gt; &lt;Z&gt; &lt;X&gt; &lt;Y&gt;
+viprs pmtiles verify &lt;ARCHIVE&gt;
+viprs pmtiles extract &lt;ARCHIVE&gt; &lt;OUTPUT&gt;
+
+<span class="sh-comment"># PMTiles is the default storage: one file, no output argument needed</span>
+viprs pyramid scan.tif
+viprs pyramid scan.tif atlas.pmtiles
+viprs pyramid scan.tif tiles/ --storage directory
 
 <span class="sh-comment"># Phase 3 hardening flags (subset)</span>
 viprs pyramid input.pdf tiles/ --blank-tolerance 2
@@ -204,11 +213,12 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
     <dt class="arg-row">
       <span class="arg-name"><code>&lt;OUTPUT&gt;</code></span>
       <input type="text" class="arg-value" id="genArgOutput"
-             placeholder="tiles/" aria-label="Output directory path"
+             placeholder="tiles" aria-label="Output path"
              autocomplete="off" spellcheck="false">
     </dt>
     <dd>
-      <p>Directory where tiles are written. Created automatically. DeepZoom also writes a <code>.dzi</code> manifest alongside.</p>
+      <p>Where the pyramid goes. Optional: leave it off and viprs writes <code>&lt;input-stem&gt;.pmtiles</code> next to the input, so <code>viprs pyramid scan.tif</code> produces <code>scan.pmtiles</code>.</p>
+      <p>What the argument means depends on <code>--storage</code>. Under the default <code>pmtiles</code> storage it is the path of the single archive file. Under <code>--storage directory</code> it is a directory that viprs creates and fills with a tile tree, and DeepZoom writes a <code>.dzi</code> manifest alongside.</p>
     </dd>
   </dl>
 
@@ -312,9 +322,18 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
 
   <h3>Output sink options</h3>
   <dl class="flags">
+    <dt><code>--storage &lt;KIND&gt;</code></dt>
+    <dd>
+      <p>How the pyramid is stored. <span class="default-val">Default: pmtiles</span></p>
+      <p><code>pmtiles</code> writes the whole pyramid into one <a href="#pmtiles">PMTiles v3 archive</a>. Every tile is addressed by <code>z/x/y</code> through an index inside the file, so a viewer fetches a tile with a ranged read rather than a path lookup, and the pyramid moves, uploads and versions as a single object. PMTiles addresses tiles on a <code>z/x/y</code> grid, so an archive holds an XYZ pyramid.</p>
+      <p><code>directory</code> is the classic tree: one file per tile under <code>&lt;OUTPUT&gt;</code>, in whichever <a href="#flag-layout">layout</a> you picked. Pick it when something downstream wants to serve files straight off a filesystem, or wants to read individual tiles without a PMTiles-aware client.</p>
+      <p>Both write the same tiles from the same plan. The choice is how they are packaged, not what they contain.</p>
+    </dd>
+
     <dt><code>--sink &lt;URI&gt;</code></dt>
     <dd>
-      <p>Output sink URI. The default filesystem sink is used when this flag is omitted (the <code>&lt;OUTPUT&gt;</code> positional argument sets the directory). Two additional sink types are available with optional features:</p>
+      <p>Output sink URI, for the sinks that <code>--storage</code> does not cover. The <code>&lt;OUTPUT&gt;</code> positional argument and <code>--storage</code> decide the destination when this flag is omitted. Three further sink types are available:</p>
+      <p><code>pmtiles://atlas.pmtiles</code> is the long form of <code>--storage pmtiles</code>, for when you want the destination spelled out in one string.</p>
       <p><code>s3://bucket/prefix</code> &mdash; write tiles to an S3-compatible object store. Requires <code>--features s3</code> at compile time and standard AWS credentials in the environment.</p>
       <p><code>packfile://out.tar</code>, <code>packfile://out.tar.gz</code>, <code>packfile://out.zip</code> &mdash; archive the pyramid into a single file. Requires <code>--features packfile</code>.</p>
     </dd>
@@ -606,6 +625,88 @@ fn main() -> Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 
     <dt><code>--height &lt;PIXELS&gt;</code></dt>
     <dd><p>Image height. <span class="default-val">Default: 1024</span></p></dd>
+  </dl>
+
+  <!-- ---- pmtiles ---- -->
+  <h2 id="pmtiles">pmtiles</h2>
+  <p>Look inside a <code>.pmtiles</code> archive. <code>viprs pyramid</code> writes one of these by default, so this group is how you inspect, read, check and unpack a pyramid without standing up a server or reaching for a second tool.</p>
+  <p>A PMTiles v3 archive is a single file: a fixed 127-byte header, a compressed root directory that the spec keeps inside the first 16384 bytes, any leaf directories, the JSON metadata, and the tile blobs. Tiles are addressed by <code>z/x/y</code> through that index, so pulling one tile is a couple of ranged reads rather than a directory walk, and it costs the same whether the archive is on local disk or behind an HTTP range request. The format is specified by <a href="https://github.com/protomaps/PMTiles/blob/main/spec/v3/spec.md" target="_blank" rel="noopener">the PMTiles v3 specification</a>; libviprs writes and reads it directly, with no C dependency and no external tool in the loop.</p>
+
+  <div class="cmd-base-setup">
+    <button type="button" class="cmd-base-setup-toggle" aria-expanded="false">Show Rust equivalent</button>
+    <div class="cmd-base-setup-body">
+      <p>Everything this command group does is available from the library. The reader opens an archive and answers <code>z/x/y</code> questions against its index, reading only the bytes it needs.</p>
+      <div class="code-wrap">
+        <button class="copy-btn">&#x2398; Copy</button>
+        <pre><code class="language-rust">use libviprs::pmtiles::Reader;
+
+fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let reader = Reader::try_open("atlas.pmtiles")?;
+
+    println!(
+        "zoom {}..{}, {:?}",
+        reader.min_zoom(), reader.max_zoom(), reader.tile_format(),
+    );
+
+    // None means the archive does not address that tile.
+    if let Some(bytes) = reader.get_tile(3, 4, 5)? {
+        std::fs::write("3-4-5.png", bytes)?;
+    }
+    Ok(())
+}</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <h3 id="pmtiles-info">pmtiles info</h3>
+  <p>Print what the archive says about itself: the zoom range it covers, the tile type it stores, how the directories and metadata are compressed, the bounds and centre it advertises, and the tile counts. Those counts are the quickest read on whether deduplication did anything, because an archive stores a count of the tiles it addresses and a separate count of the distinct blobs behind them, and the gap between the two is what dedupe saved.</p>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code>viprs pmtiles info atlas.pmtiles</code></pre>
+  </div>
+  <dl class="flags">
+    <dt><code>&lt;ARCHIVE&gt;</code></dt>
+    <dd><p>Path to the <code>.pmtiles</code> file to inspect. Reads the header and the root directory only, so it stays cheap on a large archive.</p></dd>
+  </dl>
+
+  <h3 id="pmtiles-tile">pmtiles tile</h3>
+  <p>Pull one tile out by coordinate and write its bytes to stdout, so you can pipe it straight into a viewer, a hash, or a file. The coordinates are the same <code>z/x/y</code> an XYZ viewer would request, and they are not translated on the way in.</p>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code>viprs pmtiles tile atlas.pmtiles 3 4 5 &gt; 3-4-5.png
+
+<span class="sh-comment"># compare a tile against the same tile from a directory run</span>
+viprs pmtiles tile atlas.pmtiles 3 4 5 | shasum -a 256</code></pre>
+  </div>
+  <dl class="flags">
+    <dt><code>&lt;ARCHIVE&gt;</code> <code>&lt;Z&gt;</code> <code>&lt;X&gt;</code> <code>&lt;Y&gt;</code></dt>
+    <dd><p>The archive, then the zoom level, column and row of the tile you want. An archive that does not address that tile is not an error in the file, so the command says so on stderr and writes nothing to stdout.</p></dd>
+  </dl>
+
+  <h3 id="pmtiles-verify">pmtiles verify</h3>
+  <p>Walk the archive structurally and report whether it holds together: the header decodes, the directories parse, every entry points inside the file, and the tile data lands where the index says it does. Use it after a copy, an upload, or a resumed run, and in CI on anything you are about to publish.</p>
+  <p>This checks the container, not the pixels. For a content check, generate the same input twice and compare the tiles, which is what <code>pmtiles extract</code> plus a diff gives you.</p>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code>viprs pmtiles verify atlas.pmtiles</code></pre>
+  </div>
+  <dl class="flags">
+    <dt><code>&lt;ARCHIVE&gt;</code></dt>
+    <dd><p>Path to the <code>.pmtiles</code> file to check. Exits non-zero and names the first problem it finds.</p></dd>
+  </dl>
+
+  <h3 id="pmtiles-extract">pmtiles extract</h3>
+  <p>Unpack an archive back into a tile tree on disk. This is the way back out: the tiles that went in come out as files, so anything that wants to serve or read individual tiles can, and an archive is never a one-way door.</p>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code>viprs pmtiles extract atlas.pmtiles tiles/</code></pre>
+  </div>
+  <dl class="flags">
+    <dt><code>&lt;ARCHIVE&gt;</code></dt>
+    <dd><p>Path to the <code>.pmtiles</code> file to unpack.</p></dd>
+
+    <dt><code>&lt;OUTPUT&gt;</code></dt>
+    <dd><p>Directory to write the tile tree into. Created automatically. The result is the same tree <code>viprs pyramid --storage directory</code> would have written for the same input.</p></dd>
   </dl>
 </section>
 
