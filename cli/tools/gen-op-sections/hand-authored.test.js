@@ -19,6 +19,15 @@
  *
  * This test fails on both. It reads only committed files and mutates nothing.
  *
+ * It also checks a third thing, which only became checkable once
+ * __dump-commands learned to recurse (libviprs/libviprs-cli#54). A command
+ * group's subcommands are hand-authored as <h3 id="<cmd>-<sub>"> inside the
+ * group's section, and the dump now lists them, so the two can be compared: a
+ * subcommand added upstream with no section, or a section for one that no
+ * longer exists, both fail here. Before the dump recursed there was nothing to
+ * compare against and the group's four subcommands were documented by hand with
+ * no gate behind them at all.
+ *
  * Usage:
  *   node cli/tools/gen-op-sections/hand-authored.test.js
  */
@@ -31,6 +40,7 @@ const { HAND_AUTHORED } = require('./index.js');
 
 const HERE = __dirname;
 const INDEX_HTML = path.join(HERE, '..', '..', 'index.html');
+const DUMP_JSON = path.join(HERE, 'sample-dump.json');
 const GENERATED_MARKER = '<div id="generated-op-sections">';
 
 // Every `<h2 id="...">` heading, with its offset, so the generated region can
@@ -40,6 +50,16 @@ function collectH2Ids(html) {
   const found = [];
   let m;
   while ((m = re.exec(html)) !== null) found.push({ id: m[1], at: m.index });
+  return found;
+}
+
+// Every `<h3 id="...">` heading before `limit`, which is where a command
+// group's subcommand sections live.
+function collectH3Ids(html, limit) {
+  const re = /<h3\s+id="([^"]+)"/g;
+  const found = [];
+  let m;
+  while ((m = re.exec(html)) !== null && m.index < limit) found.push(m[1]);
   return found;
 }
 
@@ -95,7 +115,38 @@ function main() {
     }
   }
 
-  console.log(`hand-authored guard: ${HAND_AUTHORED.size} declared name(s), ${handRegion.length} hand-authored <h2 id> section(s) in cli/index.html`);
+  // Direction 3: every subcommand the dump lists under a hand-authored command
+  // needs its own <h3 id="<cmd>-<sub>">, and vice versa.
+  const dump = JSON.parse(fs.readFileSync(DUMP_JSON, 'utf8'));
+  const h3Ids = new Set(collectH3Ids(html, markerAt));
+  let groupsChecked = 0;
+  for (const cmd of (dump.commands || [])) {
+    if (!HAND_AUTHORED.has(cmd.name)) continue;
+    const subs = (cmd.subcommands || []).map((s2) => s2.name).sort();
+    if (!subs.length) continue;
+    groupsChecked += 1;
+    for (const sub of subs) {
+      if (!h3Ids.has(`${cmd.name}-${sub}`)) {
+        failures.push(`'${cmd.name} ${sub}' is in sample-dump.json but cli/index.html has no <h3 id="${cmd.name}-${sub}"> section — the subcommand is documented nowhere, and nothing else on the site can reach it`);
+      }
+    }
+    for (const id of [...h3Ids].sort()) {
+      if (!id.startsWith(`${cmd.name}-`)) continue;
+      const sub = id.slice(cmd.name.length + 1);
+      if (!subs.includes(sub)) {
+        failures.push(`cli/index.html documents <h3 id="${id}"> but '${sub}' is not a subcommand of '${cmd.name}' in sample-dump.json — either it was renamed upstream or the section is stale`);
+      }
+    }
+  }
+  // Positive control: if no hand-authored command has subcommands, direction 3
+  // inspected nothing, and a vacuous pass must not read as a clean one.
+  if (groupsChecked === 0) {
+    console.error('FAIL: no hand-authored command in sample-dump.json has any subcommands — direction 3 checked nothing');
+    console.error('      (regenerate sample-dump.json from `viprs __dump-commands --json`; the dump has to recurse)');
+    process.exit(1);
+  }
+
+  console.log(`hand-authored guard: ${HAND_AUTHORED.size} declared name(s), ${handRegion.length} hand-authored <h2 id> section(s) in cli/index.html, ${groupsChecked} command group(s) checked against the dump`);
   for (const name of [...HAND_AUTHORED].sort()) {
     const ok = (handIds.get(name) || 0) === 1;
     console.log(`${ok ? '\x1b[32mOK    \x1b[0m' : '\x1b[31mBROKEN\x1b[0m'} ${name}`);
