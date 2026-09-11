@@ -37,13 +37,26 @@ permissions:
   contents: read
 
 jobs:
-  # 1. sync — byte-identical frozen copy check. This is a BLOCKING gate: the
-  #    CLI-absent case is handled at the STEP level (the checkout_cli step is
-  #    continue-on-error, and the drift assertion is guarded by
-  #    `if: steps.checkout_cli.outcome == 'success'`), so CLI-unavailable skips
-  #    green while CLI-present + drift fails the job red. A job-level
-  #    continue-on-error would make the whole gate non-blocking — always
-  #    reporting success even on real drift (B1).
+  # 1. sync — byte-identical frozen copy check, and a BLOCKING gate in the
+  #    literal sense: nothing in this job is allowed to pass by skipping.
+  #
+  #    The pin lives in cli/rust/COUNTERPART_REV, a committed file, so bumping
+  #    it is a reviewable diff in the same PR as the re-synced frozen copy.
+  #    It used to live only in the CLI_COUNTERPART_REV repository variable,
+  #    which had two problems. The variable was never set, and an unset
+  #    variable resolves to the empty string, which actions/checkout reads as
+  #    "the default branch" — so the gate compared the frozen copy against
+  #    whatever libviprs-cli main happened to be that morning rather than
+  #    against the revision this site was frozen from. And the checkout carried
+  #    continue-on-error with the assertion guarded on its outcome, so any
+  #    checkout failure (a private repo, a rate limit, a bad ref) reported a
+  #    warning and a green job. A gate that cannot fail is not a gate (B1).
+  #    The variable survives as an override for a one-off run; the file wins
+  #    when it is unset, and a checkout failure now fails the job.
+  #
+  #    The advisory step at the end keeps what the daily sweep was for: it says
+  #    when the pin has fallen behind libviprs-cli main, as a warning, without
+  #    turning an upstream merge into a red build in this repository.
   sync:
     runs-on: ubuntu-latest
     steps:
@@ -52,24 +65,49 @@ jobs:
         with:
           path: libviprs-org
 
-      - name: Check out canonical libviprs-cli (sibling)
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Assert the pin is well formed and this job actually reads it
+        run: node libviprs-org/cli/tools/sync-pin.test.js
+
+      - name: Resolve the pinned counterpart revision
+        id: pin
+        run: |
+          rev="$(tr -d '[:space:]' < libviprs-org/cli/rust/COUNTERPART_REV)"
+          if ! printf '%s' "$rev" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error::cli/rust/COUNTERPART_REV is not a 40-character commit sha: '$rev'"
+            exit 1
+          fi
+          echo "rev=$rev" >> "$GITHUB_OUTPUT"
+          echo "pinned libviprs-cli revision: $rev"
+
+      - name: Check out canonical libviprs-cli at the pinned revision
         id: checkout_cli
-        continue-on-error: true
         uses: actions/checkout@v4
         with:
           repository: libviprs/libviprs-cli
           path: libviprs-cli
-          # Pin to the counterpart revision this doc site synced from.
-          ref: ${{ vars.CLI_COUNTERPART_REV || '' }}
+          ref: ${{ vars.CLI_COUNTERPART_REV || steps.pin.outputs.rev }}
           token: ${{ secrets.SYNC_CLI_TOKEN || github.token }}
 
-      - name: Assert frozen CLI copy is in sync
-        if: steps.checkout_cli.outcome == 'success'
+      - name: Assert frozen CLI copy is in sync with the pinned revision
         run: libviprs-org/cli/tools/sync-cli-src.sh --check
 
-      - name: Skip note (canonical CLI unavailable)
-        if: steps.checkout_cli.outcome != 'success'
-        run: echo "::warning::libviprs-cli not available to this workflow; skipping byte-identical sync check."
+      - name: Advisory — has libviprs-cli main moved past the pin?
+        continue-on-error: true
+        run: |
+          pinned="${{ steps.pin.outputs.rev }}"
+          upstream="$(git ls-remote https://github.com/libviprs/libviprs-cli.git refs/heads/main | cut -f1)"
+          if [ -z "$upstream" ]; then
+            echo "::warning::could not read libviprs-cli main; skipping the drift advisory"
+          elif [ "$pinned" != "$upstream" ]; then
+            echo "::warning::the pin ($pinned) is behind libviprs-cli main ($upstream). Run cli/tools/sync-cli-src.sh, commit the regenerated files, and bump cli/rust/COUNTERPART_REV."
+          else
+            echo "pin matches libviprs-cli main ($upstream)"
+          fi
 
   # 2. extract — regenerate the manifest (baseline §4 enforced inside the
   #    extractor) and assert no uncommitted drift; then the per-flag audit.
@@ -135,3 +173,6 @@ jobs:
 
       - name: Placeholder substitution — annotated op bodies render real values (#53)
         run: node cli/tools/gen-op-sections/placeholder-substitution.test.js
+
+      - name: Hand-authored sections exist for every HAND_AUTHORED command
+        run: node cli/tools/gen-op-sections/hand-authored.test.js

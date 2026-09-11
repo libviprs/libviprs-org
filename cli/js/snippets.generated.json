@@ -3008,8 +3008,8 @@
       "imports_base": [
         "EngineBuilder",
         "EngineConfig",
-        "FsSink",
         "Layout",
+        "PmTilesSink",
         "PyramidPlanner",
         "TileFormat",
         "decode_file"
@@ -3091,8 +3091,7 @@
         "sink": {
           "imports_when_active": [],
           "lines": [
-            "let sink = FsSink::new(&output, plan.clone())",
-            "    .with_format(TileFormat::{format});"
+            "let sink = PmTilesSink::try_new(&output, plan.clone(), TileFormat::{format})?;"
           ]
         },
         "engine-config": {
@@ -3342,15 +3341,16 @@
           }
         },
         "manifest-emit-checksums": {
-          "kind": "append",
+          "kind": "override",
           "slot": "sink",
           "default": false,
           "type": "bool",
           "cli": "--manifest-emit-checksums",
-          "fragment": "let sink = sink\n    .with_manifest(ManifestBuilder::new().with_checksums(ChecksumAlgo::{checksum-algo}))\n    .with_checksums(ChecksumMode::EmitOnly, ChecksumAlgo::{checksum-algo});",
+          "fragment": "// A manifest is a directory-backend feature, so pair it with --storage directory.\nlet sink = FsSink::new(&output, plan.clone())\n    .with_format(TileFormat::{format})\n    .with_manifest(ManifestBuilder::new().with_checksums(ChecksumAlgo::{checksum-algo}))\n    .with_checksums(ChecksumMode::EmitOnly, ChecksumAlgo::{checksum-algo});",
           "imports_when_active": [
             "ChecksumAlgo",
             "ChecksumMode",
+            "FsSink",
             "ManifestBuilder"
           ],
           "test": {
@@ -3381,6 +3381,28 @@
             "repo": "libviprs-tests"
           },
           "fragment": ""
+        },
+        "storage": {
+          "kind": "override",
+          "slot": "sink",
+          "default": "directory",
+          "type": "enum",
+          "options": [
+            "pmtiles",
+            "directory"
+          ],
+          "cli": "--storage {v}",
+          "special": "sink-override",
+          "fragment": "// --storage picks the sink backend; see resolveSinkOverride.\n// Default: PmTilesSink, one .pmtiles archive.\n// With --storage directory → FsSink, the loose tile tree.",
+          "imports_when_active": [
+            "FsSink"
+          ],
+          "test": {
+            "file": "tests/cli_e2e.rs",
+            "fn": "pyramid_storage_directory_restores_the_tile_tree",
+            "line": 307,
+            "repo": "libviprs-cli"
+          }
         },
         "sink": {
           "kind": "override",
