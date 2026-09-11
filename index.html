@@ -379,6 +379,7 @@
       <li><strong>Tile pyramid generation</strong> — multi-threaded engine with backpressure, configurable <a href="cli/#flag-tile-size" style="color:var(--primary);">tile size</a> and <a href="cli/#flag-overlap" style="color:var(--primary);">overlap</a>; optional <strong>streaming mode</strong> processes images in horizontal strips for bounded peak memory</li>
       <li><strong>True source-side PDF streaming</strong> — <code>PdfiumStripSource</code> renders one strip of a vector PDF at a time via PDFium's clipped matrix path, including correct <code>/Rotate</code> handling, so multi-gigapixel pages stay inside the configured memory budget</li>
       <li><strong>Memory-budget policy</strong> — <code>StreamingConfig.budget_policy</code> selects <code>BudgetPolicy::Error</code> (fail loudly when a strip cannot fit) or <code>BudgetPolicy::AutoAdjust</code> (raise the budget to the smallest workable strip); the engine also pre-flights <a href="cli/#flag-memory-budget" style="color:var(--primary);">the budget</a> against canvas geometry before any work starts and returns a typed <code>BudgetExceeded</code> error</li>
+      <li><strong>PMTiles v3 storage (default)</strong> — the whole pyramid lands in one <code>.pmtiles</code> archive via <code>PmTilesSink</code>, indexed by <code>z/x/y</code> so a viewer fetches one tile with a ranged read; <code>pmtiles::Reader</code> reads it back over any byte-range source, and <a href="cli/#pmtiles" style="color:var(--primary);"><code>--storage directory</code></a> still writes the classic tree</li>
       <li><strong>Layout formats</strong> — <a href="cli/#flag-layout" style="color:var(--primary);">DeepZoom</a> (<code>.dzi</code> + directory tree), XYZ (<code>z/x/y</code>), and Google Maps (<code>z/y/x</code>, power-of-2 grids)</li>
       <li><strong>Centre support</strong> — <a href="cli/#flag-centre" style="color:var(--primary);">centre image</a> within the tile grid with even background padding on all sides</li>
       <li><strong>Tile encoding</strong> — PNG, JPEG (configurable quality), or raw pixel output</li>
@@ -548,6 +549,27 @@
 
     <p>The caller sets a <a href="cli/#flag-memory-budget" style="color:var(--primary);">memory budget</a>; the engine maximises strip height within that budget to balance memory and throughput. When the budget is large enough for the full canvas, the monolithic engine is used automatically — no code changes needed.</p>
     <p>For vector PDFs, <code>PdfiumStripSource</code> renders one strip at a time directly from the PDF using PDFium's clipped matrix path (with full <code>/Rotate</code> support), so the full page bitmap is never materialised. <code>BudgetPolicy::Error</code> fails loudly if the chosen budget cannot fit the smallest workable strip; <code>BudgetPolicy::AutoAdjust</code> raises the budget and continues. The engine also pre-flights the budget against canvas geometry before allocating, surfacing a typed <code>BudgetExceeded</code> error rather than running until OOM.</p>
+  </section>
+
+  <section>
+    <h2>PMTiles v3 Storage (default)</h2>
+    <p>A pyramid is one file now. <code>viprs pyramid scan.tif</code> writes <code>scan.pmtiles</code>, a <a href="https://github.com/protomaps/PMTiles/blob/main/spec/v3/spec.md" style="color:var(--primary);">PMTiles v3</a> archive holding every tile, its index and its metadata, instead of scattering a quarter of a million small files across a directory tree. <code>PmTilesSink</code> is the default sink. <code>FsSink</code> and the directory tree it writes are still there, behind <a href="cli/#pmtiles" style="color:var(--primary);"><code>--storage directory</code></a>.</p>
+    <p>The reason is operational, not aesthetic. A deep pyramid is mostly tiny files, and tiny files are what every layer underneath is worst at: an inode each on disk, a request each over the wire, a PUT each into object storage, and a long tail of latency in anything that has to walk them. One archive copies, uploads, versions and deletes as one object, and a viewer still fetches a single tile, because PMTiles indexes tiles by <code>z/x/y</code> and answers with a ranged read.</p>
+    <div class="code-wrap">
+      <pre><code><span class="kw">use</span> <span class="mod">libviprs</span>::{<span class="ty">EngineBuilder</span>, <span class="ty">PmTilesSink</span>, <span class="ty">TileFormat</span>};
+
+<span class="kw">let</span> sink = <span class="ty">PmTilesSink</span>::<span class="fn">new</span>(<span class="str">"atlas.pmtiles"</span>, plan.<span class="fn">clone</span>())
+    .<span class="fn">with_format</span>(<span class="ty">TileFormat</span>::<span class="ty">Png</span>);
+<span class="ty">EngineBuilder</span>::<span class="fn">new</span>(&amp;raster, plan, sink).<span class="fn">run</span>().<span class="fn">unwrap</span>();</code></pre>
+    </div>
+    <p>Reading needs no server and no unpacking step. <code>pmtiles::Reader</code> opens an archive over anything that can answer a byte range, so the same code path serves a local file and an HTTP object, and a tile lookup touches the header, a directory and the tile rather than the whole file.</p>
+    <div class="code-wrap">
+      <pre><code><span class="kw">use</span> <span class="mod">libviprs</span>::<span class="mod">pmtiles</span>::<span class="ty">Reader</span>;
+
+<span class="kw">let</span> reader = <span class="ty">Reader</span>::<span class="fn">try_open</span>(<span class="str">"atlas.pmtiles"</span>)?;
+<span class="kw">let</span> tile = reader.<span class="fn">get_tile</span>(<span class="num">3</span>, <span class="num">4</span>, <span class="num">5</span>)?;  <span class="cm">// Option&lt;Vec&lt;u8&gt;&gt;, None when the archive does not address it</span></code></pre>
+    </div>
+    <p>The archive is a published format, not a private one, so a libviprs pyramid opens in any PMTiles-aware viewer or server, and an archive written elsewhere opens here. The writer streams, so peak memory tracks the tile being written rather than the size of the pyramid. The CLI side lives in the <a href="cli/#pmtiles" style="color:var(--primary);"><code>viprs pmtiles</code></a> command group: read a header, pull one tile out, check that an archive holds together, or unpack it back into a tree.</p>
   </section>
 
   <section>

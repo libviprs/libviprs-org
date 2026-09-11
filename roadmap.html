@@ -332,6 +332,27 @@
   </section>
 
   <section>
+    <h2>Outside parity: pyramid storage</h2>
+    <div class="phase-note"><strong>Not a libvips gap.</strong> Everything else on this page is measured against libvips 8.18.4, because that is the target. This one has no vips counterpart to measure against: libvips has no single-file pyramid container, so there is no reference column to fill in and no parity to reach. It sits here because it changes what <code>viprs pyramid</code> produces by default, and a roadmap that leaves that out is lying by omission.</div>
+
+    <h3>Formats</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Gap</th><th>libviprs today</th><th>Effort</th><th>Priority</th><th>Tracking</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>PMTiles v3</strong> — single-file pyramid container, as the default storage</td>
+            <td>Landing across four repositories. A pyramid becomes one indexed <code>.pmtiles</code> archive instead of a directory of small files, written by <code>PmTilesSink</code> and read by <code>pmtiles::Reader</code> over any byte-range source. The directory tree stays, behind <a href="cli/#pmtiles">--storage directory</a>. Pure Rust, no new C dependency, and the format is a published spec so archives interoperate both ways.</td>
+            <td class="nowrap"><span class="pill">L</span></td>
+            <td class="nowrap"><span class="pill p0">P0</span></td>
+            <td class="nowrap"><a href="https://github.com/libviprs/libviprs/issues/986">#986</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
     <h2>Phase 1 — Near-term</h2>
     <div class="phase-note"><strong>Constraint: pure Rust only.</strong> No new C dependencies, no new pixel carriers required (the <a href="https://github.com/libviprs/libviprs/issues/517">#517</a> uint carrier kicks off in parallel). Phase 1 closes the bulk of remaining everyday format demand &mdash; lifting format-family coverage to 12/22 &mdash; and 10 missing op nicknames, taking non-codec op coverage to ~92%.</div>
 
