@@ -341,7 +341,7 @@
         <thead><tr><th>Gap</th><th>libviprs today</th><th>Effort</th><th>Priority</th><th>Tracking</th></tr></thead>
         <tbody>
           <tr>
-            <td><strong>PMTiles v3</strong> — single-file pyramid container, as the default storage</td>
+            <td><strong>PMTiles v3</strong> as the default single-file pyramid container</td>
             <td>Landing across four repositories. A pyramid becomes one indexed <code>.pmtiles</code> archive instead of a directory of small files, written by <code>PmTilesSink</code> and read by <code>pmtiles::Reader</code> over any byte-range source. The directory tree stays, behind <a href="cli/#pmtiles">--storage directory</a>. Pure Rust, no new C dependency, and the format is a published spec so archives interoperate both ways.</td>
             <td class="nowrap"><span class="pill">L</span></td>
             <td class="nowrap"><span class="pill p0">P0</span></td>
