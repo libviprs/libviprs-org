@@ -64,17 +64,19 @@ const PYRAMID_BASELINE: PyramidBaseline = PyramidBaseline {
         "engine-builder",
         "finish",
     ],
-    // 7 symbols.
+    // 7 symbols. PmTilesSink rather than FsSink since the storage flip: the
+    // default program writes one archive, and FsSink is only reached with
+    // `--storage directory`, so it rides on that flag's imports_when_active.
     imports_base: &[
         "EngineBuilder",
         "EngineConfig",
-        "FsSink",
         "Layout",
+        "PmTilesSink",
         "PyramidPlanner",
         "TileFormat",
         "decode_file",
     ],
-    // 31 flag ids that MUST be present.
+    // 32 flag ids that MUST be present.
     flag_ids: &[
         "blank-tolerance",
         "buffer-size",
@@ -104,6 +106,7 @@ const PYRAMID_BASELINE: PyramidBaseline = PyramidBaseline {
         "retry-max",
         "sink",
         "skip-blank",
+        "storage",
         "tile-size",
         "trace-level",
         "verify",
@@ -506,7 +509,7 @@ fn assert_pyramid_baseline(pyramid: &Value) -> Result<(), String> {
         ));
     }
 
-    // flags: every baseline flag id must be present; count >= 31.
+    // flags: every baseline flag id must be present; count >= 32.
     let flags = obj
         .get("flags")
         .and_then(Value::as_object)
@@ -1247,7 +1250,7 @@ fn main() {
                 .as_object()
                 .unwrap()
                 .len(),
-            31
+            32
         );
     }
 
