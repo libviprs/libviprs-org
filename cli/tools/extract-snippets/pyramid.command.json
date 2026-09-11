@@ -337,15 +337,16 @@
       }
     },
     "manifest-emit-checksums": {
-      "kind": "append",
+      "kind": "override",
       "slot": "sink",
       "default": false,
       "type": "bool",
       "cli": "--manifest-emit-checksums",
-      "fragment": "let sink = sink\n    .with_manifest(ManifestBuilder::new().with_checksums(ChecksumAlgo::{checksum-algo}))\n    .with_checksums(ChecksumMode::EmitOnly, ChecksumAlgo::{checksum-algo});",
+      "fragment": "// A manifest is a directory-backend feature, so pair it with --storage directory.\nlet sink = FsSink::new(&output, plan.clone())\n    .with_format(TileFormat::{format})\n    .with_manifest(ManifestBuilder::new().with_checksums(ChecksumAlgo::{checksum-algo}))\n    .with_checksums(ChecksumMode::EmitOnly, ChecksumAlgo::{checksum-algo});",
       "imports_when_active": [
         "ChecksumAlgo",
         "ChecksumMode",
+        "FsSink",
         "ManifestBuilder"
       ],
       "test": {
