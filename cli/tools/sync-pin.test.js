@@ -79,8 +79,16 @@ function main() {
   if (!block.includes('sync-cli-src.sh --check')) {
     failures.push('the sync job no longer runs cli/tools/sync-cli-src.sh --check');
   }
-  if (!block.includes('cli/rust/COUNTERPART_REV')) {
-    failures.push('the sync job does not read cli/rust/COUNTERPART_REV, so the committed pin is decorative');
+  // Reading the path is not the same as mentioning it. The job's own error
+  // message names the file too, and a first cut of this check passed with the
+  // actual read pointed at a different filename because the message still
+  // matched. So require a shell redirect FROM the file, and separately require
+  // the checkout to consume what that step produced.
+  if (!/<\s*\S*cli\/rust\/COUNTERPART_REV/.test(block)) {
+    failures.push('the sync job never reads cli/rust/COUNTERPART_REV (no shell redirect from it), so the committed pin is decorative');
+  }
+  if (!/ref:\s*\$\{\{[^}]*steps\.pin\.outputs\.rev/.test(block)) {
+    failures.push('the libviprs-cli checkout does not use steps.pin.outputs.rev as its ref, so the pin is resolved and then ignored');
   }
 
   // The skip-green shape, in the two places it lived.
