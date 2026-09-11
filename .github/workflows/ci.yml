@@ -135,3 +135,6 @@ jobs:
 
       - name: Placeholder substitution — annotated op bodies render real values (#53)
         run: node cli/tools/gen-op-sections/placeholder-substitution.test.js
+
+      - name: Hand-authored sections exist for every HAND_AUTHORED command
+        run: node cli/tools/gen-op-sections/hand-authored.test.js

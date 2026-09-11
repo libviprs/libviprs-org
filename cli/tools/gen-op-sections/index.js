@@ -40,7 +40,7 @@ const DEFAULT_DUMP = path.join(HERE, 'sample-dump.json');
 const DEFAULT_MANIFEST = path.join(HERE, '..', '..', 'js', 'snippets.generated.json');
 
 // Commands whose HTML is hand-authored & interactive — never generated (§3.2).
-const HAND_AUTHORED = new Set(['pyramid', 'info', 'plan', 'test-image']);
+const HAND_AUTHORED = new Set(['pyramid', 'info', 'plan', 'test-image', 'pmtiles']);
 
 // The closed vocabularies a generated command's metadata must belong to
 // (SCHEMA_V2 §3.1 shapes + §5 / OP_MAP oracle classes). A dump command that
@@ -342,4 +342,9 @@ function main() {
   console.error(`generated ${names.length} op section(s): ${names.join(', ')}`);
 }
 
-main();
+// Required as a module by hand-authored.test.js, which reads HAND_AUTHORED
+// rather than re-parsing it out of this file's source. Running the script
+// directly is unchanged.
+if (require.main === module) main();
+
+module.exports = { HAND_AUTHORED, generate, validateCommands };
