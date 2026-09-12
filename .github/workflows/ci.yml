@@ -9,6 +9,8 @@ name: ci
 #                       oracle_class/shape enums validate
 #   5. bench-drift    — the static fallback tables on /benchmarks/ still say what the
 #                       JSON renders, cell for cell
+#   6. msrv          — the Rust floor this site advertises still matches what
+#                       libviprs declares
 #
 # The repo pins the CLI SHA it synced from via CLI_COUNTERPART_REV (§7); the sync
 # gate checks out libviprs-cli at that ref. When libviprs-cli is not available to
@@ -210,3 +212,42 @@ jobs:
 
       - name: The drift check can actually fail (injected drifts + controls)
         run: node benchmarks/tools/bench-drift.test.js
+
+  # 6. msrv — the only job here that is not a docs-generator gate, so it sits
+  #    outside the SCHEMA_V2 §5 CI contract deliberately; see libviprs-org#65.
+  #
+  #    It greps rather than builds because the number on this site is prose in
+  #    an HTML page, not a manifest: there is nothing for cargo to enforce and
+  #    no reason to spend a toolchain install on it. libviprs' Cargo.toml is
+  #    just a file to read, and `rust-version` is the only statement of the
+  #    floor that anything enforces, since it is the one cargo reads.
+  #
+  #    Every page, not just index.html. Only the front page states a version
+  #    today, but the failure this fixes is a claim nobody is looking at, and
+  #    pinning the check to one filename recreates it the moment somebody
+  #    writes a floor into cli/index.html.
+  #
+  #    GITHUB_TOKEN is scoped to this repository and does not reach libviprs,
+  #    so the clone is unauthenticated. libviprs is public and libviprs-cli's
+  #    own guard clones it the same way.
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone libviprs (source of truth for the Rust floor)
+        run: git clone --depth 1 https://github.com/${{ github.repository_owner }}/libviprs.git ../libviprs
+
+      - name: Every advertised Rust version matches libviprs
+        run: |
+          core=$(grep -m1 -E '^rust-version *= *"' ../libviprs/Cargo.toml | sed -E 's/.*"([^"]*)".*/\1/' | cut -d. -f1,2)
+          advertised=$(grep -rhoE 'rust-[0-9]+\.[0-9]+%2B|Rust [0-9]+\.[0-9]+\+' --include='*.html' . \
+            | grep -oE '[0-9]+\.[0-9]+' | sort -u | paste -sd/ -)
+          echo "core (libviprs):    $core"
+          echo "advertised (pages): $advertised"
+          echo "stated in:"
+          grep -rlE 'rust-[0-9]+\.[0-9]+%2B|Rust [0-9]+\.[0-9]+\+' --include='*.html' . | sort | sed 's/^/  /'
+          rc=0
+          [ -n "$advertised" ] || { echo "::error::no Rust version found in any page, so this guard has nothing to compare"; rc=1; }
+          [ "$advertised" = "$core" ] || { echo "::error::this site advertises Rust $advertised+ but libviprs declares rust-version $core"; rc=1; }
+          exit $rc
