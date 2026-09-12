@@ -7,6 +7,8 @@ name: ci
 #   3. test-flags     — every flag still produces a code diff (per-flag audit) + anchors
 #   4. gen-op-sections— the data-driven op sections regenerate with no drift, and the
 #                       oracle_class/shape enums validate
+#   5. bench-drift    — the static fallback tables on /benchmarks/ still say what the
+#                       JSON renders, cell for cell
 #
 # The repo pins the CLI SHA it synced from via CLI_COUNTERPART_REV (§7); the sync
 # gate checks out libviprs-cli at that ref. When libviprs-cli is not available to
@@ -176,3 +178,35 @@ jobs:
 
       - name: Hand-authored sections exist for every HAND_AUTHORED command
         run: node cli/tools/gen-op-sections/hand-authored.test.js
+
+  # 5. bench-drift — /benchmarks/ is the one data-driven artifact on this site
+  #    that keeps a hand-maintained duplicate of itself: three tables rendered
+  #    from JSON by benchmarks/js/scalability-tables.js, and a static <tbody>
+  #    in benchmarks/index.html that is what a visitor sees with JS off. Their
+  #    whole contract is to say the same thing, and nothing enforced it. An
+  #    unattended period left six defects in there (three stale engine labels,
+  #    two stale rounded figures, one lost <code> wrapper), which is the
+  #    measured drift rate for this artifact with no gate on it.
+  #
+  #    The check requires the renderer and compares against the models it
+  #    actually paints, so there is no third copy of the formatting to drift.
+  #    The test alongside it injects each of those six classes plus the pending
+  #    machinery and asserts the check reports them, because a parity check
+  #    whose parser matches nothing compares zero cells and passes (B1).
+  #
+  #    Plain Node, no dependency and no build step: #62 rules out adding one.
+  bench-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Static fallback tables match the JSON render
+        run: node benchmarks/tools/bench-drift.js
+
+      - name: The drift check can actually fail (injected drifts + controls)
+        run: node benchmarks/tools/bench-drift.test.js
