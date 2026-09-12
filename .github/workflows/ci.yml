@@ -1,23 +1,36 @@
 name: ci
 
-# SCHEMA_V2 §5 — the docs-generator gates, all required on `main`:
+# Every job here is a REQUIRED check on `main` (libviprs-org#59). Four of them
+# are the SCHEMA_V2 §5 docs-generator gates and two are not, which is worth
+# keeping straight: §5 specifies the docs-generator contract, so listing all six
+# under it would widen what that section claims to cover.
+#
+# SCHEMA_V2 §5 docs-generator gates:
 #   1. sync           — the frozen CLI copy is byte-identical to canonical libviprs-cli
 #   2. extract        — the extractor regenerates snippets.generated.json with no drift
 #                       (enforces the pyramid baseline §4 internally) + unit tests
 #   3. test-flags     — every flag still produces a code diff (per-flag audit) + anchors
 #   4. gen-op-sections— the data-driven op sections regenerate with no drift, and the
 #                       oracle_class/shape enums validate
+#
+# Required, but outside §5:
 #   5. bench-drift    — the static fallback tables on /benchmarks/ still say what the
 #                       JSON renders, cell for cell
-#   6. msrv          — the Rust floor this site advertises still matches what
+#   6. msrv           — the Rust floor this site advertises still matches what
 #                       libviprs declares
 #
-# The repo pins the CLI SHA it synced from via CLI_COUNTERPART_REV (§7); the sync
-# gate checks out libviprs-cli at that ref. When libviprs-cli is not available to
-# the workflow the sync check is SKIPPED at the step level (§5.1) — the job still
-# reports (green on skip, red on real drift), and the other gates always run
-# against the committed frozen copy. This single workflow subsumes the retired
-# cli-sync.yml (B6): no two workflows race the same triggers.
+# The repo pins the CLI revision it synced from in cli/rust/COUNTERPART_REV, and
+# the sync gate checks libviprs-cli out at that revision. Nothing in that job is
+# allowed to pass by skipping: the checkout used to carry continue-on-error with
+# the assertion guarded on its outcome, so any failure reported a warning and a
+# green job, and #63 removed that. A checkout failure now fails the job. See the
+# note above `sync:` for the whole story.
+#
+# This single workflow subsumes the retired cli-sync.yml (B6): no two workflows
+# race the same triggers. cli-resync.yml is not that workflow returning — it
+# opens the re-sync as a PR and duplicates no gate here, and it is separate
+# because opening a pull request needs write permissions this workflow does not
+# have (#58).
 
 on:
   # No path filter: SCHEMA_V2 §5 makes these jobs REQUIRED checks on `main`, so
@@ -213,8 +226,9 @@ jobs:
       - name: The drift check can actually fail (injected drifts + controls)
         run: node benchmarks/tools/bench-drift.test.js
 
-  # 6. msrv — the only job here that is not a docs-generator gate, so it sits
-  #    outside the SCHEMA_V2 §5 CI contract deliberately; see libviprs-org#65.
+  # 6. msrv — not a docs-generator gate, so it sits outside the SCHEMA_V2 §5
+  #    contract deliberately; see libviprs-org#65. It is a required check on
+  #    `main` all the same, since #59 made every job here one.
   #
   #    It greps rather than builds because the number on this site is prose in
   #    an HTML page, not a manifest: there is nothing for cargo to enforce and
