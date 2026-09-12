@@ -361,6 +361,53 @@ tbody tr:hover th {
 .swatch-mr     { background: #ea4335; }
 .swatch-auto   { background: linear-gradient(135deg, #4285f4 0%, #34a853 50%, #ea4335 100%); }
 
+/* Storage swatches. These belong to the storage table, not the engine
+   comparison: a backend is a cross-cut on the engines rather than a rival to
+   them, so the pair is deliberately outside the engine palette above. */
+.swatch-pmtiles { background: #f9ab00; }
+.swatch-dir     { background: #80868b; }
+
+/* Links inside the article body. The page has no global anchor colour, so
+   every in-prose link used to carry its own inline style; this is that colour,
+   written once. */
+.bench-link { color: var(--primary); }
+
+/* ----- Pending measurements --------------------------------------------- */
+
+/* A row whose identity is configured but whose every metric came back null.
+   It has to be legible as "not measured yet" at a glance and never as
+   "measured and bad", so the cells stay empty (the renderer prints the same
+   em dash an absent metric already used), the label carries a marker, and
+   the note under the table explains it. Pending is per row, so a half-filled
+   table marks exactly the rows that are still waiting. Nothing here dims the
+   row: a greyed row reads as disabled, which is the wrong story. */
+.bench-pending {
+  font-size: 0.7em;
+  line-height: 0;
+  margin-inline-start: 0.15em;
+  color: var(--primary-dark);
+  font-weight: 700;
+  cursor: help;
+}
+
+tbody tr.row-pending th:first-child {
+  box-shadow: inset 3px 0 0 0 #f9ab00;
+}
+
+/* Sits inside `.bench-wide`, under the scroll region, so it moves with the
+   table on mobile and shares its bottom margin. */
+.bench-note {
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: var(--text-light);
+  margin: 0.75rem 0 0;
+  padding: 0.7rem 0.9rem;
+  border-inline-start: 3px solid #f9ab00;
+  background: var(--code-bg);
+  border-radius: 0 4px 4px 0;
+}
+.bench-note code { font-size: 0.92em; }
+
 /* ----- Dark-theme tweaks ------------------------------------------------ */
 
 [data-theme="dark"] table {
@@ -372,6 +419,7 @@ tbody tr:hover th {
 [data-theme="dark"] tbody tr:hover th {
   background: color-mix(in srgb, var(--primary) 22%, #1a1a1a);
 }
+[data-theme="dark"] .bench-pending { color: #f9ab00; }
 [data-theme="dark"] .engine-swatch {
   box-shadow: 0 0 0 2px #1a1a1a inset, 0 0 0 1px rgba(255, 255, 255, 0.15);
 }

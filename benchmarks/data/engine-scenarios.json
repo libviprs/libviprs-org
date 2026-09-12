@@ -1,11 +1,13 @@
 {
-  "_doc": "Editorial config for the data tables on /benchmarks/. The engine-comparison table pulls its numeric values from scalability_results.json (the raw bench output); this file supplies display labels, captions, and the scenario picker's commentary. Speed-cell templates: {throughput}, {mp}, {memory} are substituted from the matching engine's row at the showcase MP. Each table may carry an optional column_sizing block to override the default first-column auto-sizing rule (see _column_sizing_doc below).",
+  "_doc": "Editorial config for the three data tables on /benchmarks/. The engine-comparison table and the scenario picker pull their numeric values from scalability_results.json (the raw engine-bench output); the storage table pulls its own from pmtiles_results.json. This file supplies display labels, captions, column specs and the scenario picker's commentary. Speed-cell templates: {throughput}, {mp}, {memory} are substituted from the matching engine's row at the showcase MP. Each table may carry an optional column_sizing block to override the default first-column auto-sizing rule (see _column_sizing_doc below). Cells with no measurement behind them are handled by the pending convention (see _pending_doc below).",
 
-  "_column_sizing_doc": "Default first-column auto-sizing rule used by both tables. The renderer measures each first-column cell at single-line max-content width; if that width exceeds threshold_ratio × the resulting other-column width, the first column is capped at cap_ratio × the other-column width and its cells wrap. Override per-table by placing a `column_sizing` block inside engine_table or scenario_table.",
+  "_column_sizing_doc": "Default first-column auto-sizing rule used by every table. The renderer measures each first-column cell at single-line max-content width; if that width exceeds threshold_ratio × the resulting other-column width, the first column is capped at cap_ratio × the other-column width and its cells wrap. Override per-table by placing a `column_sizing` block inside engine_table, scenario_table or storage_table.",
   "default_column_sizing": {
     "threshold_ratio": 2.0,
     "cap_ratio": 1.75
   },
+
+  "_pending_doc": "There is no pending flag anywhere in the data, and the renderer reads none. A metric is pending when its value is null, full stop, and that is the whole signal: fmt() prints the em dash it already prints for an absent metric, and a table row with ANY null metric cell is marked pending. Any, not every, and on purpose: a row missing one column and marked is an over-eager flag on a mostly-measured row, which is visible and corrects itself when the data lands, while a row missing one column and unmarked is a silent em dash on a public page with nothing explaining it, which is the exact failure this page exists not to commit. Absence is read off the value rather than off the rendered em dash, so a column carrying zero_as_dash still counts a real 0 as measured. Pending is per row, never per engine or per storage backend, so filling one row in changes exactly that row. A pending row gets `pending_marker` beside its label and the [data-bench-note] paragraph under that same table is filled from `pending_note` and un-hidden; both are keyed on the table, and the renderer suppresses the marker entirely when the table has no note element to point at. Filling the nulls clears the marker and hides the note with no edit to this file. It does NOT update the static fallback rows in index.html, which are the JS-off copy of the same cells: benchmarks/tools/bench-drift.js is the gate that catches those, and it has to be run and satisfied in the same change.",
 
   "engine_display": {
     "libvips":    { "label": "libvips 8.18",         "swatch": "vips"   },
@@ -30,6 +32,39 @@
     ]
   },
 
+  "_storage_export_fields_doc": "Every key pmtiles_results.json rows carry, in the order the producer emits them: width, height, megapixels, tile_size, engine, concurrency, wall_time_ms, tracked_memory_mb, peak_rss_mb, tiles_produced, tiles_per_second, tiles_per_second_per_mb, resource_cost, scenario, storage, profile, output_bytes, filesystem_entries, tile_bytes_returned, p50_latency_us, p99_latency_us. Nullable: tracked_memory_mb, output_bytes and filesystem_entries are null on a read row, and tile_bytes_returned, p50_latency_us and p99_latency_us are null on a generation row. Nothing is ever 0 to mean absent. `profile` is the harness's sweep label (\"ci\" or \"large\") and this renderer does not read it; it is listed here so the next person does not think it appeared from nowhere. The renderer reads keys by name, so a key it does not know is carried harmlessly.",
+  "_storage_table_doc": "Fed by pmtiles_results.json, which is a separate export from a separate harness and has nothing to do with scalability_results.json. Storage is an axis crossed with the engines rather than a fifth engine, so it gets its own table and its own columns: the engine table has no home for output_bytes, filesystem_entries or a per-lookup latency. Rows in that export are NOT unique on (engine, megapixels) — one pyramid carries a generation row and five read rows — so every lookup here keys on (storage, width, height, tile_size, scenario, concurrency) and each column names the scenario it reads. A lookup that matches more than one row returns nothing rather than the first match, because publishing a read row's wall time in a generation column is exactly the failure this shape is guarding against. Two columns may share a `key` and differ only in `scenario` (the cold and the random read both report p50_latency_us), so a column is identified by the pair and never by its key alone.",
+  "storage_table": {
+    "caption": "Same pyramid, two storage backends",
+    "pending_marker": "†",
+    "pending_note": "<strong>† Some measurements are missing.</strong> A row marked † has at least one cell this export does not carry, and that may be a single column or the whole row. An empty cell is left empty rather than filled in, because a guessed figure on a benchmarks page is a figure somebody quotes back. This table reads its own export, <code>pmtiles_results.json</code>, written by the PMTiles benchmark suite in <a class=\"bench-link\" href=\"https://github.com/libviprs/libviprs/issues/993\">libviprs#993</a> rather than by the engine bench above, so a marked row is waiting on a run of that suite that covers whatever it is missing.",
+    "storage_display": {
+      "pmtiles":   { "label": "PMTiles archive", "swatch": "pmtiles" },
+      "directory": { "label": "Directory tree",  "swatch": "dir"     }
+    },
+    "row_label_template": "{width}×{height}, {tile_size} px tiles",
+    "rows": [
+      { "width": 2048,  "height": 2048,  "tile_size": 256, "storage": "pmtiles"   },
+      { "width": 2048,  "height": 2048,  "tile_size": 256, "storage": "directory" },
+      { "width": 8192,  "height": 8192,  "tile_size": 256, "storage": "pmtiles"   },
+      { "width": 8192,  "height": 8192,  "tile_size": 256, "storage": "directory" },
+      { "width": 16384, "height": 16384, "tile_size": 256, "storage": "pmtiles"   },
+      { "width": 16384, "height": 16384, "tile_size": 256, "storage": "directory" },
+      { "width": 8192,  "height": 8192,  "tile_size": 64,  "storage": "pmtiles"   },
+      { "width": 8192,  "height": 8192,  "tile_size": 64,  "storage": "directory" }
+    ],
+    "columns": [
+      { "key": "tiles_produced",      "header": "Tiles",                "scenario": "generate",    "concurrency": 1, "format": "int",    "thousands": true },
+      { "key": "output_bytes",        "header": "Output size (MB)",     "scenario": "generate",    "concurrency": 1, "format": "fixed1", "scale": 1048576  },
+      { "key": "filesystem_entries",  "header": "Filesystem entries",   "scenario": "generate",    "concurrency": 1, "format": "int",    "thousands": true },
+      { "key": "wall_time_ms",        "header": "Generation (ms)",      "scenario": "generate",    "concurrency": 1, "format": "int",    "thousands": true },
+      { "key": "tiles_per_second",    "header": "Generation (tiles/s)", "scenario": "generate",    "concurrency": 1, "format": "int",    "thousands": true },
+      { "key": "p50_latency_us",      "header": "Cold first read p50 (µs)", "scenario": "read_cold",   "concurrency": 1, "format": "fixed2"                    },
+      { "key": "p50_latency_us",      "header": "Random read p50 (µs)", "scenario": "read_random", "concurrency": 1, "format": "fixed2"                    },
+      { "key": "p99_latency_us",      "header": "Random read p99 (µs)", "scenario": "read_random", "concurrency": 1, "format": "fixed2"                    }
+    ]
+  },
+
   "scenario_table": {
     "caption": "Choosing an engine for your scenario",
     "headers": ["Scenario", "Best engine", "Memory complexity", "Speed", "Best when"],
@@ -37,21 +72,21 @@
       {
         "scenario": "Beefy server, max speed",
         "engine_id": "monolithic",
-        "memory_complexity": "O(canvas²)",
+        "memory_complexity": "<code>O(canvas²)</code>",
         "speed_template": "Fastest — {throughput} tiles/s at {mp} MP",
         "best_when": "RAM is abundant and you want raw throughput."
       },
       {
         "scenario": "Container, limited RAM",
         "engine_id": "streaming",
-        "memory_complexity": "O(width × strip)",
+        "memory_complexity": "<code>O(width × strip)</code>",
         "speed_template": "Good — {throughput} tiles/s in a {memory} MB working set",
-        "best_when": "Tight memory ceiling (e.g. 512 MB pod) on potentially huge images."
+        "best_when": "Tight memory ceiling (e.g. 512 MB pod) on potentially huge images."
       },
       {
         "scenario": "Multi-core, bounded RAM",
         "engine_id": "mapreduce",
-        "memory_complexity": "O(width × strip)",
+        "memory_complexity": "<code>O(width × strip)</code>",
         "speed_template": "Fast — {throughput} tiles/s, same {memory} MB working set",
         "best_when": "Spare cores you can spend on parallel strip rendering."
       },
