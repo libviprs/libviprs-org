@@ -360,18 +360,27 @@ tbody tr:hover th {
 .swatch-stream { background: #34a853; }
 .swatch-mr     { background: #ea4335; }
 .swatch-auto   { background: linear-gradient(135deg, #4285f4 0%, #34a853 50%, #ea4335 100%); }
-/* The fourth colour of the same family. PMTiles is a sink rather than an
-   engine, so it reads as a sibling of the three engine dots, not a rival. */
+
+/* Storage swatches. These belong to the storage table, not the engine
+   comparison: a backend is a cross-cut on the engines rather than a rival to
+   them, so the pair is deliberately outside the engine palette above. */
 .swatch-pmtiles { background: #f9ab00; }
+.swatch-dir     { background: #80868b; }
+
+/* Links inside the article body. The page has no global anchor colour, so
+   every in-prose link used to carry its own inline style; this is that colour,
+   written once. */
+.bench-link { color: var(--primary); }
 
 /* ----- Pending measurements --------------------------------------------- */
 
-/* A row that is registered in the bench data with its measurements still to
-   come. It has to be legible as "not measured yet" at a glance and never as
+/* A row whose identity is configured but whose every metric came back null.
+   It has to be legible as "not measured yet" at a glance and never as
    "measured and bad", so the cells stay empty (the renderer prints the same
    em dash an absent metric already used), the label carries a marker, and
-   the note under the table explains it. Nothing here dims the row: a greyed
-   row reads as disabled, which is the wrong story. */
+   the note under the table explains it. Pending is per row, so a half-filled
+   table marks exactly the rows that are still waiting. Nothing here dims the
+   row: a greyed row reads as disabled, which is the wrong story. */
 .bench-pending {
   font-size: 0.7em;
   line-height: 0;

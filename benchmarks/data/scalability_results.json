@@ -56,21 +56,6 @@
     "resource_cost": 0.006414256153846155
   },
   {
-    "width": 512,
-    "height": 360,
-    "megapixels": 0.18432,
-    "engine": "pmtiles",
-    "concurrency": 1,
-    "wall_time_ms": null,
-    "tracked_memory_mb": null,
-    "peak_rss_mb": null,
-    "tiles_produced": 13,
-    "tiles_per_second": null,
-    "tiles_per_second_per_mb": null,
-    "resource_cost": null,
-    "provisional": true
-  },
-  {
     "width": 1024,
     "height": 720,
     "megapixels": 0.73728,
@@ -125,21 +110,6 @@
     "tiles_per_second": 3444.2577197525975,
     "tiles_per_second_per_mb": 106.95414559154112,
     "resource_cost": 0.00934980121125
-  },
-  {
-    "width": 1024,
-    "height": 720,
-    "megapixels": 0.73728,
-    "engine": "pmtiles",
-    "concurrency": 1,
-    "wall_time_ms": null,
-    "tracked_memory_mb": null,
-    "peak_rss_mb": null,
-    "tiles_produced": 25,
-    "tiles_per_second": null,
-    "tiles_per_second_per_mb": null,
-    "resource_cost": null,
-    "provisional": true
   },
   {
     "width": 2048,
@@ -198,21 +168,6 @@
     "resource_cost": 0.01919381097495719
   },
   {
-    "width": 2048,
-    "height": 1440,
-    "megapixels": 2.94912,
-    "engine": "pmtiles",
-    "concurrency": 1,
-    "wall_time_ms": null,
-    "tracked_memory_mb": null,
-    "peak_rss_mb": null,
-    "tiles_produced": 73,
-    "tiles_per_second": null,
-    "tiles_per_second_per_mb": null,
-    "resource_cost": null,
-    "provisional": true
-  },
-  {
     "width": 4096,
     "height": 2880,
     "megapixels": 11.79648,
@@ -267,21 +222,6 @@
     "tiles_per_second": 2965.9946032552984,
     "tiles_per_second_per_mb": 21.701572494379686,
     "resource_cost": 0.0460796101415684
-  },
-  {
-    "width": 4096,
-    "height": 2880,
-    "megapixels": 11.79648,
-    "engine": "pmtiles",
-    "concurrency": 1,
-    "wall_time_ms": null,
-    "tracked_memory_mb": null,
-    "peak_rss_mb": null,
-    "tiles_produced": 265,
-    "tiles_per_second": null,
-    "tiles_per_second_per_mb": null,
-    "resource_cost": null,
-    "provisional": true
   },
   {
     "width": 4608,
@@ -340,21 +280,6 @@
     "resource_cost": 0.08160380831890905
   },
   {
-    "width": 4608,
-    "height": 3240,
-    "megapixels": 14.92992,
-    "engine": "pmtiles",
-    "concurrency": 1,
-    "wall_time_ms": null,
-    "tracked_memory_mb": null,
-    "peak_rss_mb": null,
-    "tiles_produced": 334,
-    "tiles_per_second": null,
-    "tiles_per_second_per_mb": null,
-    "resource_cost": null,
-    "provisional": true
-  },
-  {
     "width": 8192,
     "height": 5760,
     "megapixels": 47.18592,
@@ -409,21 +334,6 @@
     "tiles_per_second": 2830.8036252181832,
     "tiles_per_second_per_mb": 5.3915255189704405,
     "resource_cost": 0.18547626204891984
-  },
-  {
-    "width": 8192,
-    "height": 5760,
-    "megapixels": 47.18592,
-    "engine": "pmtiles",
-    "concurrency": 1,
-    "wall_time_ms": null,
-    "tracked_memory_mb": null,
-    "peak_rss_mb": null,
-    "tiles_produced": 1001,
-    "tiles_per_second": null,
-    "tiles_per_second_per_mb": null,
-    "resource_cost": null,
-    "provisional": true
   },
   {
     "width": 10000,
@@ -482,21 +392,6 @@
     "resource_cost": 0.36194425327896895
   },
   {
-    "width": 10000,
-    "height": 7000,
-    "megapixels": 70.0,
-    "engine": "pmtiles",
-    "concurrency": 1,
-    "wall_time_ms": null,
-    "tracked_memory_mb": null,
-    "peak_rss_mb": null,
-    "tiles_produced": 1507,
-    "tiles_per_second": null,
-    "tiles_per_second_per_mb": null,
-    "resource_cost": null,
-    "provisional": true
-  },
-  {
     "width": 12000,
     "height": 8400,
     "megapixels": 100.8,
@@ -551,21 +446,6 @@
     "tiles_per_second": 2821.8245525244442,
     "tiles_per_second_per_mb": 1.7465838622975283,
     "resource_cost": 0.5725462267151369
-  },
-  {
-    "width": 12000,
-    "height": 8400,
-    "megapixels": 100.8,
-    "engine": "pmtiles",
-    "concurrency": 1,
-    "wall_time_ms": null,
-    "tracked_memory_mb": null,
-    "peak_rss_mb": null,
-    "tiles_produced": 2119,
-    "tiles_per_second": null,
-    "tiles_per_second_per_mb": null,
-    "resource_cost": null,
-    "provisional": true
   },
   {
     "width": 16384,
@@ -624,21 +504,6 @@
     "resource_cost": 0.7887494648116948
   },
   {
-    "width": 16384,
-    "height": 11520,
-    "megapixels": 188.74368,
-    "engine": "pmtiles",
-    "concurrency": 1,
-    "wall_time_ms": null,
-    "tracked_memory_mb": null,
-    "peak_rss_mb": null,
-    "tiles_produced": 3881,
-    "tiles_per_second": null,
-    "tiles_per_second_per_mb": null,
-    "resource_cost": null,
-    "provisional": true
-  },
-  {
     "width": 20000,
     "height": 14000,
     "megapixels": 280.0,
@@ -693,21 +558,6 @@
     "tiles_per_second": 2800.4696481395563,
     "tiles_per_second_per_mb": 1.2928103629716063,
     "resource_cost": 0.7735086511075274
-  },
-  {
-    "width": 20000,
-    "height": 14000,
-    "megapixels": 280.0,
-    "engine": "pmtiles",
-    "concurrency": 1,
-    "wall_time_ms": null,
-    "tracked_memory_mb": null,
-    "peak_rss_mb": null,
-    "tiles_produced": 5852,
-    "tiles_per_second": null,
-    "tiles_per_second_per_mb": null,
-    "resource_cost": null,
-    "provisional": true
   },
   {
     "width": 512,
@@ -766,21 +616,6 @@
     "resource_cost": 0.5059852413317307
   },
   {
-    "width": 512,
-    "height": 360,
-    "megapixels": 0.18432,
-    "engine": "pmtiles",
-    "concurrency": 10,
-    "wall_time_ms": null,
-    "tracked_memory_mb": null,
-    "peak_rss_mb": null,
-    "tiles_produced": 13,
-    "tiles_per_second": null,
-    "tiles_per_second_per_mb": null,
-    "resource_cost": null,
-    "provisional": true
-  },
-  {
     "width": 1024,
     "height": 720,
     "megapixels": 0.73728,
@@ -835,21 +670,6 @@
     "tiles_per_second": 3298.0264214131093,
     "tiles_per_second_per_mb": 1.5225027479907023,
     "resource_cost": 0.6568132644225
-  },
-  {
-    "width": 1024,
-    "height": 720,
-    "megapixels": 0.73728,
-    "engine": "pmtiles",
-    "concurrency": 10,
-    "wall_time_ms": null,
-    "tracked_memory_mb": null,
-    "peak_rss_mb": null,
-    "tiles_produced": 25,
-    "tiles_per_second": null,
-    "tiles_per_second_per_mb": null,
-    "resource_cost": null,
-    "provisional": true
   },
   {
     "width": 2048,
@@ -908,21 +728,6 @@
     "resource_cost": 0.7113452922893835
   },
   {
-    "width": 2048,
-    "height": 1440,
-    "megapixels": 2.94912,
-    "engine": "pmtiles",
-    "concurrency": 10,
-    "wall_time_ms": null,
-    "tracked_memory_mb": null,
-    "peak_rss_mb": null,
-    "tiles_produced": 73,
-    "tiles_per_second": null,
-    "tiles_per_second_per_mb": null,
-    "resource_cost": null,
-    "provisional": true
-  },
-  {
     "width": 4096,
     "height": 2880,
     "megapixels": 11.79648,
@@ -977,21 +782,6 @@
     "tiles_per_second": 2935.0387215228284,
     "tiles_per_second_per_mb": 1.3549329047106164,
     "resource_cost": 0.7380439256610849
-  },
-  {
-    "width": 4096,
-    "height": 2880,
-    "megapixels": 11.79648,
-    "engine": "pmtiles",
-    "concurrency": 10,
-    "wall_time_ms": null,
-    "tracked_memory_mb": null,
-    "peak_rss_mb": null,
-    "tiles_produced": 265,
-    "tiles_per_second": null,
-    "tiles_per_second_per_mb": null,
-    "resource_cost": null,
-    "provisional": true
   },
   {
     "width": 4608,
@@ -1050,21 +840,6 @@
     "resource_cost": 0.7536449019425524
   },
   {
-    "width": 4608,
-    "height": 3240,
-    "megapixels": 14.92992,
-    "engine": "pmtiles",
-    "concurrency": 10,
-    "wall_time_ms": null,
-    "tracked_memory_mb": null,
-    "peak_rss_mb": null,
-    "tiles_produced": 334,
-    "tiles_per_second": null,
-    "tiles_per_second_per_mb": null,
-    "resource_cost": null,
-    "provisional": true
-  },
-  {
     "width": 8192,
     "height": 5760,
     "megapixels": 47.18592,
@@ -1119,21 +894,6 @@
     "tiles_per_second": 2810.9433444708934,
     "tiles_per_second_per_mb": 1.2564717873859796,
     "resource_cost": 0.7958793902411807
-  },
-  {
-    "width": 8192,
-    "height": 5760,
-    "megapixels": 47.18592,
-    "engine": "pmtiles",
-    "concurrency": 10,
-    "wall_time_ms": null,
-    "tracked_memory_mb": null,
-    "peak_rss_mb": null,
-    "tiles_produced": 1001,
-    "tiles_per_second": null,
-    "tiles_per_second_per_mb": null,
-    "resource_cost": null,
-    "provisional": true
   },
   {
     "width": 10000,
@@ -1192,21 +952,6 @@
     "resource_cost": 0.858034257201186
   },
   {
-    "width": 10000,
-    "height": 7000,
-    "megapixels": 70.0,
-    "engine": "pmtiles",
-    "concurrency": 10,
-    "wall_time_ms": null,
-    "tracked_memory_mb": null,
-    "peak_rss_mb": null,
-    "tiles_produced": 1507,
-    "tiles_per_second": null,
-    "tiles_per_second_per_mb": null,
-    "resource_cost": null,
-    "provisional": true
-  },
-  {
     "width": 12000,
     "height": 8400,
     "megapixels": 100.8,
@@ -1261,21 +1006,6 @@
     "tiles_per_second": 2791.886378177134,
     "tiles_per_second_per_mb": 0.9248676380636067,
     "resource_cost": 1.0812357994206585
-  },
-  {
-    "width": 12000,
-    "height": 8400,
-    "megapixels": 100.8,
-    "engine": "pmtiles",
-    "concurrency": 10,
-    "wall_time_ms": null,
-    "tracked_memory_mb": null,
-    "peak_rss_mb": null,
-    "tiles_produced": 2119,
-    "tiles_per_second": null,
-    "tiles_per_second_per_mb": null,
-    "resource_cost": null,
-    "provisional": true
   },
   {
     "width": 16384,
@@ -1334,21 +1064,6 @@
     "resource_cost": 1.0903787828042628
   },
   {
-    "width": 16384,
-    "height": 11520,
-    "megapixels": 188.74368,
-    "engine": "pmtiles",
-    "concurrency": 10,
-    "wall_time_ms": null,
-    "tracked_memory_mb": null,
-    "peak_rss_mb": null,
-    "tiles_produced": 3881,
-    "tiles_per_second": null,
-    "tiles_per_second_per_mb": null,
-    "resource_cost": null,
-    "provisional": true
-  },
-  {
     "width": 20000,
     "height": 14000,
     "megapixels": 280.0,
@@ -1403,20 +1118,5 @@
     "tiles_per_second": 2789.28510806186,
     "tiles_per_second_per_mb": 0.9231315029861517,
     "resource_cost": 1.0832692815326892
-  },
-  {
-    "width": 20000,
-    "height": 14000,
-    "megapixels": 280.0,
-    "engine": "pmtiles",
-    "concurrency": 10,
-    "wall_time_ms": null,
-    "tracked_memory_mb": null,
-    "peak_rss_mb": null,
-    "tiles_produced": 5852,
-    "tiles_per_second": null,
-    "tiles_per_second_per_mb": null,
-    "resource_cost": null,
-    "provisional": true
   }
 ]
