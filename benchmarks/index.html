@@ -300,7 +300,7 @@
 
 <p>Everything above compares engines. Which engine you pick and where the tiles land are two different decisions, and the second one has its own costs that none of the columns above can hold. A pyramid is one <a class="bench-link" href="https://github.com/protomaps/PMTiles/blob/main/spec/v3/spec.md">PMTiles v3</a> archive by default now, written through <code>PmTilesSink</code> and read back by <code>pmtiles::Reader</code> over any byte-range source, with the classic tile tree still there behind <a class="bench-link" href="../cli/#flag-storage"><code>--storage directory</code></a>. Any engine can write either, so this is a cross-cut rather than a fourth engine, and it gets its own table.</p>
 
-<p>The columns are the ones that actually separate the two backends. <strong>Filesystem entries</strong> is the one to read first: a tile tree spends one inode per tile plus a directory per level and per column, so a pyramid with twenty thousand tiles in it is twenty thousand-odd entries to copy, sync, back up and list, while the archive is one file whatever the tile count. <strong>Output size</strong> says what the index costs on top of the same tile bytes. The two <strong>random read</strong> columns are the other side of the trade: a tile tree lets the kernel's page cache do the work, and an archive has to find the tile in its directory first, so that is where an archive has to prove it is not paying for the convenience.</p>
+<p>The columns are the ones that actually separate the two backends. <strong>Filesystem entries</strong> is the one to read first: a tile tree spends one inode per tile plus a directory per level and per column, so a pyramid with twenty thousand tiles in it is twenty thousand-odd entries to copy, sync, back up and list, while the archive is one file whatever the tile count. <strong>Output size</strong> says what the index costs on top of the same tile bytes. The three <strong>read</strong> columns are the other side of the trade: a tile tree lets the kernel's page cache do the work, and an archive has to find the tile in its own directory first, so that is where an archive has to prove it is not paying for the convenience. They separate the first read from the steady state deliberately, because those two are not the same story.</p>
 
 <p>This table is measured by a different harness than the engine bench above, on a deliberately different grid: square canvases, and a 64&nbsp;pixel tile size alongside the usual 256, because small tiles are what drive a tile tree into the leaf directories where the difference shows up at all. That is also why it is a table of its own rather than a column bolted onto the engine comparison: the two sweeps do not share a single size.</p>
 
@@ -317,6 +317,7 @@
           <th scope="col">Filesystem entries</th>
           <th scope="col">Generation (ms)</th>
           <th scope="col">Generation (tiles/s)</th>
+          <th scope="col">Cold first read p50 (&micro;s)</th>
           <th scope="col">Random read p50 (&micro;s)</th>
           <th scope="col">Random read p99 (&micro;s)</th>
         </tr>
@@ -330,6 +331,7 @@
           <td>1</td>
           <td>90</td>
           <td>1,033</td>
+          <td>11.46</td>
           <td>3.83</td>
           <td>4.92</td>
         </tr>
@@ -341,6 +343,7 @@
           <td>129</td>
           <td>51</td>
           <td>1,830</td>
+          <td>6.42</td>
           <td>4.08</td>
           <td>4.79</td>
         </tr>
@@ -352,6 +355,7 @@
           <td>1</td>
           <td>925</td>
           <td>1,484</td>
+          <td>38.29</td>
           <td>6.54</td>
           <td>10.75</td>
         </tr>
@@ -363,6 +367,7 @@
           <td>1,459</td>
           <td>749</td>
           <td>1,834</td>
+          <td>6.67</td>
           <td>5.29</td>
           <td>7.42</td>
         </tr>
@@ -374,6 +379,7 @@
           <td>1</td>
           <td>3,654</td>
           <td>1,497</td>
+          <td>91.67</td>
           <td>6.96</td>
           <td>9.75</td>
         </tr>
@@ -385,6 +391,7 @@
           <td>5,620</td>
           <td>3,090</td>
           <td>1,770</td>
+          <td>7.54</td>
           <td>6.08</td>
           <td>8.04</td>
         </tr>
@@ -396,6 +403,7 @@
           <td>1</td>
           <td>1,034</td>
           <td>21,127</td>
+          <td>69.13</td>
           <td>1.00</td>
           <td>1.75</td>
         </tr>
@@ -407,6 +415,7 @@
           <td>22,127</td>
           <td>1,183</td>
           <td>18,470</td>
+          <td>2.96</td>
           <td>3.17</td>
           <td>4.13</td>
         </tr>
@@ -420,7 +429,7 @@
 
 <p>Generation is a genuine trade and it flips. At 256&nbsp;px tiles the archive is slower to write, by roughly 20% at the two larger sizes and more at the smallest, because it pays to order and index tiles that a tile tree simply drops on the filesystem. At 64&nbsp;px tiles that reverses: the tree now has 22,127 entries to create and close, and the archive finishes first. Random reads follow the same crossover. At 256&nbsp;px the two are a wash, within about a microsecond of each other in both directions, while at 64&nbsp;px the archive answers in 1.00&nbsp;&micro;s against the tree's 3.17. So at ordinary tile sizes you are choosing on operational cost rather than on speed, and at small tile sizes, where a tree hurts most, the archive is ahead on both.</p>
 
-<p>One exception the table does not have a column for, visible in the export behind it: an archive's <em>first</em> read has to fetch the directory before it can answer anything, and the cold-read rows put that at 11 to 92&nbsp;&micro;s against a tile tree's 3 to 8. After that the directory is cached and the numbers above are what you get. If your workload is one tile from a cold archive and then nothing, a tile tree is still the better shape.</p>
+<p><strong>Cold first read p50</strong> is the one column a tile tree wins outright, and it is in the table rather than in a footnote because it is a real reason to pick one. An archive has to fetch its directory before it can answer anything, so the first lookup costs 11 to 92&nbsp;&micro;s where a tile tree answers in 3 to 8, and the gap widens with the pyramid because the directory does. Everything after that is the two random-read columns beside it, with the directory cached. So the shape to avoid is one tile out of a cold archive and then nothing: a tile tree is better at that, and the archive earns its setup back on the second lookup and every one after.</p>
 
 <h2>What libvips Does Better</h2>
 

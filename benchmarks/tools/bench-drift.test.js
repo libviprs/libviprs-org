@@ -279,10 +279,14 @@ console.log('\n[6] MIGRATION CONTROL: the numbers landing clears everything by i
     { width: 8192, height: 8192, tile_size: 64, storage: 'pmtiles' },
     { width: 8192, height: 8192, tile_size: 64, storage: 'directory' },
   ];
+  // Every scenario a column names, or the fixture leaves a hole and the control
+  // fails for its own reasons rather than the renderer's.
   const rows = [
     measured({ storage: 'pmtiles',   scenario: 'generate',    filesystem_entries: 1,     wall_time_ms: 1684.03 }),
+    measured({ storage: 'pmtiles',   scenario: 'read_cold',   p50_latency_us: 69.13, p99_latency_us: 103.58 }),
     measured({ storage: 'pmtiles',   scenario: 'read_random', p50_latency_us: 1.21,  p99_latency_us: 1.96 }),
     measured({ storage: 'directory', scenario: 'generate',    filesystem_entries: 22127, wall_time_ms: 1667.62, output_bytes: 133748027 }),
+    measured({ storage: 'directory', scenario: 'read_cold',   p50_latency_us: 2.96,  p99_latency_us: 8.75 }),
     measured({ storage: 'directory', scenario: 'read_random', p50_latency_us: 3.42,  p99_latency_us: 4.46 }),
   ];
   const model = M.storageTableModel(rows, cfg, true);
@@ -297,6 +301,8 @@ console.log('\n[6] MIGRATION CONTROL: the numbers landing clears everything by i
      flat[1].indexOf('22,127') !== -1 && flat[1].indexOf('21,851') !== -1, flat[1]);
   ok('the latency columns are filled from the read rows, not the generation rows',
      flat[0].indexOf('1.21') !== -1 && flat[1].indexOf('3.42') !== -1, flat[0] + ' / ' + flat[1]);
+  ok('the cold column reads read_cold and not read_random',
+     flat[0].indexOf('69.13') !== -1 && flat[1].indexOf('2.96') !== -1, flat[0] + ' / ' + flat[1]);
   ok('the note would hide itself', model.pendingCount === 0);
 }
 
@@ -370,6 +376,32 @@ console.log('\n[8] the committed export, read exactly the way the page reads it'
   ok('and answers a random read in 1.00 us against 3.17',
      M.fmt(arcR.p50_latency_us, { format: 'fixed2' }) === '1.00' &&
      M.fmt(treeR.p50_latency_us, { format: 'fixed2' }) === '3.17');
+
+  // The cold-read column is the one a tile tree wins, which is why it is a
+  // column. It has to come off read_cold and nothing else, on every row.
+  const coldCol = cfg.columns.filter(function (c) { return c.scenario === 'read_cold'; });
+  ok('there is exactly one cold-read column and it reads p50', coldCol.length === 1 && coldCol[0].key === 'p50_latency_us');
+  let coldHits = 0, coldWrongScenario = 0, coldNull = 0;
+  cfg.rows.forEach(function (spec) {
+    const hit = M.findStorageRow(rows, {
+      storage: spec.storage, width: spec.width, height: spec.height,
+      tile_size: spec.tile_size, scenario: 'read_cold', concurrency: 1 });
+    if (!hit) return;
+    coldHits += 1;
+    if (hit.scenario !== 'read_cold') coldWrongScenario += 1;
+    if (hit.p50_latency_us == null) coldNull += 1;
+  });
+  ok('every configured row has a cold-read measurement',
+     coldHits === cfg.rows.length && coldWrongScenario === 0 && coldNull === 0,
+     'hits ' + coldHits + '/' + cfg.rows.length + ', wrong scenario ' + coldWrongScenario + ', null ' + coldNull);
+  const arcC = M.findStorageRow(rows, Object.assign({ storage: 'pmtiles', scenario: 'read_cold', concurrency: 1 }, leafy));
+  const treeC = M.findStorageRow(rows, Object.assign({ storage: 'directory', scenario: 'read_cold', concurrency: 1 }, leafy));
+  ok('the tree wins the cold read, 2.96 us against the archive\'s 69.13',
+     treeC.p50_latency_us < arcC.p50_latency_us &&
+     M.fmt(arcC.p50_latency_us, { format: 'fixed2' }) === '69.13' &&
+     M.fmt(treeC.p50_latency_us, { format: 'fixed2' }) === '2.96');
+  ok('a null cold read would render as an em dash, never 0.00',
+     M.fmt(null, coldCol[0]) === '\u2014' && M.fmt(0, coldCol[0]) === '0.00');
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
