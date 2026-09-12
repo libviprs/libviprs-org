@@ -124,7 +124,7 @@
 <div class="bench-wide">
   <div class="bench-scroll" tabindex="0" role="region" aria-labelledby="benchTableCaption_engines">
     <table class="bench-table" data-bench-table="engines">
-      <caption id="benchTableCaption_engines">Engine comparison at 8192&times;5760 (47 MP)</caption>
+      <caption id="benchTableCaption_engines">Engine comparison at 8192&times;5760 (47.2 MP)</caption>
       <thead>
         <tr>
           <th scope="col">Engine</th>
@@ -173,9 +173,19 @@
           <td>5.4</td>
           <td>0.185</td>
         </tr>
+        <tr class="row-pending">
+          <th scope="row"><span class="engine-cell"><span class="engine-swatch swatch-pmtiles"></span>MapReduce&nbsp;&rarr;&nbsp;PMTiles<sup class="bench-pending" title="Measurements pending; see the note under this table.">&dagger;</sup></span></th>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+        </tr>
       </tbody>
     </table>
   </div>
+  <p class="bench-note" data-bench-note="engines"><strong>&dagger; PMTiles measurements are pending.</strong> PMTiles is not a fourth engine: it is the MapReduce engine writing one indexed <code>.pmtiles</code> archive instead of a tile tree, so the row shares its grid, its tile count and its compute path. libviprs-bench has no storage axis until <a href="https://github.com/libviprs/libviprs/issues/993" style="color:var(--primary);">libviprs#993</a> lands, and a guessed number on a benchmarks page is a number somebody quotes back, so these cells stay empty until that run publishes. The five figures above come from the same run and get their PMTiles series then.</p>
 </div>
 
 <p>Two of those columns need reading together honestly. On <strong>peak RSS</strong> &mdash; whole-process resident memory &mdash; the three libviprs engines land close to one another and, at this size, slightly above libvips, because every engine holds the same decoded source raster. The <strong>working set</strong> column is where they separate: the monolithic engine carries 135 MB of its own live allocations, while streaming and MapReduce hold just 21 MB. That 21 MB is <em>constant</em> &mdash; it doesn't grow as the image gets taller &mdash; which is what lets those engines keep running where a monolithic buffer, or libvips, would not. And because libviprs turns out tiles 5&ndash;6&times; faster for a comparable resident footprint, all three engines still deliver roughly 4&times; libvips's tiles per RSS-megabyte.</p>
@@ -247,6 +257,8 @@
 
 <p>libviprs ships three engines behind a unified API. The <strong>monolithic engine</strong> materialises the full canvas and processes levels top-down &mdash; fastest when memory is abundant. The <strong>streaming engine</strong> processes the image in horizontal strips, keeping peak memory proportional to strip height rather than image height &mdash; best for memory-constrained containers. The <a href="../cli/#flag-parallel" style="color:var(--primary);"><strong>MapReduce engine</strong></a> extends streaming with parallel strip rendering, overlapping the Map phase (render + tile) across multiple strips while the Reduce phase (downscale propagation) runs sequentially. All three produce byte-identical <a href="../cli/#pyramid" style="color:var(--primary);">pyramid output</a>.</p>
 
+<p>Storage is a separate axis from the engine, and the last row of the table below picks along it rather than between engines. A pyramid is one <a href="https://github.com/protomaps/PMTiles/blob/main/spec/v3/spec.md" style="color:var(--primary);">PMTiles v3</a> archive by default now, written through <code>PmTilesSink</code> and read back by <code>pmtiles::Reader</code> over any byte-range source, with the classic tile tree still there behind <a href="../cli/#flag-storage" style="color:var(--primary);"><code>--storage directory</code></a>. Any engine can write either, so that row names MapReduce only because that is the pairing the benchmark measures; the rest of this article is about the engines, and the archive costs whatever it costs on top of whichever one you pick.</p>
+
 <div class="bench-wide">
   <div class="bench-scroll" tabindex="0" role="region" aria-labelledby="benchTableCaption_picker">
     <table class="bench-table" data-bench-table="scenarios">
@@ -263,24 +275,31 @@
       <tbody>
         <tr>
           <th scope="row">Beefy server, max speed</th>
-          <td><span class="engine-cell"><span class="engine-swatch swatch-mono"></span>Monolithic</span></td>
+          <td><span class="engine-cell"><span class="engine-swatch swatch-mono"></span>libviprs monolithic</span></td>
           <td><code>O(canvas&sup2;)</code></td>
-          <td>Fastest &mdash; 2,944&nbsp;tiles/s at 47&nbsp;MP</td>
+          <td>Fastest &mdash; 2,944&nbsp;tiles/s at 47.2&nbsp;MP</td>
           <td>RAM is abundant and you want raw throughput.</td>
         </tr>
         <tr>
           <th scope="row">Container, limited RAM</th>
-          <td><span class="engine-cell"><span class="engine-swatch swatch-stream"></span>Streaming</span></td>
+          <td><span class="engine-cell"><span class="engine-swatch swatch-stream"></span>libviprs streaming</span></td>
           <td><code>O(width &times; strip)</code></td>
           <td>Good &mdash; 2,564&nbsp;tiles/s in a 21&nbsp;MB working set</td>
           <td>Tight memory ceiling (e.g. 512&nbsp;MB pod) on potentially huge images.</td>
         </tr>
         <tr>
           <th scope="row">Multi-core, bounded RAM</th>
-          <td><span class="engine-cell"><span class="engine-swatch swatch-mr"></span>MapReduce</span></td>
+          <td><span class="engine-cell"><span class="engine-swatch swatch-mr"></span>libviprs MapReduce</span></td>
           <td><code>O(width &times; strip)</code></td>
           <td>Fast &mdash; 2,831&nbsp;tiles/s, same 21&nbsp;MB working set</td>
           <td>Spare cores you can spend on parallel strip rendering.</td>
+        </tr>
+        <tr class="row-pending">
+          <th scope="row">Single-file archive, random tile read</th>
+          <td><span class="engine-cell"><span class="engine-swatch swatch-pmtiles"></span>MapReduce&nbsp;&rarr;&nbsp;PMTiles<sup class="bench-pending" title="Measurements pending; see the note under this table.">&dagger;</sup></span></td>
+          <td><code>O(width &times; strip)</code></td>
+          <td>Pending, measured by <a href="https://github.com/libviprs/libviprs/issues/993" style="color:var(--primary);">libviprs#993</a></td>
+          <td>You would rather copy, upload and serve one archive than walk a tree of small files, and your viewer can fetch a tile by ranged read.</td>
         </tr>
         <tr>
           <th scope="row">Unknown image sizes</th>

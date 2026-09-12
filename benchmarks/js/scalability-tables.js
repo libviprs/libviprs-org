@@ -19,6 +19,16 @@
  * engine's metrics at the largest tested megapixel point. For
  * engine_id values that don't appear in the bench data (e.g.
  * "auto"), the template is rendered verbatim.
+ *
+ * Provisional rows: a bench row may carry `"provisional": true` with
+ * its measured fields null, for a configuration that is registered but
+ * not yet measured. Those cells render as the same em dash an absent
+ * metric already used, the engine's label picks up the marker from
+ * `provisional_note.marker`, and the `[data-bench-note]` paragraph
+ * under the table is filled from `provisional_note.text` and un-hidden.
+ * All three are read off the data, so removing the flag and filling the
+ * nulls in scalability_results.json is the whole migration: no edit
+ * here, in engine-scenarios.json or in the markup.
  */
 (function () {
   'use strict';
@@ -72,10 +82,33 @@
   // Bench-data helpers
   // ---------------------------------------------------------------------------
 
+  // A row is only usable for a number if it actually carries one. A
+  // provisional row has the right identity (size, engine, tile count) and
+  // null measurements, so it must never reach a formatter that would turn
+  // the absence into a value. Math.round(null) is 0, which would print
+  // "0 tiles/s" and read as a measured result.
+  function hasMetrics(row) {
+    return !!row && row.tiles_per_second != null;
+  }
+
+  // True when this engine is registered in the bench data but every one of
+  // its rows is still pending. Driven off the data rather than the editorial
+  // config so it clears itself the moment real numbers land.
+  function isPendingEngine(rows, engineId) {
+    let seen = false;
+    for (const r of rows) {
+      if (r.engine !== engineId) continue;
+      seen = true;
+      if (hasMetrics(r)) return false;
+    }
+    return seen;
+  }
+
   function largestMpRow(rows, engineId) {
     let best = null;
     for (const r of rows) {
       if (r.engine !== engineId) continue;
+      if (!hasMetrics(r)) continue;
       if (!best || r.megapixels > best.megapixels) best = r;
     }
     return best;
@@ -113,6 +146,32 @@
     return row[key];
   }
 
+  // The engine label, with the pending marker appended when this engine's
+  // rows carry no measurements yet. The marker only points; the explanation
+  // lives in the note under the table.
+  function engineLabelHtml(displayEntry, pending, cfg) {
+    const html = escapeHtml(displayEntry.label);
+    const marker = cfg.provisional_note && cfg.provisional_note.marker;
+    if (!pending || !marker) return html;
+    return html +
+      '<sup class="bench-pending" title="Measurements pending; see the note under this table.">' +
+      escapeHtml(marker) + '</sup>';
+  }
+
+  // Fill and reveal the note under a table, or hide it, depending on whether
+  // anything pending was actually rendered into that table.
+  function updatePendingNote(which, cfg, pendingCount) {
+    const el = document.querySelector('[data-bench-note="' + which + '"]');
+    if (!el) return;
+    const note = cfg.provisional_note;
+    if (pendingCount > 0 && note && note.text) {
+      el.innerHTML = note.text;
+      el.hidden = false;
+    } else {
+      el.hidden = true;
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Engine-comparison table renderer
   // ---------------------------------------------------------------------------
@@ -133,7 +192,7 @@
   function renderEngineTable(table, results, scenariosCfg, showcaseMp) {
     const cfg = scenariosCfg.engine_table;
     const display = scenariosCfg.engine_display;
-    if (!cfg || !display || showcaseMp == null) return;
+    if (!cfg || !display || showcaseMp == null) return 0;
     const sample = results.find(function (r) { return r.megapixels === showcaseMp; });
 
     // Caption — substitute width / height / mp from the showcase row.
@@ -157,21 +216,24 @@
 
     // Body — one row per engine in the configured order.
     const tbody = table.querySelector('tbody');
-    if (!tbody) return;
+    if (!tbody) return 0;
+    let pendingCount = 0;
     const rows = cfg.engine_order.map(function (engineId) {
       const display_ = display[engineId];
       if (!display_) return '';
       const row = findRow(results, engineId, showcaseMp);
+      const pending = isPendingEngine(results, engineId);
+      if (pending) pendingCount += 1;
       const cells = cfg.columns.map(function (c) {
         const val = readMetric(row, c.key);
         return '<td>' + fmt(val, c) + '</td>';
       }).join('');
       return (
-        '<tr>' +
+        '<tr' + (pending ? ' class="row-pending"' : '') + '>' +
           '<th scope="row">' +
             '<span class="engine-cell">' +
               '<span class="engine-swatch swatch-' + escapeHtml(display_.swatch) + '"></span>' +
-              escapeHtml(display_.label) +
+              engineLabelHtml(display_, pending, scenariosCfg) +
             '</span>' +
           '</th>' +
           cells +
@@ -179,6 +241,7 @@
       );
     }).join('');
     tbody.innerHTML = rows;
+    return pendingCount;
   }
 
   // ---------------------------------------------------------------------------
@@ -186,7 +249,10 @@
   // ---------------------------------------------------------------------------
 
   function fillSpeedTemplate(template, engineRow) {
-    if (!engineRow) return template;
+    // No row, or a row whose measurements are still pending, means there is
+    // nothing to substitute. Render the template as written: a pending
+    // scenario spells out where its numbers are coming from instead.
+    if (!hasMetrics(engineRow)) return template;
     const throughput = Math.round(engineRow.tiles_per_second).toLocaleString('en-US');
     const mp = engineRow.megapixels.toFixed(engineRow.megapixels >= 100 ? 0 : 1);
     // {memory} is the engine's working set — the constant-memory "envelope"
@@ -204,7 +270,7 @@
   function renderScenarioTable(table, results, scenariosCfg, showcaseMp) {
     const cfg = scenariosCfg.scenario_table;
     const display = scenariosCfg.engine_display;
-    if (!cfg || !display) return;
+    if (!cfg || !display) return 0;
 
     const captionEl = table.querySelector('caption');
     if (captionEl && cfg.caption) captionEl.textContent = cfg.caption;
@@ -217,9 +283,12 @@
     }
 
     const tbody = table.querySelector('tbody');
-    if (!tbody) return;
+    if (!tbody) return 0;
+    let pendingCount = 0;
     tbody.innerHTML = cfg.scenarios.map(function (s) {
       const eng = display[s.engine_id] || { label: s.engine_id, swatch: '' };
+      const pending = isPendingEngine(results, s.engine_id);
+      if (pending) pendingCount += 1;
       // Prefer the engine's row at the engine-table's showcase MP so
       // both tables read off the same showcase numbers; fall back to
       // its largest-MP row if the showcase doesn't exist for this
@@ -228,12 +297,12 @@
         || largestMpRow(results, s.engine_id);
       const speedHtml = fillSpeedTemplate(s.speed_template || '', benchRow);
       return (
-        '<tr>' +
+        '<tr' + (pending ? ' class="row-pending"' : '') + '>' +
           '<th scope="row">' + escapeHtml(s.scenario) + '</th>' +
           '<td>' +
             '<span class="engine-cell">' +
               '<span class="engine-swatch swatch-' + escapeHtml(eng.swatch) + '"></span>' +
-              escapeHtml(eng.label) +
+              engineLabelHtml(eng, pending, scenariosCfg) +
             '</span>' +
           '</td>' +
           // memory_complexity, speed, best_when carry curated inline
@@ -244,6 +313,7 @@
         '</tr>'
       );
     }).join('');
+    return pendingCount;
   }
 
   // ---------------------------------------------------------------------------
@@ -404,11 +474,16 @@
       document.querySelectorAll('table[data-bench-table]').forEach(function (table) {
         const which = table.dataset.benchTable;
         try {
+          let pending = 0;
           if (which === 'engines') {
-            renderEngineTable(table, results, cfg, showcaseMp);
+            pending = renderEngineTable(table, results, cfg, showcaseMp);
           } else if (which === 'scenarios') {
-            renderScenarioTable(table, results, cfg, showcaseMp);
+            pending = renderScenarioTable(table, results, cfg, showcaseMp);
           }
+          // Only touch the note once its table rendered. If the render threw,
+          // the static fallback rows stand and so must the static note that
+          // goes with them.
+          updatePendingNote(which, cfg, pending || 0);
         } catch (e) {
           // Leave the static fallback rows in place if anything throws.
           console.warn('[bench-table] render failed for', which, e);
