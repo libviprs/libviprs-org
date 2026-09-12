@@ -1,0 +1,213 @@
+name: cli-resync
+
+# The closing step for the frozen-copy loop (#58).
+#
+# cli/rust/ is a byte-identical copy of libviprs-cli/src, and
+# cli/rust/COUNTERPART_REV names the revision it is a copy of. The `sync` gate in
+# ci.yml compares those two, so it stays green when libviprs-cli moves. That is
+# deliberate: before #63 the gate resolved an unset repository variable to "the
+# default branch" and compared against whatever libviprs-cli main was that
+# morning, which reddened whichever PR here happened to run next rather than the
+# change that caused it.
+#
+# Pinning fixed the bystander red and left nothing bringing the copy forward.
+# ci.yml's advisory step prints a ::warning:: when the pin is behind, and a
+# warning nobody reads is how the copy drifted in the first place. So this does
+# the catch-up and opens it for review.
+#
+# THIS IS NOT THE RETIRED cli-sync.yml COMING BACK. That one was folded into
+# ci.yml under B6 because it duplicated the drift sweep and raced it on the same
+# triggers. Nothing here duplicates a gate: ci.yml reports drift and this writes
+# the fix, which is the half ci.yml deliberately does not do. It has to be a
+# separate file for a concrete reason rather than a stylistic one: ci.yml
+# declares `permissions: contents: read`, and opening a pull request needs
+# `contents: write` and `pull-requests: write`. Folding this in would widen the
+# permissions of every gate job in the repository to get one of them a token it
+# alone needs. The schedule is offset from ci.yml's so the two do not collide.
+#
+# Why not a blocking check on the libviprs-cli side, which is the shape #58
+# originally asked for: the pin names a libviprs-cli commit, so the companion
+# re-sync can only be made after that commit exists on main. A gate there would
+# block the very merge it is waiting for. Recording that here so it is not
+# proposed again.
+#
+# It opens a PR rather than pushing to main, because a re-sync moves the
+# generated op-sections fragment and the published index.html, which is a change
+# somebody should look at.
+
+on:
+  schedule:
+    # After libviprs-cli's own nightly at 06:11 UTC, so a CLI change and the
+    # sync that follows it do not race on the same morning.
+    - cron: '41 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  # Two runs would race on the same branch and the same PR.
+  group: cli-sync
+  cancel-in-progress: false
+
+env:
+  SYNC_BRANCH: chore/cli-sync
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out libviprs-org (this repo)
+        uses: actions/checkout@v4
+        with:
+          path: libviprs-org
+          fetch-depth: 0
+
+      - name: Resolve the pin and libviprs-cli main
+        id: revs
+        run: |
+          set -euo pipefail
+          pinned="$(tr -d '[:space:]' < libviprs-org/cli/rust/COUNTERPART_REV)"
+          if ! printf '%s' "$pinned" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error file=cli/rust/COUNTERPART_REV::not a 40-character commit sha: '$pinned'"
+            exit 1
+          fi
+          upstream="$(git ls-remote https://github.com/libviprs/libviprs-cli.git refs/heads/main | cut -f1)"
+          if ! printf '%s' "$upstream" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error::could not read libviprs-cli main, so this run cannot tell whether the copy is stale"
+            exit 1
+          fi
+          echo "pinned=$pinned" >> "$GITHUB_OUTPUT"
+          echo "upstream=$upstream" >> "$GITHUB_OUTPUT"
+          if [ "$pinned" = "$upstream" ]; then
+            echo "moved=0" >> "$GITHUB_OUTPUT"
+            echo "pin matches libviprs-cli main ($upstream)"
+          else
+            echo "moved=1" >> "$GITHUB_OUTPUT"
+            echo "pin $pinned is behind libviprs-cli main $upstream"
+          fi
+
+      - name: Check out libviprs-cli at main
+        if: steps.revs.outputs.moved == '1'
+        uses: actions/checkout@v4
+        with:
+          repository: libviprs/libviprs-cli
+          path: libviprs-cli
+          ref: ${{ steps.revs.outputs.upstream }}
+
+      # A moved pin is not the same thing as a stale copy: most libviprs-cli
+      # commits touch nothing cli/rust/ freezes. Opening a PR for every one of
+      # them would be daily noise, so the drift check decides, not the sha.
+      - name: Is the frozen copy actually stale?
+        id: drift
+        if: steps.revs.outputs.moved == '1'
+        working-directory: libviprs-org
+        run: |
+          set -euo pipefail
+          if cli/tools/sync-cli-src.sh --check; then
+            echo "stale=0" >> "$GITHUB_OUTPUT"
+            echo "the frozen copy is byte-identical to libviprs-cli main; only the pin is behind"
+          else
+            echo "stale=1" >> "$GITHUB_OUTPUT"
+            echo "the frozen copy has drifted from libviprs-cli main"
+          fi
+
+      - name: Set up Node
+        if: steps.drift.outputs.stale == '1'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up Rust
+        if: steps.drift.outputs.stale == '1'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Re-sync the copy and everything generated from it
+        if: steps.drift.outputs.stale == '1'
+        working-directory: libviprs-org
+        run: |
+          set -euo pipefail
+          cli/tools/sync-cli-src.sh
+          printf '%s\n' "${{ steps.revs.outputs.upstream }}" > cli/rust/COUNTERPART_REV
+
+      # A pull request opened with GITHUB_TOKEN does not start a workflow run,
+      # so nothing would check this one. The gates therefore run here, and the
+      # PR body carries the result. Anything red stops the PR being opened at
+      # all: a sync that does not satisfy the gates is a report, not a patch.
+      - name: Run the gates this change has to satisfy
+        if: steps.drift.outputs.stale == '1'
+        id: gates
+        working-directory: libviprs-org
+        run: |
+          set -euo pipefail
+          cli/tools/sync-cli-src.sh --check
+          node cli/tools/sync-pin.test.js
+          git diff --exit-code cli/js/snippets.generated.json
+          node cli/tools/test-flags/test.js
+          node cli/tools/test-flags/anchors.js
+          node cli/tools/gen-op-sections/index.js --out cli/tools/gen-op-sections/generated-op-sections.html
+          git diff --exit-code cli/tools/gen-op-sections/generated-op-sections.html
+          node cli/tools/gen-op-sections/placeholder-substitution.test.js
+          node cli/tools/gen-op-sections/hand-authored.test.js
+          ( cd cli/tools/extract-snippets && cargo test --quiet )
+
+      - name: Open or update the sync pull request
+        if: steps.drift.outputs.stale == '1'
+        working-directory: libviprs-org
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PINNED: ${{ steps.revs.outputs.pinned }}
+          UPSTREAM: ${{ steps.revs.outputs.upstream }}
+        run: |
+          set -euo pipefail
+          git config user.name "libviprs-org sync"
+          git config user.email "noreply@github.com"
+          git checkout -B "$SYNC_BRANCH"
+          git add cli/rust cli/js/snippets.generated.json \
+                  cli/tools/gen-op-sections/generated-op-sections.html index.html
+          if git diff --cached --quiet; then
+            echo "the gates left nothing staged, so there is nothing to open"
+            exit 0
+          fi
+          git commit -m "cli: re-sync the frozen copy to libviprs-cli ${UPSTREAM:0:12}
+
+          cli/rust/ is a byte-identical copy of libviprs-cli/src and it had
+          drifted: the pin was at ${PINNED:0:12} and libviprs-cli main is at
+          ${UPSTREAM:0:12}. Regenerated through cli/tools/sync-cli-src.sh, which
+          also moves snippets.generated.json, the op-sections fragment and the
+          copy of that fragment embedded in index.html."
+          git push --force-with-lease origin "$SYNC_BRANCH"
+          body=$(cat <<EOF
+          The frozen \`cli/rust/\` copy had drifted from \`libviprs-cli\` main. Opened by \`.github/workflows/cli-resync.yml\`, which is the closing step for #58.
+
+          | | |
+          | --- | --- |
+          | pin was | \`$PINNED\` |
+          | libviprs-cli main | \`$UPSTREAM\` |
+
+          Regenerated with \`cli/tools/sync-cli-src.sh\`, which moves the frozen sources, \`cli/js/snippets.generated.json\`, the op-sections fragment, and the copy of that fragment embedded in \`index.html\`.
+
+          **These gates ran in the job that opened this, and all passed.** They are here because a pull request opened with \`GITHUB_TOKEN\` does not start a workflow run, so no checks will appear on this PR by themselves:
+
+          - \`cli/tools/sync-cli-src.sh --check\`
+          - \`node cli/tools/sync-pin.test.js\`
+          - \`git diff --exit-code cli/js/snippets.generated.json\` (regenerates clean)
+          - \`node cli/tools/test-flags/test.js\` and \`anchors.js\`
+          - \`gen-op-sections\` regenerate and \`git diff --exit-code\`
+          - \`placeholder-substitution.test.js\` and \`hand-authored.test.js\`
+          - \`cargo test\` in \`cli/tools/extract-snippets\`
+
+          If the sync had failed any of them this PR would not exist: the job stops before opening it.
+
+          To get real check runs attached, close and reopen this PR.
+          EOF
+          )
+          if gh pr view "$SYNC_BRANCH" --json number >/dev/null 2>&1; then
+            gh pr edit "$SYNC_BRANCH" --body "$body"
+            echo "updated the open sync PR"
+          else
+            gh pr create --base main --head "$SYNC_BRANCH" \
+              --title "cli: re-sync the frozen copy to libviprs-cli ${UPSTREAM:0:12}" \
+              --body "$body"
+          fi

@@ -108,7 +108,7 @@ jobs:
           if [ -z "$upstream" ]; then
             echo "::warning::could not read libviprs-cli main; skipping the drift advisory"
           elif [ "$pinned" != "$upstream" ]; then
-            echo "::warning::the pin ($pinned) is behind libviprs-cli main ($upstream). Run cli/tools/sync-cli-src.sh, commit the regenerated files, and bump cli/rust/COUNTERPART_REV."
+            echo "::warning::the pin ($pinned) is behind libviprs-cli main ($upstream). cli-resync.yml opens the re-sync as a PR when the frozen copy has actually drifted; run it with workflow_dispatch to not wait for the nightly, or do it by hand with cli/tools/sync-cli-src.sh plus a bump of cli/rust/COUNTERPART_REV."
           else
             echo "pin matches libviprs-cli main ($upstream)"
           fi
