@@ -67,6 +67,51 @@ function replaceOnce(s, from, to) {
   return s.slice(0, i) + to + s.slice(i + from.length);
 }
 
+/* Same, but for text the pending fixture repeats once per row: change only the
+ * first occurrence, so exactly one row drifts and the rest stay as the control. */
+function replaceFirst(s, from, to) {
+  const i = s.indexOf(from);
+  if (i === -1) throw new Error('fixture text not found: ' + JSON.stringify(from));
+  return s.slice(0, i) + to + s.slice(i + from.length);
+}
+
+/* The storage table is measured today and was pending yesterday, and the gate
+ * has to work in both states, so the pending fixtures are derived from the
+ * renderer rather than copied out of whatever the page happens to say this
+ * week. Entities are not re-encoded here on purpose: norm() decodes them, so a
+ * literal em dash and &mdash; are the same fixture. */
+function storageTbodyFor(exportDoc) {
+  const model = M.storageTableModel(M.readStorageRows(exportDoc), SCENARIOS, true);
+  return model.rows.map(function (r) {
+    const cells = r.cells.map(function (c) {
+      return c.scope === 'row'
+        ? '          <th scope="row">' + c.html + '</th>'
+        : '          <td>' + c.html + '</td>';
+    }).join('\n');
+    return '        <tr' + (r.pending ? ' class="row-pending"' : '') + '>\n' + cells + '\n        </tr>';
+  }).join('\n');
+}
+
+/* The committed page with its storage table swapped for the one `exportDoc`
+ * renders, note visibility included. */
+function pageWith(html, exportDoc) {
+  const model = M.storageTableModel(M.readStorageRows(exportDoc), SCENARIOS, true);
+  const tbl = /(<table[^>]*data-bench-table="storage"[^>]*>)([\s\S]*?)(<\/table>)/.exec(html);
+  if (!tbl) throw new Error('no storage table in the fixture page');
+  const swapped = tbl[2].replace(/(<tbody[^>]*>\n)[\s\S]*?(      <\/tbody>)/,
+    '$1' + storageTbodyFor(exportDoc).replace(/\$/g, '$$$$') + '\n$2');
+  let out = html.replace(tbl[2], swapped);
+  out = model.pendingCount > 0
+    ? out.replace('data-bench-note="storage" hidden>', 'data-bench-note="storage">')
+    : out.replace(/data-bench-note="storage"(?! hidden)>/, 'data-bench-note="storage" hidden>');
+  return out;
+}
+
+// The export that has every row pending: the shape this page shipped with
+// before libviprs/libviprs#993 published its measurements.
+const EMPTY_EXPORT = { schema: 1, rows: [] };
+const PENDING_PAGE = pageWith(HTML, EMPTY_EXPORT);
+
 console.log('[0] NEGATIVE CONTROL: the committed tree is clean');
 {
   const findings = drift.check();
@@ -115,38 +160,55 @@ catches('a wrong number in a data cell',
   { html: replaceOnce(HTML, '<td>2,028</td>', '<td>2,082</td>') },
   '2,082');
 
-console.log('\n[2] the pending machinery, which is new and therefore unproven');
+console.log('\n[2] the pending machinery, which has to stay gateable now that the numbers landed');
+{
+  // A second negative control: the pending state is internally consistent too,
+  // so every finding below is the injected drift and not the fixture.
+  const clean = drift.check({ html: PENDING_PAGE, pmtiles: EMPTY_EXPORT });
+  ok('the pending page and the empty export agree', clean.length === 0, clean.join('\n          '));
+  const pendingRows = drift.extractTables(PENDING_PAGE).storage.rows;
+  ok('the pending fixture really is pending (8 rows, all marked)',
+     pendingRows.length === 8 && pendingRows.every(function (r) { return r.pending; }));
+}
+
 catches('a pending row that lost its row-pending class',
-  { html: replaceOnce(HTML,
-      '<tr class="row-pending">\n          <th scope="row">8192&times;8192, 64&nbsp;px tiles</th>\n          <td><span class="engine-cell"><span class="engine-swatch swatch-pmtiles">',
-      '<tr>\n          <th scope="row">8192&times;8192, 64&nbsp;px tiles</th>\n          <td><span class="engine-cell"><span class="engine-swatch swatch-pmtiles">') },
+  { html: replaceFirst(PENDING_PAGE, '<tr class="row-pending">', '<tr>'),
+    pmtiles: EMPTY_EXPORT },
   'row-pending');
 
 catches('a pending row whose marker was dropped from the markup',
-  { html: replaceOnce(HTML,
-      'PMTiles archive<sup class="bench-pending" title="Measurements pending; see the note under this table.">&dagger;</sup></span></td>\n          <td>&mdash;</td>\n          <td>&mdash;</td>\n          <td>&mdash;</td>\n          <td>&mdash;</td>\n          <td>&mdash;</td>\n          <td>&mdash;</td>\n          <td>&mdash;</td>\n        </tr>\n        <tr class="row-pending">\n          <th scope="row">2048&times;2048, 256&nbsp;px tiles</th>',
-      'PMTiles archive</span></td>\n          <td>&mdash;</td>\n          <td>&mdash;</td>\n          <td>&mdash;</td>\n          <td>&mdash;</td>\n          <td>&mdash;</td>\n          <td>&mdash;</td>\n          <td>&mdash;</td>\n        </tr>\n        <tr class="row-pending">\n          <th scope="row">2048&times;2048, 256&nbsp;px tiles</th>') },
+  { html: replaceFirst(PENDING_PAGE,
+      'PMTiles archive<sup class="bench-pending" title="Measurements pending; see the note under this table.">\u2020</sup>',
+      'PMTiles archive'),
+    pmtiles: EMPTY_EXPORT },
   'storage');
 
 catches('a marker pointing at a note that does not exist',
-  { html: HTML.replace(/<p class="bench-note" data-bench-note="storage">[\s\S]*?<\/p>\n/, '') },
+  { html: PENDING_PAGE.replace(/<p class="bench-note" data-bench-note="storage"[^>]*>[\s\S]*?<\/p>\n/, ''),
+    pmtiles: EMPTY_EXPORT },
   'no [data-bench-note="storage"] element');
 
 catches('a note whose text drifted away from the JSON',
-  { html: replaceOnce(HTML, 'The storage measurements are pending.', 'The storage measurements are on their way.') },
+  { html: replaceOnce(PENDING_PAGE, 'The storage measurements are pending.', 'The storage measurements are on their way.'),
+    pmtiles: EMPTY_EXPORT },
   'note text');
 
-catches('a note left visible while nothing is pending',
-  (function () {
-    const cfg = clone(SCENARIOS);
-    // One configured row, and an export that measures it: nothing pending.
-    cfg.storage_table.rows = [{ width: 1, height: 1, tile_size: 256, storage: 'pmtiles' }];
-    return {
-      scenarios: cfg,
-      pmtiles: { schema: 1, rows: [measured({ width: 1, height: 1, tile_size: 256, storage: 'pmtiles', scenario: 'generate' })] },
-    };
-  })(),
-  'row count');  // the static table still has eight rows; the row-count finding fires first
+catches('a note hidden while rows are still pending',
+  { html: replaceOnce(PENDING_PAGE, 'data-bench-note="storage">', 'data-bench-note="storage" hidden>'),
+    pmtiles: EMPTY_EXPORT },
+  'hidden while rows are still pending');
+
+catches('a note left visible once nothing is pending',
+  { html: replaceOnce(HTML, 'data-bench-note="storage" hidden>', 'data-bench-note="storage">') },
+  'the static note is visible');
+
+catches('a measured page left standing against a pending export',
+  { pmtiles: EMPTY_EXPORT },
+  'row-pending');
+
+catches('a pending page left standing against a measured export',
+  { html: PENDING_PAGE },
+  'row-pending');
 
 console.log('\n[3] the storage export contract');
 {
@@ -248,6 +310,66 @@ console.log('\n[7] entity spelling and line wrapping are not drift');
   });
   ok('rewriting entities as literal characters reports nothing', findings.length === 0,
      findings.join('\n          '));
+}
+
+console.log('\n[8] the committed export, read exactly the way the page reads it');
+{
+  const rows = M.readStorageRows(PMTILES);
+  const cfg = SCENARIOS.storage_table;
+
+  // p50 and p99 are null on every generation row by design. The table must
+  // never reach one: its latency columns name read_random, and a generation
+  // column names generate, so the two can't cross.
+  const gens = rows.filter(function (r) { return r.scenario === 'generate'; });
+  ok('every generation row carries a null p50 and p99',
+     gens.length > 0 && gens.every(function (r) { return r.p50_latency_us === null && r.p99_latency_us === null; }));
+
+  let latencyLookups = 0, hitGenerate = 0, unresolved = 0;
+  cfg.rows.forEach(function (spec) {
+    cfg.columns.filter(function (c) { return /_latency_us$/.test(c.key); }).forEach(function (c) {
+      latencyLookups += 1;
+      const hit = M.findStorageRow(rows, {
+        storage: spec.storage, width: spec.width, height: spec.height,
+        tile_size: spec.tile_size, scenario: c.scenario, concurrency: c.concurrency });
+      if (!hit) { unresolved += 1; return; }
+      if (hit.scenario === 'generate') hitGenerate += 1;
+    });
+  });
+  ok('no latency column ever resolves to a generation row',
+     hitGenerate === 0 && unresolved === 0,
+     'lookups ' + latencyLookups + ', generate hits ' + hitGenerate + ', unresolved ' + unresolved);
+
+  // Nothing in the export is a flattering zero, and nothing rendered is one
+  // either: a null would have printed as an em dash, which is now absent.
+  const zeroed = rows.filter(function (r) {
+    return Object.keys(r).some(function (k) { return typeof r[k] === 'number' && r[k] === 0; });
+  });
+  ok('no field in the export holds 0', zeroed.length === 0, String(zeroed.length));
+
+  const model = M.storageTableModel(rows, SCENARIOS, true);
+  const cells = model.rows.reduce(function (a, r) { return a.concat(r.cells.map(function (c) { return c.html; })); }, []);
+  ok('nothing renders as an em dash', cells.indexOf('\u2014') === -1);
+  ok('nothing renders as a bare 0 or 0.00',
+     cells.indexOf('0') === -1 && cells.indexOf('0.00') === -1);
+  ok('a null in a latency column would still be an em dash, never 0.00',
+     M.fmt(null, { key: 'p99_latency_us', format: 'fixed2' }) === '\u2014');
+
+  // The cell the whole table exists for.
+  const leafy = { width: 8192, height: 8192, tile_size: 64 };
+  const arc = M.findStorageRow(rows, Object.assign({ storage: 'pmtiles', scenario: 'generate', concurrency: 1 }, leafy));
+  const tree = M.findStorageRow(rows, Object.assign({ storage: 'directory', scenario: 'generate', concurrency: 1 }, leafy));
+  ok('21,851 tiles is 1 filesystem entry as an archive and 22,127 as a tree',
+     arc.tiles_produced === 21851 && arc.filesystem_entries === 1 &&
+     tree.tiles_produced === 21851 && tree.filesystem_entries === 22127,
+     arc.filesystem_entries + ' vs ' + tree.filesystem_entries);
+  ok('the archive is the smaller write on that cell, 1034 ms against 1183',
+     arc.wall_time_ms < tree.wall_time_ms,
+     arc.wall_time_ms.toFixed(2) + ' vs ' + tree.wall_time_ms.toFixed(2));
+  const arcR = M.findStorageRow(rows, Object.assign({ storage: 'pmtiles', scenario: 'read_random', concurrency: 1 }, leafy));
+  const treeR = M.findStorageRow(rows, Object.assign({ storage: 'directory', scenario: 'read_random', concurrency: 1 }, leafy));
+  ok('and answers a random read in 1.00 us against 3.17',
+     M.fmt(arcR.p50_latency_us, { format: 'fixed2' }) === '1.00' &&
+     M.fmt(treeR.p50_latency_us, { format: 'fixed2' }) === '3.17');
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
