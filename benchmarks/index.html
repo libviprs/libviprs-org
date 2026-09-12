@@ -110,7 +110,7 @@
 
 <p>Each engine &mdash; libvips included &mdash; is measured in its own child process, so one engine's peak resident memory can never contaminate another's. That isolation is what corrected the earlier, over-optimistic memory numbers (see the Memory Wall section). Every data point is the warm median of seven timed iterations after one warm-up run, reported with a 95% confidence interval, and host load and thermal state are recorded per run. The libvips oracle is version-matched and built from pinned source inside the benchmark container (measured 8.18.4 against a pinned 8.18.4).</p>
 
-<p>We tested ten image sizes from 0.2 megapixels (512&times;360) to 280 megapixels (20000&times;14000), using the aspect ratio of a real large-format scanned document (a 4608&times;3240 pt page). <a href="../cli/#flag-tile-size" style="color:var(--primary);">Tile size</a> was 256&times;256 with no <a href="../cli/#flag-overlap" style="color:var(--primary);">overlap</a> &mdash; standard DeepZoom configuration. libviprs was tested across all three of its engine modes: monolithic, sequential streaming, and <a href="../cli/#flag-parallel" style="color:var(--primary);">parallel MapReduce</a>. The charts below report the single-thread (concurrency&nbsp;=&nbsp;1) series &mdash; a like-for-like comparison against single-threaded libvips; MapReduce's parallel strip rendering is a separate axis that only pays off with spare cores.</p>
+<p>We tested ten image sizes from 0.2 megapixels (512&times;360) to 280 megapixels (20000&times;14000), using the aspect ratio of a real large-format scanned document (a 4608&times;3240 pt page). <a class="bench-link" href="../cli/#flag-tile-size">Tile size</a> was 256&times;256 with no <a class="bench-link" href="../cli/#flag-overlap">overlap</a> &mdash; standard DeepZoom configuration. libviprs was tested across all three of its engine modes: monolithic, sequential streaming, and <a class="bench-link" href="../cli/#flag-parallel">parallel MapReduce</a>. The charts below report the single-thread (concurrency&nbsp;=&nbsp;1) series &mdash; a like-for-like comparison against single-threaded libvips; MapReduce's parallel strip rendering is a separate axis that only pays off with spare cores.</p>
 
 <h2>The Numbers</h2>
 
@@ -173,19 +173,9 @@
           <td>5.4</td>
           <td>0.185</td>
         </tr>
-        <tr class="row-pending">
-          <th scope="row"><span class="engine-cell"><span class="engine-swatch swatch-pmtiles"></span>MapReduce&nbsp;&rarr;&nbsp;PMTiles<sup class="bench-pending" title="Measurements pending; see the note under this table.">&dagger;</sup></span></th>
-          <td>&mdash;</td>
-          <td>&mdash;</td>
-          <td>&mdash;</td>
-          <td>&mdash;</td>
-          <td>&mdash;</td>
-          <td>&mdash;</td>
-        </tr>
       </tbody>
     </table>
   </div>
-  <p class="bench-note" data-bench-note="engines"><strong>&dagger; PMTiles measurements are pending.</strong> PMTiles is not a fourth engine: it is the MapReduce engine writing one indexed <code>.pmtiles</code> archive instead of a tile tree, so the row shares its grid, its tile count and its compute path. libviprs-bench has no storage axis until <a href="https://github.com/libviprs/libviprs/issues/993" style="color:var(--primary);">libviprs#993</a> lands, and a guessed number on a benchmarks page is a number somebody quotes back, so these cells stay empty until that run publishes. The five figures above come from the same run and get their PMTiles series then.</p>
 </div>
 
 <p>Two of those columns need reading together honestly. On <strong>peak RSS</strong> &mdash; whole-process resident memory &mdash; the three libviprs engines land close to one another and, at this size, slightly above libvips, because every engine holds the same decoded source raster. The <strong>working set</strong> column is where they separate: the monolithic engine carries 135 MB of its own live allocations, while streaming and MapReduce hold just 21 MB. That 21 MB is <em>constant</em> &mdash; it doesn't grow as the image gets taller &mdash; which is what lets those engines keep running where a monolithic buffer, or libvips, would not. And because libviprs turns out tiles 5&ndash;6&times; faster for a comparable resident footprint, all three engines still deliver roughly 4&times; libvips's tiles per RSS-megabyte.</p>
@@ -221,7 +211,7 @@
 
 <p>At 47 megapixels the libviprs engines deliver 4.9 to 5.8 tiles per second per megabyte of peak RSS; libvips delivers 1.3 (Figure&nbsp;3). That's roughly 4&times; the memory efficiency &mdash; not because libviprs uses dramatically less memory (on RSS, it doesn't), but because it produces tiles 5&ndash;6&times; faster for a comparable resident footprint. The gap holds across the sweep and reaches about 6&times; at the largest sizes, where every engine's RSS converges on the same source-dominated ceiling and the efficiency ratio becomes the pure throughput ratio.</p>
 
-<p>This matters for deployment. Cloud containers bill by memory-seconds, and because the streaming engine's working set is a constant 21 MB governed by a single <a href="../cli/#flag-memory-budget" style="color:var(--primary);">budget parameter</a>, operators can tile arbitrarily tall images inside a fixed ceiling &mdash; a 512 MB pod stays a 512 MB pod whether the image is 47 or 280 megapixels &mdash; and tune the memory/throughput tradeoff without touching application code.</p>
+<p>This matters for deployment. Cloud containers bill by memory-seconds, and because the streaming engine's working set is a constant 21 MB governed by a single <a class="bench-link" href="../cli/#flag-memory-budget">budget parameter</a>, operators can tile arbitrarily tall images inside a fixed ceiling &mdash; a 512 MB pod stays a 512 MB pod whether the image is 47 or 280 megapixels &mdash; and tune the memory/throughput tradeoff without touching application code.</p>
 
 <div class="chart-wrap">
   <img src="img/scalability_resource_cost.svg" alt="Resource cost chart — RSS-MB&middot;s per tile">
@@ -255,9 +245,7 @@
 
 <h2>Three Engines, One API</h2>
 
-<p>libviprs ships three engines behind a unified API. The <strong>monolithic engine</strong> materialises the full canvas and processes levels top-down &mdash; fastest when memory is abundant. The <strong>streaming engine</strong> processes the image in horizontal strips, keeping peak memory proportional to strip height rather than image height &mdash; best for memory-constrained containers. The <a href="../cli/#flag-parallel" style="color:var(--primary);"><strong>MapReduce engine</strong></a> extends streaming with parallel strip rendering, overlapping the Map phase (render + tile) across multiple strips while the Reduce phase (downscale propagation) runs sequentially. All three produce byte-identical <a href="../cli/#pyramid" style="color:var(--primary);">pyramid output</a>.</p>
-
-<p>Storage is a separate axis from the engine, and the last row of the table below picks along it rather than between engines. A pyramid is one <a href="https://github.com/protomaps/PMTiles/blob/main/spec/v3/spec.md" style="color:var(--primary);">PMTiles v3</a> archive by default now, written through <code>PmTilesSink</code> and read back by <code>pmtiles::Reader</code> over any byte-range source, with the classic tile tree still there behind <a href="../cli/#flag-storage" style="color:var(--primary);"><code>--storage directory</code></a>. Any engine can write either, so that row names MapReduce only because that is the pairing the benchmark measures; the rest of this article is about the engines, and the archive costs whatever it costs on top of whichever one you pick.</p>
+<p>libviprs ships three engines behind a unified API. The <strong>monolithic engine</strong> materialises the full canvas and processes levels top-down &mdash; fastest when memory is abundant. The <strong>streaming engine</strong> processes the image in horizontal strips, keeping peak memory proportional to strip height rather than image height &mdash; best for memory-constrained containers. The <a class="bench-link" href="../cli/#flag-parallel"><strong>MapReduce engine</strong></a> extends streaming with parallel strip rendering, overlapping the Map phase (render + tile) across multiple strips while the Reduce phase (downscale propagation) runs sequentially. All three produce byte-identical <a class="bench-link" href="../cli/#pyramid">pyramid output</a>.</p>
 
 <div class="bench-wide">
   <div class="bench-scroll" tabindex="0" role="region" aria-labelledby="benchTableCaption_picker">
@@ -294,13 +282,6 @@
           <td>Fast &mdash; 2,831&nbsp;tiles/s, same 21&nbsp;MB working set</td>
           <td>Spare cores you can spend on parallel strip rendering.</td>
         </tr>
-        <tr class="row-pending">
-          <th scope="row">Single-file archive, random tile read</th>
-          <td><span class="engine-cell"><span class="engine-swatch swatch-pmtiles"></span>MapReduce&nbsp;&rarr;&nbsp;PMTiles<sup class="bench-pending" title="Measurements pending; see the note under this table.">&dagger;</sup></span></td>
-          <td><code>O(width &times; strip)</code></td>
-          <td>Pending, measured by <a href="https://github.com/libviprs/libviprs/issues/993" style="color:var(--primary);">libviprs#993</a></td>
-          <td>You would rather copy, upload and serve one archive than walk a tree of small files, and your viewer can fetch a tile by ranged read.</td>
-        </tr>
         <tr>
           <th scope="row">Unknown image sizes</th>
           <td><span class="engine-cell"><span class="engine-swatch swatch-auto"></span>Auto-select</span></td>
@@ -313,7 +294,127 @@
   </div>
 </div>
 
-<p>Auto-selection is built into <code>EngineBuilder::new(...).with_engine(EngineKind::Auto)</code> &mdash; and <code>EngineKind::Auto</code> is the default, so it applies even if you never call <code>with_engine</code>. The builder picks the engine at runtime from the source kind (in-memory raster vs. strip source) and the value passed to <a href="../cli/#flag-memory-budget" style="color:var(--primary);"><code>with_memory_budget</code></a>. If the monolithic engine fits the budget for a raster source, it's used for maximum throughput. Otherwise, the streaming or MapReduce engine kicks in. No code changes, no configuration files &mdash; just a memory budget parameter.</p>
+<p>Auto-selection is built into <code>EngineBuilder::new(...).with_engine(EngineKind::Auto)</code> &mdash; and <code>EngineKind::Auto</code> is the default, so it applies even if you never call <code>with_engine</code>. The builder picks the engine at runtime from the source kind (in-memory raster vs. strip source) and the value passed to <a class="bench-link" href="../cli/#flag-memory-budget"><code>with_memory_budget</code></a>. If the monolithic engine fits the budget for a raster source, it's used for maximum throughput. Otherwise, the streaming or MapReduce engine kicks in. No code changes, no configuration files &mdash; just a memory budget parameter.</p>
+
+<h2>Storage Is a Separate Axis</h2>
+
+<p>Everything above compares engines. Which engine you pick and where the tiles land are two different decisions, and the second one has its own costs that none of the columns above can hold. A pyramid is one <a class="bench-link" href="https://github.com/protomaps/PMTiles/blob/main/spec/v3/spec.md">PMTiles v3</a> archive by default now, written through <code>PmTilesSink</code> and read back by <code>pmtiles::Reader</code> over any byte-range source, with the classic tile tree still there behind <a class="bench-link" href="../cli/#flag-storage"><code>--storage directory</code></a>. Any engine can write either, so this is a cross-cut rather than a fourth engine, and it gets its own table.</p>
+
+<p>The columns are the ones that actually separate the two backends. <strong>Filesystem entries</strong> is the one to read first: a tile tree spends one inode per tile plus a directory per level and per column, so a pyramid with twenty thousand tiles in it is twenty thousand-odd entries to copy, sync, back up and list, while the archive is one file whatever the tile count. <strong>Output size</strong> says what the index costs on top of the same tile bytes. The two <strong>random read</strong> columns are the other side of the trade: a tile tree lets the kernel's page cache do the work, and an archive has to find the tile in its directory first, so that is where an archive has to prove it is not paying for the convenience.</p>
+
+<p>This table is measured by a different harness than the engine bench above, on a deliberately different grid: square canvases, and a 64&nbsp;pixel tile size alongside the usual 256, because small tiles are what drive a tile tree into the leaf directories where the difference shows up at all. That is also why it is a table of its own rather than a column bolted onto the engine comparison: the two sweeps do not share a single size.</p>
+
+<div class="bench-wide">
+  <div class="bench-scroll" tabindex="0" role="region" aria-labelledby="benchTableCaption_storage">
+    <table class="bench-table" data-bench-table="storage">
+      <caption id="benchTableCaption_storage">Same pyramid, two storage backends</caption>
+      <thead>
+        <tr>
+          <th scope="col">Pyramid</th>
+          <th scope="col">Storage</th>
+          <th scope="col">Tiles</th>
+          <th scope="col">Output size (MB)</th>
+          <th scope="col">Filesystem entries</th>
+          <th scope="col">Generation (ms)</th>
+          <th scope="col">Generation (tiles/s)</th>
+          <th scope="col">Random read p50 (&micro;s)</th>
+          <th scope="col">Random read p99 (&micro;s)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="row-pending">
+          <th scope="row">2048&times;2048, 256&nbsp;px tiles</th>
+          <td><span class="engine-cell"><span class="engine-swatch swatch-pmtiles"></span>PMTiles archive<sup class="bench-pending" title="Measurements pending; see the note under this table.">&dagger;</sup></span></td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+        </tr>
+        <tr class="row-pending">
+          <th scope="row">2048&times;2048, 256&nbsp;px tiles</th>
+          <td><span class="engine-cell"><span class="engine-swatch swatch-dir"></span>Directory tree<sup class="bench-pending" title="Measurements pending; see the note under this table.">&dagger;</sup></span></td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+        </tr>
+        <tr class="row-pending">
+          <th scope="row">8192&times;8192, 256&nbsp;px tiles</th>
+          <td><span class="engine-cell"><span class="engine-swatch swatch-pmtiles"></span>PMTiles archive<sup class="bench-pending" title="Measurements pending; see the note under this table.">&dagger;</sup></span></td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+        </tr>
+        <tr class="row-pending">
+          <th scope="row">8192&times;8192, 256&nbsp;px tiles</th>
+          <td><span class="engine-cell"><span class="engine-swatch swatch-dir"></span>Directory tree<sup class="bench-pending" title="Measurements pending; see the note under this table.">&dagger;</sup></span></td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+        </tr>
+        <tr class="row-pending">
+          <th scope="row">16384&times;16384, 256&nbsp;px tiles</th>
+          <td><span class="engine-cell"><span class="engine-swatch swatch-pmtiles"></span>PMTiles archive<sup class="bench-pending" title="Measurements pending; see the note under this table.">&dagger;</sup></span></td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+        </tr>
+        <tr class="row-pending">
+          <th scope="row">16384&times;16384, 256&nbsp;px tiles</th>
+          <td><span class="engine-cell"><span class="engine-swatch swatch-dir"></span>Directory tree<sup class="bench-pending" title="Measurements pending; see the note under this table.">&dagger;</sup></span></td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+        </tr>
+        <tr class="row-pending">
+          <th scope="row">8192&times;8192, 64&nbsp;px tiles</th>
+          <td><span class="engine-cell"><span class="engine-swatch swatch-pmtiles"></span>PMTiles archive<sup class="bench-pending" title="Measurements pending; see the note under this table.">&dagger;</sup></span></td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+        </tr>
+        <tr class="row-pending">
+          <th scope="row">8192&times;8192, 64&nbsp;px tiles</th>
+          <td><span class="engine-cell"><span class="engine-swatch swatch-dir"></span>Directory tree<sup class="bench-pending" title="Measurements pending; see the note under this table.">&dagger;</sup></span></td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+          <td>&mdash;</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="bench-note" data-bench-note="storage"><strong>&dagger; The storage measurements are pending.</strong> This table reads its own export, <code>pmtiles_results.json</code>, written by the PMTiles benchmark suite in <a class="bench-link" href="https://github.com/libviprs/libviprs/issues/993">libviprs#993</a> rather than by the engine bench above. Every cell stays empty until that export lands here, because a guessed figure on a benchmarks page is a figure somebody quotes back. The grid, the backends and the columns are the ones that suite measures; only the numbers are outstanding.</p>
+</div>
 
 <h2>What libvips Does Better</h2>
 
@@ -325,7 +426,7 @@
 
 <p>All engines call into <code>libvips-rs</code> FFI bindings &mdash; <code>vips_image_new_from_memory</code> builds a <code>VipsImage</code> from the same pixel buffer libviprs uses, and <code>vips_dzsave</code> writes raw tiles (no encoding) to a temporary directory, while libviprs engines write to a <code>MemorySink</code>. The key methodology change in v0.4.0: every engine, libvips included, is profiled in its own isolated child process, so peak resident memory is measured per engine with no cross-contamination. This corrects the previous methodology, which compared libviprs's internal <code>MemoryTracker</code> working-set figure against libvips's <code>getrusage</code> peak RSS &mdash; an asymmetry that made libviprs's memory look far lower than a like-for-like RSS comparison bears out. v0.4.0 now reports two clearly separated numbers: peak process RSS (the fair cross-library comparison) and each engine's own tracked working set (the constant-memory story). Every timing is the warm median of seven iterations after a warm-up, with a 95% confidence interval; host load (~2.6 on the run behind these figures) and thermal state are recorded alongside. The libvips oracle is version-matched &mdash; measured 8.18.4 against a pinned 8.18.4 &mdash; and built from source in the benchmark container.</p>
 
-<p>Source code for all benchmarks is in <a href="https://github.com/libviprs/libviprs" style="color:var(--primary);">libviprs-bench/src/scalability.rs</a>. The benchmark can be reproduced in Docker via <code>./run-bench.sh</code>, which builds a container with libvips-dev, libpdfium, and libviprs from source.</p>
+<p>Source code for all benchmarks is in <a class="bench-link" href="https://github.com/libviprs/libviprs">libviprs-bench/src/scalability.rs</a>. The benchmark can be reproduced in Docker via <code>./run-bench.sh</code>, which builds a container with libvips-dev, libpdfium, and libviprs from source.</p>
 
 <h2>What Changed Since v0.3</h2>
 

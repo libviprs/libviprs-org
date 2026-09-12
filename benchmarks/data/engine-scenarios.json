@@ -1,24 +1,19 @@
 {
-  "_doc": "Editorial config for the data tables on /benchmarks/. The engine-comparison table pulls its numeric values from scalability_results.json (the raw bench output); this file supplies display labels, captions, and the scenario picker's commentary. Speed-cell templates: {throughput}, {mp}, {memory} are substituted from the matching engine's row at the showcase MP. Each table may carry an optional column_sizing block to override the default first-column auto-sizing rule (see _column_sizing_doc below). Rows whose measurements have not been taken yet are handled by the provisional convention (see _provisional_doc below).",
+  "_doc": "Editorial config for the three data tables on /benchmarks/. The engine-comparison table and the scenario picker pull their numeric values from scalability_results.json (the raw engine-bench output); the storage table pulls its own from pmtiles_results.json. This file supplies display labels, captions, column specs and the scenario picker's commentary. Speed-cell templates: {throughput}, {mp}, {memory} are substituted from the matching engine's row at the showcase MP. Each table may carry an optional column_sizing block to override the default first-column auto-sizing rule (see _column_sizing_doc below). Cells with no measurement behind them are handled by the pending convention (see _pending_doc below).",
 
-  "_column_sizing_doc": "Default first-column auto-sizing rule used by both tables. The renderer measures each first-column cell at single-line max-content width; if that width exceeds threshold_ratio × the resulting other-column width, the first column is capped at cap_ratio × the other-column width and its cells wrap. Override per-table by placing a `column_sizing` block inside engine_table or scenario_table.",
+  "_column_sizing_doc": "Default first-column auto-sizing rule used by every table. The renderer measures each first-column cell at single-line max-content width; if that width exceeds threshold_ratio × the resulting other-column width, the first column is capped at cap_ratio × the other-column width and its cells wrap. Override per-table by placing a `column_sizing` block inside engine_table, scenario_table or storage_table.",
   "default_column_sizing": {
     "threshold_ratio": 2.0,
     "cap_ratio": 1.75
   },
 
-  "_provisional_doc": "A bench row may carry \"provisional\": true with its measured fields null. The renderer marks every engine whose rows are all provisional with `marker` beside the label, and un-hides the matching [data-bench-note] paragraph under the table, filled with `text`. Both are driven off the data, so dropping the flag and the null values in scalability_results.json clears the marker and hides the note with no edit here or in the markup.",
-  "provisional_note": {
-    "marker": "†",
-    "text": "<strong>† PMTiles measurements are pending.</strong> PMTiles is not a fourth engine: it is the MapReduce engine writing one indexed <code>.pmtiles</code> archive instead of a tile tree, so the row shares its grid, its tile count and its compute path. libviprs-bench has no storage axis until <a href=\"https://github.com/libviprs/libviprs/issues/993\" style=\"color:var(--primary);\">libviprs#993</a> lands, and a guessed number on a benchmarks page is a number somebody quotes back, so these cells stay empty until that run publishes. The five figures above come from the same run and get their PMTiles series then."
-  },
+  "_pending_doc": "There is no pending flag anywhere in the data, and the renderer reads none. A metric is pending when its value is null, full stop, and that is the whole signal: fmt() prints the em dash it already prints for an absent metric, and a table row every one of whose metric cells came back null is marked pending. Pending is per row, never per engine or per storage backend, so filling one row in changes exactly that row. A pending row gets `pending_marker` beside its label and the [data-bench-note] paragraph under that same table is filled from `pending_note` and un-hidden; both are keyed on the table, and the renderer suppresses the marker entirely when the table has no note element to point at. Filling the nulls clears the marker and hides the note with no edit to this file. It does NOT update the static fallback rows in index.html, which are the JS-off copy of the same cells: benchmarks/tools/bench-drift.js is the gate that catches those, and it has to be run and satisfied in the same change.",
 
   "engine_display": {
     "libvips":    { "label": "libvips 8.18",         "swatch": "vips"   },
     "monolithic": { "label": "libviprs monolithic",  "swatch": "mono"   },
     "streaming":  { "label": "libviprs streaming",   "swatch": "stream" },
     "mapreduce":  { "label": "libviprs MapReduce",   "swatch": "mr"     },
-    "pmtiles":    { "label": "MapReduce → PMTiles",  "swatch": "pmtiles" },
     "auto":       { "label": "Auto-select",          "swatch": "auto"   }
   },
 
@@ -26,7 +21,7 @@
     "caption_template": "Engine comparison at {width}×{height} ({mp} MP)",
     "_showcase_mp_target_doc": "Renders the bench row whose megapixel count is closest to this target. Anchors the showcase numbers to the size the surrounding prose discusses, so the table doesn't drift onto a larger benchmarked size whenever the bench grid grows. Update both this value and the prose in benchmarks.html together if you want a different size.",
     "showcase_mp_target": 47,
-    "engine_order": ["libvips", "monolithic", "streaming", "mapreduce", "pmtiles"],
+    "engine_order": ["libvips", "monolithic", "streaming", "mapreduce"],
     "columns": [
       { "key": "wall_time_ms",            "header": "Wall time (ms)",                          "format": "int",   "thousands": true  },
       { "key": "peak_rss_mb",             "header": "Peak RSS (MB)",                           "format": "int",   "thousands": true  },
@@ -34,6 +29,37 @@
       { "key": "tiles_per_second",        "header": "Throughput (tiles/s)",                    "format": "int",   "thousands": true  },
       { "key": "tiles_per_second_per_mb", "header": "Memory efficiency (tiles/s per RSS-MB)",  "format": "fixed1"                    },
       { "key": "resource_cost",           "header": "Resource cost (RSS-MB·s/tile)",           "format": "fixed3"                    }
+    ]
+  },
+
+  "_storage_table_doc": "Fed by pmtiles_results.json, which is a separate export from a separate harness and has nothing to do with scalability_results.json. Storage is an axis crossed with the engines rather than a fifth engine, so it gets its own table and its own columns: the engine table has no home for output_bytes, filesystem_entries or a per-lookup latency. Rows in that export are NOT unique on (engine, megapixels) — one pyramid carries a generation row and five read rows — so every lookup here keys on (storage, width, height, tile_size, scenario, concurrency) and each column names the scenario it reads. A lookup that matches more than one row returns nothing rather than the first match, because publishing a read row's wall time in a generation column is exactly the failure this shape is guarding against.",
+  "storage_table": {
+    "caption": "Same pyramid, two storage backends",
+    "pending_marker": "†",
+    "pending_note": "<strong>† The storage measurements are pending.</strong> This table reads its own export, <code>pmtiles_results.json</code>, written by the PMTiles benchmark suite in <a class=\"bench-link\" href=\"https://github.com/libviprs/libviprs/issues/993\">libviprs#993</a> rather than by the engine bench above. Every cell stays empty until that export lands here, because a guessed figure on a benchmarks page is a figure somebody quotes back. The grid, the backends and the columns are the ones that suite measures; only the numbers are outstanding.",
+    "storage_display": {
+      "pmtiles":   { "label": "PMTiles archive", "swatch": "pmtiles" },
+      "directory": { "label": "Directory tree",  "swatch": "dir"     }
+    },
+    "row_label_template": "{width}×{height}, {tile_size} px tiles",
+    "rows": [
+      { "width": 2048,  "height": 2048,  "tile_size": 256, "storage": "pmtiles"   },
+      { "width": 2048,  "height": 2048,  "tile_size": 256, "storage": "directory" },
+      { "width": 8192,  "height": 8192,  "tile_size": 256, "storage": "pmtiles"   },
+      { "width": 8192,  "height": 8192,  "tile_size": 256, "storage": "directory" },
+      { "width": 16384, "height": 16384, "tile_size": 256, "storage": "pmtiles"   },
+      { "width": 16384, "height": 16384, "tile_size": 256, "storage": "directory" },
+      { "width": 8192,  "height": 8192,  "tile_size": 64,  "storage": "pmtiles"   },
+      { "width": 8192,  "height": 8192,  "tile_size": 64,  "storage": "directory" }
+    ],
+    "columns": [
+      { "key": "tiles_produced",      "header": "Tiles",                "scenario": "generate",    "concurrency": 1, "format": "int",    "thousands": true },
+      { "key": "output_bytes",        "header": "Output size (MB)",     "scenario": "generate",    "concurrency": 1, "format": "fixed1", "scale": 1048576  },
+      { "key": "filesystem_entries",  "header": "Filesystem entries",   "scenario": "generate",    "concurrency": 1, "format": "int",    "thousands": true },
+      { "key": "wall_time_ms",        "header": "Generation (ms)",      "scenario": "generate",    "concurrency": 1, "format": "int",    "thousands": true },
+      { "key": "tiles_per_second",    "header": "Generation (tiles/s)", "scenario": "generate",    "concurrency": 1, "format": "int",    "thousands": true },
+      { "key": "p50_latency_us",      "header": "Random read p50 (µs)", "scenario": "read_random", "concurrency": 1, "format": "fixed2"                    },
+      { "key": "p99_latency_us",      "header": "Random read p99 (µs)", "scenario": "read_random", "concurrency": 1, "format": "fixed2"                    }
     ]
   },
 
@@ -53,7 +79,7 @@
         "engine_id": "streaming",
         "memory_complexity": "<code>O(width × strip)</code>",
         "speed_template": "Good — {throughput} tiles/s in a {memory} MB working set",
-        "best_when": "Tight memory ceiling (e.g. 512 MB pod) on potentially huge images."
+        "best_when": "Tight memory ceiling (e.g. 512 MB pod) on potentially huge images."
       },
       {
         "scenario": "Multi-core, bounded RAM",
@@ -61,13 +87,6 @@
         "memory_complexity": "<code>O(width × strip)</code>",
         "speed_template": "Fast — {throughput} tiles/s, same {memory} MB working set",
         "best_when": "Spare cores you can spend on parallel strip rendering."
-      },
-      {
-        "scenario": "Single-file archive, random tile read",
-        "engine_id": "pmtiles",
-        "memory_complexity": "<code>O(width × strip)</code>",
-        "speed_template": "Pending, measured by <a href=\"https://github.com/libviprs/libviprs/issues/993\" style=\"color:var(--primary);\">libviprs#993</a>",
-        "best_when": "You would rather copy, upload and serve one archive than walk a tree of small files, and your viewer can fetch a tile by ranged read."
       },
       {
         "scenario": "Unknown image sizes",
