@@ -178,7 +178,7 @@ catches('a pending row that lost its row-pending class',
 
 catches('a pending row whose marker was dropped from the markup',
   { html: replaceFirst(PENDING_PAGE,
-      'PMTiles archive<sup class="bench-pending" title="Measurements pending; see the note under this table.">\u2020</sup>',
+      'PMTiles archive<sup class="bench-pending" title="Some measurements are missing; see the note under this table.">\u2020</sup>',
       'PMTiles archive'),
     pmtiles: EMPTY_EXPORT },
   'storage');
@@ -189,7 +189,7 @@ catches('a marker pointing at a note that does not exist',
   'no [data-bench-note="storage"] element');
 
 catches('a note whose text drifted away from the JSON',
-  { html: replaceOnce(PENDING_PAGE, 'The storage measurements are pending.', 'The storage measurements are on their way.'),
+  { html: replaceOnce(PENDING_PAGE, 'Some measurements are missing.', 'Some measurements are on their way.'),
     pmtiles: EMPTY_EXPORT },
   'note text');
 
@@ -268,8 +268,90 @@ console.log('\n[5] a null is an em dash and never a zero');
   cfg.storage_table.rows = [{ width: 8192, height: 8192, tile_size: 64, storage: 'pmtiles' }];
   const half = M.storageTableModel([measured({})], cfg, true);
   const texts = half.rows[0].cells.map(function (c) { return c.html; });
-  ok('a row with some nulls is not pending, and the null cells are em dashes',
-     half.pendingCount === 0 && texts.indexOf('—') !== -1, texts.join(' | '));
+  ok('a row with some nulls IS pending, and the null cells are em dashes',
+     half.pendingCount === 1 && texts.indexOf('—') !== -1, texts.join(' | '));
+}
+
+console.log('\n[5b] pending means ANY absent cell, not every one');
+{
+  const cfg = clone(SCENARIOS);
+  cfg.storage_table.rows = [{ width: 8192, height: 8192, tile_size: 64, storage: 'pmtiles' }];
+  const full = [
+    measured({ scenario: 'generate' }),
+    measured({ scenario: 'read_cold',   p50_latency_us: 69.13, p99_latency_us: 103.58 }),
+    measured({ scenario: 'read_random', p50_latency_us: 1.21,  p99_latency_us: 1.96 }),
+  ];
+
+  ok('a fully measured row is not pending',
+     M.storageTableModel(full, cfg, true).pendingCount === 0);
+
+  // The widening: everything that was pending under the old rule still is.
+  ok('a row with every cell absent is still pending',
+     M.storageTableModel([], cfg, true).pendingCount === 1);
+
+  // The concrete gap this change was made for. Drop only the cold-read
+  // scenario and the row keeps seven of its eight cells, which under the old
+  // "every" rule rendered a silent em dash with no marker and no note.
+  const noCold = full.filter(function (r) { return r.scenario !== 'read_cold'; });
+  const model = M.storageTableModel(noCold, cfg, true);
+  const cells = model.rows[0].cells.map(function (c) { return c.html; });
+  const dashes = cells.filter(function (h) { return h === '—'; }).length;
+  ok('a row missing only its read_cold cell is pending', model.pendingCount === 1, cells.join(' | '));
+  ok('it is short exactly one cell, so this is not the every-absent case', dashes === 1, String(dashes));
+  ok('and it carries the marker', /bench-pending/.test(model.rows[0].cells[1].html));
+
+  // ...and the whole page agrees, note un-hidden, so that em dash is explained
+  // on the rendered article and not only in the model.
+  const coldless = { schema: 1, rows: PMTILES.rows.filter(function (r) { return r.scenario !== 'read_cold'; }) };
+  const page = pageWith(HTML, coldless);
+  const clean = drift.check({ html: page, pmtiles: coldless });
+  ok('a page built from a cold-less export is internally consistent', clean.length === 0, clean.join('\n          '));
+  ok('and every one of its eight rows is marked',
+     drift.extractTables(page).storage.rows.every(function (r) { return r.pending; }));
+  ok('with the note visible', !drift.extractNotes(page).storage.hidden);
+
+  // The note has to read correctly for one missing column, not only for a
+  // wholly unmeasured table.
+  const note = SCENARIOS.storage_table.pending_note;
+  ok('the note does not claim every cell is empty',
+     !/[Ee]very cell/.test(note) && /single column or the whole row/.test(note), note.slice(0, 90));
+
+  // A real 0 is a measurement. Absence is read off the value, not off the
+  // rendered em dash, so a zero_as_dash column must not mark a row pending.
+  const zcfg = clone(SCENARIOS);
+  zcfg.storage_table.rows = [{ width: 8192, height: 8192, tile_size: 64, storage: 'pmtiles' }];
+  zcfg.storage_table.columns = [{ key: 'tracked_memory_mb', header: 'Working set (MB)',
+                                  scenario: 'generate', concurrency: 1, format: 'int', zero_as_dash: true }];
+  const zmodel = M.storageTableModel([measured({ scenario: 'generate', tracked_memory_mb: 0 })], zcfg, true);
+  ok('a real 0 rendered as an em dash by zero_as_dash is not pending',
+     zmodel.pendingCount === 0 && zmodel.rows[0].cells[2].html === '—',
+     zmodel.pendingCount + ' / ' + zmodel.rows[0].cells[2].html);
+}
+
+console.log('\n[5c] a column cannot be named by its key alone');
+{
+  let threw = null;
+  try {
+    M.findStorageRow(PMTILES.rows, { storage: 'pmtiles', width: 8192, height: 8192, tile_size: 64, concurrency: 1 });
+  } catch (e) { threw = e; }
+  ok('findStorageRow refuses a lookup with no scenario rather than guessing',
+     threw !== null && /scenario/.test(threw.message), threw && threw.message);
+
+  const shared = SCENARIOS.storage_table.columns.filter(function (c) { return c.key === 'p50_latency_us'; });
+  ok('p50_latency_us really is declared twice, which is why the shortcut is unsafe', shared.length === 2);
+
+  const cfg = clone(SCENARIOS);
+  const i = cfg.storage_table.columns.findIndex(function (c) { return c.scenario === 'read_cold'; });
+  delete cfg.storage_table.columns[i].scenario;
+  let threw2 = null;
+  try { M.storageTableModel(PMTILES.rows, cfg, true); } catch (e) { threw2 = e; }
+  ok('a column declared without a scenario fails at the first render',
+     threw2 !== null && /has no .scenario./.test(threw2.message), threw2 && threw2.message);
+
+  const findings = drift.check({ scenarios: cfg });
+  ok('the drift gate turns that into a finding, not a stack trace',
+     findings.length > 0 && findings.some(function (f) { return /scenario/.test(f); }),
+     findings.join(' | '));
 }
 
 console.log('\n[6] MIGRATION CONTROL: the numbers landing clears everything by itself');

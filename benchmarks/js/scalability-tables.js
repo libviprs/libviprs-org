@@ -35,10 +35,13 @@
  * Pending cells: there is no pending flag in any of the data and this file
  * reads none. A metric is pending when its value is null, and that is the
  * whole signal. fmt() prints the same em dash an absent metric already used,
- * a row every one of whose metric cells is null is marked pending per row,
- * that row's label picks up `pending_marker`, and the [data-bench-note]
- * paragraph under that same table is filled from `pending_note` and
- * un-hidden. Filling the nulls clears all three with no edit here or in
+ * a row with ANY null metric cell is marked pending per row, that row's label
+ * picks up `pending_marker`, and the [data-bench-note] paragraph under that
+ * same table is filled from `pending_note` and un-hidden. Any rather than
+ * every, deliberately: a row missing one column and marked is a visible,
+ * self-correcting over-reaction, while a row missing one column and unmarked
+ * is a silent em dash on a public page with nothing explaining it.
+ * Filling the nulls clears all three with no edit here or in
  * engine-scenarios.json. It does NOT update the static fallback rows in
  * index.html, which are the JS-off copy of the same cells and drift silently:
  * benchmarks/tools/bench-drift.js is the gate that catches that, and it reads
@@ -189,6 +192,16 @@
   // first hit — publishing a read row's wall time in a generation column is
   // precisely the failure this is guarding against.
   function findStorageRow(rows, sel) {
+    // A column here is identified by (key, scenario) and never by key alone:
+    // the cold read and the random read both report p50_latency_us. A caller
+    // that omits the scenario is reaching for a shortcut that cannot name one
+    // column, so this fails loudly instead of returning the first plausible
+    // row or a quiet null that reads like "not measured".
+    if (!sel || !sel.scenario) {
+      throw new Error(
+        'findStorageRow needs a `scenario`: rows are not unique on ' +
+        '(storage, size, tile_size) alone, and more than one column can share a key');
+    }
     let found = null;
     for (const r of rows) {
       if (r.storage !== sel.storage) continue;
@@ -214,7 +227,7 @@
     const label = escapeHtml(display.label);
     const dot = '<span class="engine-swatch swatch-' + escapeHtml(display.swatch) + '"></span>';
     const sup = marker
-      ? '<sup class="bench-pending" title="Measurements pending; see the note under ' +
+      ? '<sup class="bench-pending" title="Some measurements are missing; see the note under ' +
         escapeHtml(noteLabel) + '.">' + escapeHtml(marker) + '</sup>'
       : '';
     return '<span class="engine-cell">' + dot + label + sup + '</span>';
@@ -348,6 +361,17 @@
     if (!cfg || !Array.isArray(cfg.rows) || !Array.isArray(cfg.columns)) return null;
     const display = cfg.storage_display || {};
 
+    // Same rule as findStorageRow, enforced where columns are declared rather
+    // than where they are read, so a column added without a scenario fails at
+    // the first render instead of silently resolving to nothing.
+    cfg.columns.forEach(function (c, i) {
+      if (!c || !c.scenario) {
+        throw new Error(
+          'storage_table.columns[' + i + '] (' + (c && c.key) + ') has no `scenario`. ' +
+          'Columns are identified by (key, scenario); p50_latency_us already names two of them.');
+      }
+    });
+
     const headers = ['Pyramid', 'Storage']
       .concat(cfg.columns.map(function (c) { return c.header; }));
 
@@ -365,9 +389,18 @@
           concurrency: c.concurrency,
         });
         const val = row ? row[c.key] : null;
-        return { html: fmt(val == null ? null : val, c) };
+        // `absent` is read off the value, not off the rendered em dash: a
+        // column carrying zero_as_dash renders a real 0 as an em dash too, and
+        // that is a measurement, not a hole.
+        return { html: fmt(val == null ? null : val, c), absent: val == null };
       });
-      const pending = cells.every(function (cell) { return cell.html === '—'; });
+      // ANY absent cell marks the row, not every one. The two failure modes
+      // are not symmetric. Marking too eagerly puts a visible flag on a row
+      // that is mostly measured, which corrects itself the moment the data
+      // lands. Marking too rarely publishes silent em dashes with no marker
+      // and no note, which is absence that does not announce itself, and that
+      // is the whole thing this page has been built not to do.
+      const pending = cells.some(function (cell) { return cell.absent; });
       if (pending) pendingCount += 1;
 
       const label = (cfg.row_label_template || '{width}×{height}')

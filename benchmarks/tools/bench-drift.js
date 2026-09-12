@@ -176,11 +176,22 @@ function check(overrides) {
   const staticTables = extractTables(html);
   const staticNotes = extractNotes(html);
 
-  const models = {
-    engines: M.engineTableModel(results, scenarios, showcaseMp),
-    scenarios: M.scenarioTableModel(results, scenarios, showcaseMp),
-    storage: M.storageTableModel(storageRows, scenarios, !!staticNotes.storage),
-  };
+  // The renderer throws on a config it refuses to guess at, such as a storage
+  // column declared without the scenario that half-identifies it. In the page
+  // that leaves the static fallback standing; here it has to be a finding with
+  // the message attached, because a gate that dies with a stack trace tells a
+  // reader less than one that says what is wrong.
+  let models;
+  try {
+    models = {
+      engines: M.engineTableModel(results, scenarios, showcaseMp),
+      scenarios: M.scenarioTableModel(results, scenarios, showcaseMp),
+      storage: M.storageTableModel(storageRows, scenarios, !!staticNotes.storage),
+    };
+  } catch (e) {
+    fail('the renderer refused this configuration: ' + e.message);
+    return findings;
+  }
 
   // A parse that quietly found nothing would make every other assertion
   // vacuous, so the shape of what was parsed is itself checked first.
