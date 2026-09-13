@@ -32,8 +32,37 @@ name: cli-resync
 # proposed again.
 #
 # It opens a PR rather than pushing to main, because a re-sync moves the
-# generated op-sections fragment and the published index.html, which is a change
-# somebody should look at.
+# generated op-sections fragment and the published cli/index.html, which is a
+# change somebody should look at.
+#
+# ---------------------------------------------------------------------------
+# HOW THE PULL REQUEST GETS CREATED (#68). The chosen route is a PAT.
+#
+# `GITHUB_TOKEN` cannot open a pull request in this repository. The repo's
+# "Allow GitHub Actions to create and approve pull requests" switch is off
+# (`gh api repos/libviprs/libviprs-org/actions/permissions/workflow` reports
+# `"can_approve_pull_request_reviews": false`), and with it off `gh pr create`
+# under `GITHUB_TOKEN` fails with HTTP 422 no matter what this file declares in
+# its `permissions:` block.
+#
+# The route taken here is the repository secret `CLI_RESYNC_TOKEN`: a
+# fine-grained PAT scoped to libviprs/libviprs-org with `Contents: read and
+# write` and `Pull requests: read and write`. It is used for the checkout (so
+# the branch push carries it) and as `GH_TOKEN`. A PAT push starts a workflow
+# run, which a `GITHUB_TOKEN` push does not, so the sync PR gets the six real
+# ci.yml check runs branch protection reads and nobody has to dispatch them by
+# hand.
+#
+# Flipping the switch instead is the other route and it still works: this file
+# falls back to `github.token` when the secret is absent, and says loudly in the
+# log which route a run is on. On that route the PR carries no check runs until
+# someone runs `gh workflow run ci.yml --ref chore/cli-sync`, and the PR body
+# says so. Whether the switch can be flipped at all is unverified: the org-level
+# Actions policy could not be read (403 without `admin:org`), so it may override
+# the repository setting.
+#
+# Either way this is an owner action. Nothing in a pull request can grant it.
+# ---------------------------------------------------------------------------
 
 on:
   schedule:
@@ -41,10 +70,23 @@ on:
     # sync that follows it do not race on the same morning.
     - cron: '41 6 * * *'
   workflow_dispatch:
+    inputs:
+      cli_ref:
+        description: >-
+          The libviprs-cli branch to sync from. Defaults to main, which is what
+          the nightly uses. Point it at a throwaway branch to exercise this
+          workflow end to end without merging a real drift into libviprs-cli
+          main, which is how it went unexercised until #68.
+        required: false
+        default: main
 
 permissions:
   contents: write
   pull-requests: write
+  # For the failure notice at the end. A red scheduled run is the "warning
+  # nobody reads" shape #58 was about, so a failure has to land somewhere a
+  # person sees.
+  issues: write
 
 concurrency:
   # Two runs would race on the same branch and the same PR.
@@ -53,6 +95,7 @@ concurrency:
 
 env:
   SYNC_BRANCH: chore/cli-sync
+  CLI_REF: ${{ inputs.cli_ref || 'main' }}
 
 jobs:
   sync:
@@ -63,8 +106,30 @@ jobs:
         with:
           path: libviprs-org
           fetch-depth: 0
+          # Without this, actions/checkout writes the token into
+          # libviprs-org/.git/config as an http.extraheader and leaves it there
+          # for the whole job, including the steps that run the generators. The
+          # push step re-attaches it for exactly as long as it needs it.
+          persist-credentials: false
+          # The token the later push inherits. On the PAT route that push starts
+          # ci.yml on the sync branch; on the GITHUB_TOKEN fallback it does not.
+          token: ${{ secrets.CLI_RESYNC_TOKEN || github.token }}
 
-      - name: Resolve the pin and libviprs-cli main
+      - name: Say which PR-creation route this run is on
+        id: route
+        env:
+          CLI_RESYNC_TOKEN: ${{ secrets.CLI_RESYNC_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -n "${CLI_RESYNC_TOKEN:-}" ]; then
+            echo "route=pat" >> "$GITHUB_OUTPUT"
+            echo "PAT route: CLI_RESYNC_TOKEN is set, so the push starts ci.yml and the PR gets real checks."
+          else
+            echo "route=github_token" >> "$GITHUB_OUTPUT"
+            echo "::warning::CLI_RESYNC_TOKEN is not set, so this run falls back to GITHUB_TOKEN. Opening a pull request then needs the repository's 'Allow GitHub Actions to create and approve pull requests' switch to be on, and the PR it opens will carry no check runs until someone runs: gh workflow run ci.yml --ref ${SYNC_BRANCH}. See the header comment in .github/workflows/cli-resync.yml."
+          fi
+
+      - name: Resolve the pin and libviprs-cli ${{ inputs.cli_ref || 'main' }}
         id: revs
         run: |
           set -euo pipefail
@@ -73,27 +138,30 @@ jobs:
             echo "::error file=cli/rust/COUNTERPART_REV::not a 40-character commit sha: '$pinned'"
             exit 1
           fi
-          upstream="$(git ls-remote https://github.com/libviprs/libviprs-cli.git refs/heads/main | cut -f1)"
+          upstream="$(git ls-remote https://github.com/libviprs/libviprs-cli.git "refs/heads/${CLI_REF}" | cut -f1)"
           if ! printf '%s' "$upstream" | grep -Eq '^[0-9a-f]{40}$'; then
-            echo "::error::could not read libviprs-cli main, so this run cannot tell whether the copy is stale"
+            echo "::error::could not read libviprs-cli ${CLI_REF}, so this run cannot tell whether the copy is stale"
             exit 1
           fi
           echo "pinned=$pinned" >> "$GITHUB_OUTPUT"
           echo "upstream=$upstream" >> "$GITHUB_OUTPUT"
           if [ "$pinned" = "$upstream" ]; then
             echo "moved=0" >> "$GITHUB_OUTPUT"
-            echo "pin matches libviprs-cli main ($upstream)"
+            echo "pin matches libviprs-cli ${CLI_REF} ($upstream)"
           else
             echo "moved=1" >> "$GITHUB_OUTPUT"
-            echo "pin $pinned is behind libviprs-cli main $upstream"
+            echo "pin $pinned is behind libviprs-cli ${CLI_REF} $upstream"
           fi
 
-      - name: Check out libviprs-cli at main
+      - name: Check out libviprs-cli at the resolved revision
         if: steps.revs.outputs.moved == '1'
         uses: actions/checkout@v4
         with:
           repository: libviprs/libviprs-cli
           path: libviprs-cli
+          # The sha the step above resolved CLI_REF to, not CLI_REF itself, so a
+          # push landing mid-run cannot make the pin this job writes disagree
+          # with the source it copied.
           ref: ${{ steps.revs.outputs.upstream }}
 
       # A moved pin is not the same thing as a stale copy: most libviprs-cli
@@ -107,10 +175,10 @@ jobs:
           set -euo pipefail
           if cli/tools/sync-cli-src.sh --check; then
             echo "stale=0" >> "$GITHUB_OUTPUT"
-            echo "the frozen copy is byte-identical to libviprs-cli main; only the pin is behind"
+            echo "the frozen copy is byte-identical to libviprs-cli ${CLI_REF}; only the pin is behind"
           else
             echo "stale=1" >> "$GITHUB_OUTPUT"
-            echo "the frozen copy has drifted from libviprs-cli main"
+            echo "the frozen copy has drifted from libviprs-cli ${CLI_REF}"
           fi
 
       - name: Set up Node
@@ -121,7 +189,14 @@ jobs:
 
       - name: Set up Rust
         if: steps.drift.outputs.stale == '1'
-        uses: dtolnay/rust-toolchain@stable
+        # Pinned to a commit rather than the mutable `stable` branch. This job
+        # holds a write-scoped credential, so an action on a branch ref is
+        # code that whoever can move that branch chooses. 6bed076 is what
+        # `stable` pointed at when this landed, and that commit's action.yml
+        # defaults `toolchain: stable`, so behaviour is unchanged. Pinning the
+        # default branch instead would break it: there the input is required
+        # with no default.
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
 
       - name: Re-sync the copy and everything generated from it
         if: steps.drift.outputs.stale == '1'
@@ -130,11 +205,32 @@ jobs:
           set -euo pipefail
           cli/tools/sync-cli-src.sh
           printf '%s\n' "${{ steps.revs.outputs.upstream }}" > cli/rust/COUNTERPART_REV
+          # Stage here, not in the PR step, and this is load-bearing (#68). The
+          # gates below end in `git diff --exit-code`, which without --cached
+          # compares the working tree to the INDEX. A file the sync just
+          # rewrote is modified-and-unstaged, so the gate exits 1 and the job
+          # dies on any drift that actually reaches a snippet slot, which is
+          # the only drift worth a PR. With the sync's output in the index
+          # those lines mean what ci.yml means by them: regenerating again
+          # reproduces what is committed.
+          #
+          # cli/index.html, not the root index.html. sync-cli-src.sh injects the
+          # op-sections fragment into "$SCRIPT_DIR/../index.html" where
+          # SCRIPT_DIR is cli/tools, and only cli/index.html carries the
+          # <div id="generated-op-sections"> container. Staging the root file
+          # was a silent no-op that left the published page out of the PR.
+          git add cli/rust cli/js/snippets.generated.json \
+                  cli/tools/gen-op-sections/generated-op-sections.html \
+                  cli/index.html
+          git status --short
 
-      # A pull request opened with GITHUB_TOKEN does not start a workflow run,
-      # so nothing would check this one. The gates therefore run here, and the
-      # PR body carries the result. Anything red stops the PR being opened at
-      # all: a sync that does not satisfy the gates is a report, not a patch.
+      # The gates the sync has to satisfy before it is worth opening. Anything
+      # red stops the PR being opened at all: a sync that does not satisfy the
+      # gates is a report, not a patch.
+      #
+      # Each generator runs again here and its output is diffed against what the
+      # sync staged, so these are idempotence checks. They fail when a second
+      # regeneration disagrees with the first, which is a real bug.
       - name: Run the gates this change has to satisfy
         if: steps.drift.outputs.stale == '1'
         id: gates
@@ -143,6 +239,7 @@ jobs:
           set -euo pipefail
           cli/tools/sync-cli-src.sh --check
           node cli/tools/sync-pin.test.js
+          cargo run --manifest-path cli/tools/extract-snippets/Cargo.toml
           git diff --exit-code cli/js/snippets.generated.json
           node cli/tools/test-flags/test.js
           node cli/tools/test-flags/anchors.js
@@ -156,16 +253,18 @@ jobs:
         if: steps.drift.outputs.stale == '1'
         working-directory: libviprs-org
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.CLI_RESYNC_TOKEN || github.token }}
           PINNED: ${{ steps.revs.outputs.pinned }}
           UPSTREAM: ${{ steps.revs.outputs.upstream }}
+          ROUTE: ${{ steps.route.outputs.route }}
         run: |
           set -euo pipefail
           git config user.name "libviprs-org sync"
           git config user.email "noreply@github.com"
+          # -B with no start point is HEAD, so this renames the branch under an
+          # index that already holds the sync's output. Nothing is re-staged
+          # below; the step above did it.
           git checkout -B "$SYNC_BRANCH"
-          git add cli/rust cli/js/snippets.generated.json \
-                  cli/tools/gen-op-sections/generated-op-sections.html index.html
           if git diff --cached --quiet; then
             echo "the gates left nothing staged, so there is nothing to open"
             exit 0
@@ -173,41 +272,101 @@ jobs:
           git commit -m "cli: re-sync the frozen copy to libviprs-cli ${UPSTREAM:0:12}
 
           cli/rust/ is a byte-identical copy of libviprs-cli/src and it had
-          drifted: the pin was at ${PINNED:0:12} and libviprs-cli main is at
-          ${UPSTREAM:0:12}. Regenerated through cli/tools/sync-cli-src.sh, which
-          also moves snippets.generated.json, the op-sections fragment and the
-          copy of that fragment embedded in index.html."
+          drifted: the pin was at ${PINNED:0:12} and libviprs-cli ${CLI_REF} is
+          at ${UPSTREAM:0:12}. Regenerated through cli/tools/sync-cli-src.sh,
+          which also moves snippets.generated.json, the op-sections fragment and
+          the copy of that fragment embedded in cli/index.html."
+          # persist-credentials is off, so the token is attached here and
+          # nowhere else. It goes through the environment rather than the
+          # command line, which would put it in the process table.
+          git remote set-url origin \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push --force-with-lease origin "$SYNC_BRANCH"
+
+          if [ "$ROUTE" = "pat" ]; then
+            checks_note="The push that created this branch was made with a PAT, so \`ci.yml\` started on it and the six required checks are real. The gates below also ran inside the job that opened this, which is belt and braces rather than the only signal:"
+            dispatch_note=""
+          else
+            checks_note="**These gates ran in the job that opened this, and all passed.** They are here because a pull request opened with \`GITHUB_TOKEN\` does not start a workflow run, so no checks appear on this PR by themselves:"
+            dispatch_note="No check runs are attached yet. Run \`gh workflow run ci.yml --ref $SYNC_BRANCH\` to get them: a dispatched run creates check runs on the branch head sha, which is what branch protection reads. Closing and reopening this PR does not work, because \`ci.yml\` has no \`pull_request\` trigger."
+          fi
+
           body=$(cat <<EOF
-          The frozen \`cli/rust/\` copy had drifted from \`libviprs-cli\` main. Opened by \`.github/workflows/cli-resync.yml\`, which is the closing step for #58.
+          The frozen \`cli/rust/\` copy had drifted from \`libviprs-cli\` \`${CLI_REF}\`. Opened by \`.github/workflows/cli-resync.yml\`, which is the closing step for #58.
 
           | | |
           | --- | --- |
           | pin was | \`$PINNED\` |
-          | libviprs-cli main | \`$UPSTREAM\` |
+          | libviprs-cli \`${CLI_REF}\` | \`$UPSTREAM\` |
 
-          Regenerated with \`cli/tools/sync-cli-src.sh\`, which moves the frozen sources, \`cli/js/snippets.generated.json\`, the op-sections fragment, and the copy of that fragment embedded in \`index.html\`.
+          Regenerated with \`cli/tools/sync-cli-src.sh\`, which moves the frozen sources, \`cli/js/snippets.generated.json\`, the op-sections fragment, and the copy of that fragment embedded in \`cli/index.html\`.
 
-          **These gates ran in the job that opened this, and all passed.** They are here because a pull request opened with \`GITHUB_TOKEN\` does not start a workflow run, so no checks will appear on this PR by themselves:
+          $checks_note
 
           - \`cli/tools/sync-cli-src.sh --check\`
           - \`node cli/tools/sync-pin.test.js\`
-          - \`git diff --exit-code cli/js/snippets.generated.json\` (regenerates clean)
+          - the extractor regenerates and \`git diff --exit-code cli/js/snippets.generated.json\` is clean
           - \`node cli/tools/test-flags/test.js\` and \`anchors.js\`
-          - \`gen-op-sections\` regenerate and \`git diff --exit-code\`
+          - \`gen-op-sections\` regenerates and \`git diff --exit-code\` is clean
           - \`placeholder-substitution.test.js\` and \`hand-authored.test.js\`
           - \`cargo test\` in \`cli/tools/extract-snippets\`
 
           If the sync had failed any of them this PR would not exist: the job stops before opening it.
 
-          To get real check runs attached, close and reopen this PR.
+          $dispatch_note
           EOF
           )
-          if gh pr view "$SYNC_BRANCH" --json number >/dev/null 2>&1; then
-            gh pr edit "$SYNC_BRANCH" --body "$body"
-            echo "updated the open sync PR"
-          else
-            gh pr create --base main --head "$SYNC_BRANCH" \
+
+          existing="$(gh pr list --head "$SYNC_BRANCH" --base main --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            # --state open matters. `gh pr view <branch>` resolves closed and
+            # merged PRs too, so the old form took this arm forever once one
+            # sync PR had been merged: it rewrote the body of a dead PR and
+            # never opened another (#68).
+            gh pr edit "$existing" --body "$body"
+            echo "updated the open sync PR #$existing"
+          elif gh pr create --base main --head "$SYNC_BRANCH" \
               --title "cli: re-sync the frozen copy to libviprs-cli ${UPSTREAM:0:12}" \
-              --body "$body"
+              --body "$body"; then
+            echo "opened a new sync PR"
+          else
+            echo "::error::could not open the pull request. The branch $SYNC_BRANCH is pushed and carries the re-sync, so nothing is lost, but it needs a PR opened by hand. On the GITHUB_TOKEN route this is HTTP 422 'GitHub Actions is not permitted to create or approve pull requests': set the CLI_RESYNC_TOKEN secret, or turn on the repository's 'Allow GitHub Actions to create and approve pull requests' switch. See the header comment in .github/workflows/cli-resync.yml."
+            exit 1
+          fi
+
+      # A failed run used to show up only as a red square in the Actions tab,
+      # which is the same warning-nobody-reads shape #58 was filed about. The
+      # likeliest failure is hand-authored.test.js, the moment libviprs-cli adds
+      # a command with no hand-written section yet, and that needs a person.
+      - name: A failure has to be visible somewhere other than the Actions tab
+        if: failure()
+        continue-on-error: true
+        # This step is the reason a red nightly is not a warning nobody reads,
+        # and it could not fire on either route. It had no working-directory, so
+        # `gh` ran in $GITHUB_WORKSPACE, which is not a git repository, and died
+        # on its first call. And it authenticated as CLI_RESYNC_TOKEN, which is
+        # documented as Contents and Pull requests only, so `gh issue create`
+        # would 403 on exactly the route this workflow recommends. It uses
+        # github.token, which the job already grants `issues: write`.
+        working-directory: libviprs-org
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          title="cli-resync is failing"
+          body="\`.github/workflows/cli-resync.yml\` failed, so the frozen \`cli/rust/\` copy is not being brought forward.
+
+          Last failing run: $RUN_URL (libviprs-cli ref \`${CLI_REF}\`).
+
+          The usual cause is a gate that the re-sync cannot satisfy on its own. \`hand-authored.test.js\` is the likeliest: libviprs-cli has added a command that has no hand-written section here yet, and somebody has to write it. Re-run the workflow after fixing it, or dispatch it with a \`cli_ref\` to test against a branch.
+
+          This issue is opened once and its body is rewritten on each later failure, so it stays a single thread. Close it when the run is green."
+          existing="$(gh issue list --state open --limit 100 --json number,title \
+            --jq "map(select(.title == \"$title\")) | .[0].number // empty")"
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --body "$body"
+            echo "updated the open failure issue #$existing"
+          else
+            gh issue create --title "$title" --body "$body"
           fi
