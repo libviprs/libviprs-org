@@ -360,6 +360,14 @@ Add `.github/workflows/ci.yml` (ubuntu-latest, Rust stable + Node LTS). Three
 gates, matching `CLI_CONTRACT.md` §6:
 
 ### 5.1 `sync` — byte-identical check
+
+> **Added after the freeze (2026-09-12).** Two things in this section stopped
+> being true. The pin is the committed file `cli/rust/COUNTERPART_REV`, not the
+> `CLI_COUNTERPART_REV` repository variable, and the `continue-on-error` skip arm
+> described below is gone, so a failed `libviprs-cli` checkout now fails the job.
+> Read [Errata E1 and E2](#errata-post-freeze) before acting on the paragraph
+> that follows.
+
 Check out `libviprs-org` **and** `libviprs-cli` at the pinned `CLI_COUNTERPART_REV`
 (§7). Run `cli/tools/sync-cli-src.sh --check` (new `--check` mode: copies to a temp
 path and `diff`s the canonical `libviprs-cli/src/main.rs` (+ `src/ops/*.rs`) against
@@ -481,3 +489,60 @@ Bump order on any coupled change: **core → cli → org → tests**. `libviprs-
 pins the CLI SHA it synced from via `CLI_COUNTERPART_REV` (used by the §5.1 sync
 gate). The `version:2` integer in the manifest is the schema version and changes
 only via a new frozen revision of this file.
+
+> **Added after the freeze (2026-09-12).** The pin is the committed file
+> `cli/rust/COUNTERPART_REV`. `CLI_COUNTERPART_REV` survives as an optional
+> override only, and nothing needs it set. See [Erratum E1](#errata-post-freeze).
+
+---
+
+## Errata (post-freeze)
+
+This file is frozen at the Wave 0 gate, so §5.1 and §7 above still read the way
+they did when it was frozen. Parts of them are no longer true. I am recording
+the current story here rather than editing frozen text in place: the frozen
+paragraphs stand, and these notes are what to believe where the two disagree.
+
+The comment block above `sync:` in `.github/workflows/ci.yml` says the same
+thing at the place the workflow is actually defined. If these ever drift apart,
+that one is the copy to trust.
+
+### E1. The pin is a committed file, not a repository variable (2026-09-12, #63)
+
+§5.1 and §7 say `libviprs-org` pins the CLI revision it synced from via the
+`CLI_COUNTERPART_REV` repository variable. It does not. The pin is
+`cli/rust/COUNTERPART_REV`, a committed file, so bumping it is a reviewable diff
+in the same pull request as the re-synced frozen copy. `ci.yml`'s `sync` job
+reads it with a shell redirect, and `cli/tools/sync-pin.test.js` fails if that
+job ever stops reading it.
+
+`CLI_COUNTERPART_REV` survives only as an optional override for a one-off run
+(`ref: ${{ vars.CLI_COUNTERPART_REV || steps.pin.outputs.rev }}`). The file wins
+whenever the variable is unset, which is the normal case, and setting it points
+the gate at a revision this site was not frozen from. Do not set it as part of
+ordinary setup.
+
+The variable used to be the whole pin, and it was never set. An unset variable
+resolves to the empty string, which `actions/checkout` reads as "the default
+branch", so the gate compared the frozen copy against whatever `libviprs-cli`
+main happened to be that morning. That reddened whichever pull request here ran
+next rather than the change that caused the drift.
+
+### E2. The checkout has no skip arm any more (2026-09-12, #63)
+
+§5.1 says that when `libviprs-cli` is not available to the workflow the job is
+`continue-on-error` with a warning, and the other gates carry on. That arm is
+gone. It put `continue-on-error` on the checkout and guarded the assertion on
+its outcome, so any checkout failure (a private repo, a rate limit, a bad ref)
+reported a warning and a green job. A gate that cannot fail is not a gate. A
+checkout failure now fails the `sync` job.
+
+### E3. `cli-resync.yml` is what brings the pin forward (2026-09-12, #58)
+
+Pinning fixed the bystander red and left nothing moving the frozen copy on when
+`libviprs-cli` does. `.github/workflows/cli-resync.yml` is that piece: it
+notices the copy has drifted from `libviprs-cli` main, runs
+`cli/tools/sync-cli-src.sh`, bumps `cli/rust/COUNTERPART_REV`, and opens the
+catch-up as a pull request for review. `ci.yml`'s `sync` job then checks
+`libviprs-cli` out at the new pin and runs `--check`, which is what proves that
+pull request was right.
