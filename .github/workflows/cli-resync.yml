@@ -106,6 +106,11 @@ jobs:
         with:
           path: libviprs-org
           fetch-depth: 0
+          # Without this, actions/checkout writes the token into
+          # libviprs-org/.git/config as an http.extraheader and leaves it there
+          # for the whole job, including the steps that run the generators. The
+          # push step re-attaches it for exactly as long as it needs it.
+          persist-credentials: false
           # The token the later push inherits. On the PAT route that push starts
           # ci.yml on the sync branch; on the GITHUB_TOKEN fallback it does not.
           token: ${{ secrets.CLI_RESYNC_TOKEN || github.token }}
@@ -184,7 +189,14 @@ jobs:
 
       - name: Set up Rust
         if: steps.drift.outputs.stale == '1'
-        uses: dtolnay/rust-toolchain@stable
+        # Pinned to a commit rather than the mutable `stable` branch. This job
+        # holds a write-scoped credential, so an action on a branch ref is
+        # code that whoever can move that branch chooses. 6bed076 is what
+        # `stable` pointed at when this landed, and that commit's action.yml
+        # defaults `toolchain: stable`, so behaviour is unchanged. Pinning the
+        # default branch instead would break it: there the input is required
+        # with no default.
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
 
       - name: Re-sync the copy and everything generated from it
         if: steps.drift.outputs.stale == '1'
@@ -264,6 +276,11 @@ jobs:
           at ${UPSTREAM:0:12}. Regenerated through cli/tools/sync-cli-src.sh,
           which also moves snippets.generated.json, the op-sections fragment and
           the copy of that fragment embedded in cli/index.html."
+          # persist-credentials is off, so the token is attached here and
+          # nowhere else. It goes through the environment rather than the
+          # command line, which would put it in the process table.
+          git remote set-url origin \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push --force-with-lease origin "$SYNC_BRANCH"
 
           if [ "$ROUTE" = "pat" ]; then
@@ -324,8 +341,16 @@ jobs:
       - name: A failure has to be visible somewhere other than the Actions tab
         if: failure()
         continue-on-error: true
+        # This step is the reason a red nightly is not a warning nobody reads,
+        # and it could not fire on either route. It had no working-directory, so
+        # `gh` ran in $GITHUB_WORKSPACE, which is not a git repository, and died
+        # on its first call. And it authenticated as CLI_RESYNC_TOKEN, which is
+        # documented as Contents and Pull requests only, so `gh issue create`
+        # would 403 on exactly the route this workflow recommends. It uses
+        # github.token, which the job already grants `issues: write`.
+        working-directory: libviprs-org
         env:
-          GH_TOKEN: ${{ secrets.CLI_RESYNC_TOKEN || github.token }}
+          GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
