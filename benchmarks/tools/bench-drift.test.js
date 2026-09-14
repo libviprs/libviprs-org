@@ -29,11 +29,11 @@
 const fs = require('fs');
 const path = require('path');
 const drift = require('./bench-drift.js');
-const M = require('../js/scalability-tables.js');
+const M = require('../libvips/js/scalability-tables.js');
 
 const ROOT = path.join(__dirname, '..', '..');
-const HTML = fs.readFileSync(path.join(ROOT, 'benchmarks', 'index.html'), 'utf8');
-const DATA = path.join(ROOT, 'benchmarks', 'data');
+const HTML = fs.readFileSync(path.join(ROOT, 'benchmarks', 'libvips', 'index.html'), 'utf8');
+const DATA = path.join(ROOT, 'benchmarks', 'libvips', 'data');
 const SCENARIOS = JSON.parse(fs.readFileSync(path.join(DATA, 'engine-scenarios.json'), 'utf8'));
 const SCALABILITY = JSON.parse(fs.readFileSync(path.join(DATA, 'scalability_results.json'), 'utf8'));
 const PMTILES = JSON.parse(fs.readFileSync(path.join(DATA, 'pmtiles_results.json'), 'utf8'));

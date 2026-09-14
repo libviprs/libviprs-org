@@ -1,4 +1,4 @@
-/* benchmarks.css — styles for /benchmarks/.
+/* benchmarks.css — styles for /benchmarks/libvips/.
  *
  * Layout follows the same shape as the rest of the site (warm/orange
  * palette, page header + main column, 860px max prose width).
@@ -281,7 +281,7 @@ th:first-child::after {
 }
 
 /* First-column width is set by `sizeFirstColumn()` in
-   benchmarks/js/scalability-tables.js — it measures the natural
+   benchmarks/libvips/js/scalability-tables.js — it measures the natural
    max-content width of each row label and applies an inline-style
    width that respects a configurable threshold/cap ratio against
    the other columns. The 14rem here is purely a graceful-degradation

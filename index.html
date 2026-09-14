@@ -312,6 +312,11 @@
         <span class="nav-label nav-label-short">Bench</span>
       </a>
 
+      <a href="benchmarks/libvips/" class="nav-item">
+        <span class="nav-label nav-label-full">libviprs vs libvips</span>
+        <span class="nav-label nav-label-short">vs libvips</span>
+      </a>
+
       <a href="roadmap.html" class="nav-item">
         <span class="nav-label nav-label-full">Roadmap</span>
       </a>
@@ -364,7 +369,7 @@
     <p>Takes large images and multi-page documents of many kinds — high-resolution scans, PDFs, aerial and satellite imagery, gigapixel photographs, historical maps, digitised archives — extracts raster data, optionally geo-references it, and generates <a href="cli/#pyramid" style="color:var(--primary);">tile pyramids</a> (DeepZoom, XYZ, Google Maps) ready to serve to web-based viewers such as <a href="https://maplibre.org/" style="color:var(--primary);">MapLibre GL</a>, the open-source WebGL map engine, for interactive pan and zoom. Inspired by <a href="https://www.libvips.org/" style="color:var(--primary);">libvips</a>, built from scratch.</p>
   </section>
 
-  <a href="benchmarks/" class="clipping">
+  <a href="benchmarks/libvips/" class="clipping">
     <span class="clipping-tag">Benchmark</span>
     <p>A pure-Rust image pyramiding library is outperforming the C heavyweight it was designed to replace. In head-to-head benchmarks on a 47-megapixel raster &mdash; the kind of image produced every day from gigapixel scans and multi-page document PDFs &mdash; libviprs generates tiles 1.8&times; to 2.4&times; faster than libvips while using up to 10.7&times; less memory. Those aren't typos. And this isn't a rigged comparison: both libraries receive the same raw pixel buffer in process memory, both produce DeepZoom tile pyramids with identical parameters, and both are measured with the same clock. The difference is architectural.</p>
     <span class="clipping-read">Read the full benchmark &rarr;</span>
