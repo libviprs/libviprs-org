@@ -22,6 +22,11 @@
  *   5. every_nav_offers_both_benchmark_pages
  *   6. the_site_still_disables_jekyll_for_every_path_it_serves
  *
+ * And one for the correction that rode in with the move, because the article
+ * described an encode cost it does not exclude:
+ *
+ *   7. the_article_states_the_encoding_claim_it_measures
+ *
  * Plain Node, no dependency and no build step (libviprs-org#62).
  *
  * Usage:
@@ -164,13 +169,15 @@ test('the_comparison_card_points_at_the_comparison_page', () => {
 //
 // This is the one that stops a content edit riding along inside a move. It
 // takes the pre-split article out of git, adds one `../` level to every
-// relative href and src in it, applies the one nav change the split needs
-// (declared below as a literal, so it is reviewable in the diff of this file)
-// and then demands the result equal the moved article byte for byte.
+// relative href and src in it, applies the edits the split is allowed to carry
+// (each declared below as the literal text it replaces and the literal text it
+// puts there, so every one of them is reviewable in the diff of this file) and
+// then demands the result equal the moved article byte for byte.
 //
 // Goes red against: any prose, number, table, chart or markup edit smuggled
 // into the move, and against a depth fix that missed a reference or added a
-// level to one that did not need it.
+// level to one that did not need it. Widening what the article may carry means
+// writing the new prose into this file, where somebody reads it.
 // ---------------------------------------------------------------------------
 
 // The nav entry as it stands after the pure move, before the split's own edit.
@@ -194,6 +201,61 @@ const NAV_AFTER = [
   '        <span class="nav-label nav-label-short">vs libvips</span>',
   '      </a>',
 ].join('\n');
+
+// The encoding story the article told, and the one the code has told since
+// libviprs-bench#153 put both sides on the same codec. The article claimed the
+// comparison excludes encode cost when it includes it, which changes how every
+// number on the page reads, so it is fixed before the page goes live at its new
+// URL rather than left to the generated-page issue.
+//
+// Checked against libviprs-bench rather than pasted: BENCH_TILE_FORMAT is
+// TileFormat::Png (src/lib.rs:37), the three engines in the sweep each build
+// FsSink::new(out_dir.join("pyramid")).with_format(TileFormat::Png) under a
+// temp dir (src/scalability.rs:113-127, 167, 210), all three engines plan with
+// Layout::DeepZoom, and every libvips path passes BENCH_TILE_SUFFIX (".png")
+// to dzsave: the CLI ones as --suffix (src/lib.rs:1057, 1123, 1138) and the
+// in-process FFI one as the "suffix" option (src/lib.rs:1353-1368), which is
+// the path that used to write .raw and is exactly what #153 changed.
+const ENCODING_BEFORE_METHOD =
+  'libvips writes raw tiles to a tmpdir (the minimum <code>dzsave</code> allows); libviprs writes ' +
+  'to a <code>MemorySink</code> (in-memory collection). Neither side encodes to PNG or JPEG ' +
+  '&mdash; this is pure pyramid generation throughput.';
+
+const ENCODING_AFTER_METHOD =
+  'From there every engine writes its tiles as PNG files to a real on-disk sink under the same ' +
+  'DeepZoom layout, so neither side gets an in-RAM-sink or tile-codec advantage: <code>dzsave</code> ' +
+  'is invoked with <code>--suffix .png</code>, and the libviprs engines write through an ' +
+  '<code>FsSink</code> at the same codec.';
+
+const ENCODING_BEFORE_NOTES =
+  'and <code>vips_dzsave</code> writes raw tiles (no encoding) to a temporary directory, while ' +
+  'libviprs engines write to a <code>MemorySink</code>.';
+
+const ENCODING_AFTER_NOTES =
+  'and <code>vips_dzsave</code> writes PNG tiles to a temporary directory, and the libviprs ' +
+  'engines write PNG tiles to one of their own through <code>FsSink</code>, so the encode cost is ' +
+  'paid on both sides.';
+
+// Every edit the moved article is allowed to carry on top of its new depth.
+// Each one has to match the pre-split article exactly once, and anything the
+// list does not describe fails the guard.
+const DECLARED_EDITS = [
+  {
+    why: 'the nav gains the comparison entry, and Benchmarks points up at the libviprs page',
+    before: NAV_BEFORE,
+    after: NAV_AFTER,
+  },
+  {
+    why: 'How We Tested said neither side encodes, and both sides have encoded PNG since libviprs-bench#153',
+    before: ENCODING_BEFORE_METHOD,
+    after: ENCODING_AFTER_METHOD,
+  },
+  {
+    why: 'the methodology notes told the same stale story a second time',
+    before: ENCODING_BEFORE_NOTES,
+    after: ENCODING_AFTER_NOTES,
+  },
+];
 
 function deepen(text) {
   return text.replace(/((?:href|src)=")(\.\.\/)/g, '$1../$2');
@@ -229,12 +291,15 @@ test('the_moved_article_is_byte_identical_apart_from_its_relative_depth', () => 
     !/(?:href|src)="\.\.\/\.\.\//.test(original),
     'the pre-split article already contains a two-level `../../`, which this transform cannot reason about');
 
-  assert(
-    deepened.split(NAV_BEFORE).length === 2,
-    'the nav entry this test knows how to rewrite is not in the pre-split article exactly once, so the ' +
-      'declared nav change below no longer describes the move');
-
-  const expected = deepened.replace(NAV_BEFORE, NAV_AFTER);
+  let expected = deepened;
+  for (const edit of DECLARED_EDITS) {
+    assert(
+      expected.split(edit.before).length === 2,
+      'the declared edit "' + edit.why + '" does not match the pre-split article exactly once ' +
+        '(' + (expected.split(edit.before).length - 1) + ' match(es)), so the declaration no longer ' +
+        'describes the move. Fix the literal in this file rather than relaxing the comparison.');
+    expected = expected.replace(edit.before, edit.after);
+  }
 
   if (expected !== moved) {
     const a = expected.split('\n');
@@ -249,12 +314,14 @@ test('the_moved_article_is_byte_identical_apart_from_its_relative_depth', () => 
       }
     }
     throw new Error(
-      'the moved article is not the pre-split article plus one `../` level and the declared nav change.\n' +
+      'the moved article is not the pre-split article plus one `../` level and the ' +
+      DECLARED_EDITS.length + ' declared edit(s).\n' +
       'Lines: expected ' + a.length + ', actual ' + b.length + '. First differences:\n' + diffs.join('\n') +
       '\nEverything else in that file moves untouched; the content belongs to a later issue.');
   }
 
-  return levels + ' relative reference(s) gained a level; the rest of the file is byte for byte';
+  return levels + ' relative reference(s) gained a level and ' + DECLARED_EDITS.length +
+    ' declared edit(s) applied; the rest of the file is byte for byte';
 });
 
 // ---------------------------------------------------------------------------
@@ -383,8 +450,81 @@ test('the_site_still_disables_jekyll_for_every_path_it_serves', () => {
 });
 
 // ---------------------------------------------------------------------------
+// 7. the_article_states_the_encoding_claim_it_measures
+//
+// The article told a reader, in two places, that neither side encodes and that
+// libviprs collects tiles in a MemorySink. The code has said the opposite since
+// libviprs-bench#153 put both sides on the same codec: BENCH_TILE_FORMAT is
+// TileFormat::Png, the sweep's three engines write through an FsSink under a
+// real temp directory in DeepZoom layout, and every libvips path passes
+// --suffix .png to dzsave, the in-process FFI one included. That is not a
+// wording nit. A page that says the comparison excludes encode cost when it
+// includes it changes how every number on it reads.
+//
+// The byte-identity guard above pins the article to one exact text, so this
+// looks redundant. It is not. That one is anchored on a blob from before the
+// split and is only as good as its anchor; this one says the thing that matters
+// rather than the bytes that happen to say it, and it still holds the first
+// time somebody edits the article on purpose.
+//
+// Goes red against: the text as it stood before this branch, against dropping
+// the claim, and against reintroducing the in-RAM sink or the raw tiles.
+// ---------------------------------------------------------------------------
 
-const TOTAL = 6;
+// Phrases that described benchmark tiles landing anywhere but a real on-disk
+// PNG sink. Matched case-insensitively.
+const STALE_ENCODING_PHRASES = [
+  'neither side encodes',
+  'no encoding',
+  'writes raw tiles',
+  'raw tiles (no encoding)',
+  '<code>memorysink</code>',
+  'pure pyramid generation throughput',
+];
+
+// The claim itself, in both places it belongs. The canonical sentence is
+// TILE_ENCODING_CLAIM in libviprs-bench src/lib.rs.
+const REQUIRED_ENCODING_PHRASES = [
+  'writes its tiles as PNG files to a real on-disk sink',
+  'neither side gets an in-RAM-sink or tile-codec advantage',
+  '<code>--suffix .png</code>',
+  '<code>FsSink</code>',
+  'the encode cost is paid on both sides',
+];
+
+test('the_article_states_the_encoding_claim_it_measures', () => {
+  const html = read(ARTICLE);
+  const lower = html.toLowerCase();
+  const lines = html.split('\n');
+
+  const lineOf = (needle) => {
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].toLowerCase().includes(needle)) return i + 1;
+    }
+    return 0;
+  };
+
+  const stale = STALE_ENCODING_PHRASES
+    .filter((p) => lower.includes(p))
+    .map((p) => '"' + p + '" at line ' + lineOf(p));
+  assert(
+    stale.length === 0,
+    'the article still describes benchmark tiles landing somewhere they do not:\n  ' + stale.join('\n  ') +
+      '\nBoth sides encode PNG to a real on-disk sink, and have since libviprs-bench#153.');
+
+  const missing = REQUIRED_ENCODING_PHRASES.filter((p) => !html.includes(p));
+  assert(
+    missing.length === 0,
+    'the article no longer carries the encoding claim it measures. Missing:\n  ' +
+      missing.map((p) => '"' + p + '"').join('\n  ') +
+      '\nThe canonical sentence is TILE_ENCODING_CLAIM in libviprs-bench src/lib.rs.');
+
+  return 'both sides encode PNG to a real on-disk sink, and the page says so in both places';
+});
+
+// ---------------------------------------------------------------------------
+
+const TOTAL = 7;
 console.log('');
 if (failures.length === 0) {
   console.log('ok: ' + TOTAL + ' site-split guard(s) passed');
