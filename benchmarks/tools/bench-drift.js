@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 /* libviprs-org/benchmarks/tools/bench-drift.js
  *
- * Drift gate for /benchmarks/, the one data-driven artifact on this site that
- * keeps a hand-maintained duplicate of itself.
+ * Drift gate for /benchmarks/libvips/, the one data-driven artifact on this site
+ * that keeps a hand-maintained duplicate of itself. This tool stays at
+ * benchmarks/tools/ while the article it checks lives a level down, so the
+ * command ci.yml runs is unchanged by libviprs-org#74's move.
  *
  * Each of the three tables on that page exists twice. The live copy is
- * rendered from JSON by benchmarks/js/scalability-tables.js. The other copy is
- * the static <tbody> committed in benchmarks/index.html, which is what a
+ * rendered from JSON by benchmarks/libvips/js/scalability-tables.js. The other
+ * copy is the static <tbody> committed in benchmarks/libvips/index.html, which is what a
  * visitor sees with JS off, on a file:// preview, or when a fetch fails. The
  * whole job of the static copy is to say the same thing as the render, and
  * nothing enforced that: an unattended period left five stale cells (three
@@ -44,9 +46,9 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..', '..');
-const HTML = path.join(ROOT, 'benchmarks', 'index.html');
-const DATA = path.join(ROOT, 'benchmarks', 'data');
-const RENDERER = path.join(ROOT, 'benchmarks', 'js', 'scalability-tables.js');
+const HTML = path.join(ROOT, 'benchmarks', 'libvips', 'index.html');
+const DATA = path.join(ROOT, 'benchmarks', 'libvips', 'data');
+const RENDERER = path.join(ROOT, 'benchmarks', 'libvips', 'js', 'scalability-tables.js');
 
 // ---------------------------------------------------------------------------
 // Text normalisation
@@ -199,7 +201,7 @@ function check(overrides) {
     const model = models[which];
     if (!model) { fail('[' + which + '] the renderer produced no model for this table'); continue; }
     const stat = staticTables[which];
-    if (!stat) { fail('[' + which + '] no <table data-bench-table="' + which + '"> in benchmarks/index.html'); continue; }
+    if (!stat) { fail('[' + which + '] no <table data-bench-table="' + which + '"> in benchmarks/libvips/index.html'); continue; }
     if (stat.headers.length === 0) fail('[' + which + '] the static table has no header cells');
     if (stat.rows.length === 0) fail('[' + which + '] the static table has no body rows');
     if (model.rows.length === 0) fail('[' + which + '] the model produced no rows');
@@ -303,10 +305,10 @@ if (require.main === module) {
   if (findings.length) {
     console.error('benchmarks drift: the static fallback and the JSON render disagree\n');
     findings.forEach(function (f) { console.error('  ' + f); });
-    console.error('\n' + findings.length + ' drift(s). Fix benchmarks/index.html, benchmarks/data/*.json,');
-    console.error('or benchmarks/js/scalability-tables.js so both copies say the same thing.');
+    console.error('\n' + findings.length + ' drift(s). Fix benchmarks/libvips/index.html, benchmarks/libvips/data/*.json,');
+    console.error('or benchmarks/libvips/js/scalability-tables.js so both copies say the same thing.');
     process.exit(1);
   }
-  console.log('ok: the static fallback rows on /benchmarks/ match what the JSON renders');
+  console.log('ok: the static fallback rows on /benchmarks/libvips/ match what the JSON renders');
   console.log('    (3 tables, every caption, header, cell, pending marker and note)');
 }

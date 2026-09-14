@@ -14,10 +14,13 @@
  *   3. the_moved_article_is_byte_identical_apart_from_its_relative_depth
  *   4. the_libviprs_page_publishes_no_number_that_is_not_generated
  *
- * Plus one the issue does not name but the move needs, because the nav is the
- * only way a reader finds the second page at all:
+ * Plus two the issue does not name but the move needs. The nav is the only way
+ * a reader finds the second page at all, and .nojekyll is what stops Pages
+ * running the whole site through Jekyll, which has swallowed a directory here
+ * before:
  *
  *   5. every_nav_offers_both_benchmark_pages
+ *   6. the_site_still_disables_jekyll_for_every_path_it_serves
  *
  * Plain Node, no dependency and no build step (libviprs-org#62).
  *
@@ -57,8 +60,9 @@ const failures = [];
 
 function test(name, fn) {
   try {
-    fn();
+    const note = fn();
     console.log('\x1b[32mPASS\x1b[0m  ' + name);
+    if (note) console.log('        ' + note);
   } catch (e) {
     failures.push({ name, message: e.message });
     console.log('\x1b[31mFAIL\x1b[0m  ' + name);
@@ -250,7 +254,7 @@ test('the_moved_article_is_byte_identical_apart_from_its_relative_depth', () => 
       '\nEverything else in that file moves untouched; the content belongs to a later issue.');
   }
 
-  console.log('        ' + levels + ' relative reference(s) gained a level; the rest of the file is byte for byte');
+  return levels + ' relative reference(s) gained a level; the rest of the file is byte for byte';
 });
 
 // ---------------------------------------------------------------------------
@@ -338,10 +342,52 @@ test('every_nav_offers_both_benchmark_pages', () => {
 });
 
 // ---------------------------------------------------------------------------
+// 6. the_site_still_disables_jekyll_for_every_path_it_serves
+//
+// Pages runs a repo through Jekyll unless .nojekyll is at the root, and Jekyll
+// drops anything whose path carries a leading underscore. That has taken out a
+// whole API reference on another site of mine, silently, so the file is
+// load-bearing rather than decorative. The move adds a directory, and this is
+// the cheap check that the new paths are still covered.
+//
+// Goes red against: .nojekyll deleted or moved out of the root, and against a
+// published path that would need Jekyll off to survive while relying on it
+// being there by luck.
+// ---------------------------------------------------------------------------
 
+test('the_site_still_disables_jekyll_for_every_path_it_serves', () => {
+  assert(
+    fs.existsSync(path.join(ROOT, '.nojekyll')),
+    '.nojekyll is gone from the repo root. Without it Pages runs this site through Jekyll, which drops ' +
+      'every path with a leading underscore in it.');
+
+  const underscored = [];
+  (function walk(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === 'target') continue;
+      const rel = path.relative(ROOT, path.join(dir, entry.name));
+      if (entry.name.startsWith('_')) underscored.push(rel);
+      if (entry.isDirectory()) walk(path.join(dir, entry.name));
+    }
+  })(ROOT);
+
+  // Not a failure in itself, since .nojekyll above is what makes them safe.
+  // It is here so the two facts are asserted together rather than one of them
+  // being true by luck.
+  if (underscored.length > 0) {
+    console.log('        ' + underscored.length + ' published path(s) start with an underscore and need .nojekyll: ' +
+      underscored.join(', '));
+  }
+
+  return 'Jekyll is off at the root, and the split adds benchmarks/libvips/ under it';
+});
+
+// ---------------------------------------------------------------------------
+
+const TOTAL = 6;
 console.log('');
 if (failures.length === 0) {
-  console.log('ok: ' + 5 + ' site-split guard(s) passed');
+  console.log('ok: ' + TOTAL + ' site-split guard(s) passed');
   process.exit(0);
 }
 console.error(failures.length + ' guard(s) failed: ' + failures.map((f) => f.name).join(', '));
