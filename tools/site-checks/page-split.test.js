@@ -22,10 +22,12 @@
  *   5. every_nav_offers_both_benchmark_pages
  *   6. the_site_still_disables_jekyll_for_every_path_it_serves
  *
- * And one for the correction that rode in with the move, because the article
- * described an encode cost it does not exclude:
+ * And two for what the move left behind it. The article described an encode
+ * cost it does not exclude, and its own files went on naming the directories
+ * they used to live in:
  *
  *   7. the_article_states_the_encoding_claim_it_measures
+ *   8. the_comparison_pages_own_files_point_at_their_own_directory
  *
  * Plain Node, no dependency and no build step (libviprs-org#62).
  *
@@ -178,6 +180,11 @@ test('the_comparison_card_points_at_the_comparison_page', () => {
 // into the move, and against a depth fix that missed a reference or added a
 // level to one that did not need it. Widening what the article may carry means
 // writing the new prose into this file, where somebody reads it.
+//
+// It is a one-shot by design, anchored on a blob from before the split. What to
+// do when you change the article, and when this guard has done its job and may
+// be re-anchored, is written above DECLARED_EDITS below. Read that before
+// deleting anything here.
 // ---------------------------------------------------------------------------
 
 // The nav entry as it stands after the pure move, before the split's own edit.
@@ -250,6 +257,28 @@ const ENCODING_AFTER_NOTES =
 // Every edit the moved article is allowed to carry on top of its new depth.
 // Each one has to match the pre-split article exactly once, and anything the
 // list does not describe fails the guard.
+//
+// WHEN YOU CHANGE THE ARTICLE ON PURPOSE: add an entry here with the exact text
+// you replaced, the exact text you put there, and a `why` a stranger can read.
+// That is the whole contract. Do not delete this guard, widen deepen(), or
+// relax the comparison to get green: every one of those turns a proof into a
+// decoration, and the reason this exists is that a content edit inside a move
+// is invisible in a rename diff.
+//
+// WHEN IT MAY GO: this guard proves one thing, that the split carried the
+// article across untouched, and it proves it against a blob from before the
+// split. It has done that job when the article stops being the moved artefact
+// and becomes a maintained one, which in practice is the first time the page is
+// regenerated or rewritten wholesale rather than edited sentence by sentence.
+// The expected occasion is the provenance callout, which needs an archived run
+// to point at and lands with K2.5. At that point the honest move is to
+// RE-ANCHOR rather than delete: re-pin PRE_SPLIT_ARTICLE_BLOB to the article as
+// it then stands, empty this list, and say so in the commit. A deletion commit
+// that only says "no longer needed" is the failure mode, not the retirement.
+//
+// The soft note below says when the list has grown past the point where anyone
+// reads it, which is the other signal that re-anchoring is overdue.
+const DECLARED_EDITS_SOFT_LIMIT = 8;
 const DECLARED_EDITS = [
   {
     why: 'the nav gains the comparison entry, and Benchmarks points up at the libviprs page',
@@ -334,6 +363,13 @@ test('the_moved_article_is_byte_identical_apart_from_its_relative_depth', () => 
       DECLARED_EDITS.length + ' declared edit(s).\n' +
       'Lines: expected ' + a.length + ', actual ' + b.length + '. First differences:\n' + diffs.join('\n') +
       '\nEverything else in that file moves untouched; the content belongs to a later issue.');
+  }
+
+  if (DECLARED_EDITS.length > DECLARED_EDITS_SOFT_LIMIT) {
+    console.log('        note: ' + DECLARED_EDITS.length + ' declared edits, past the ' +
+      DECLARED_EDITS_SOFT_LIMIT + ' this guard stays readable at. The article is being maintained ' +
+      'rather than moved now, so re-anchor PRE_SPLIT_ARTICLE_BLOB and empty the list; see the ' +
+      'retirement note above DECLARED_EDITS.');
   }
 
   return levels + ' relative reference(s) gained a level and ' + DECLARED_EDITS.length +
@@ -505,11 +541,16 @@ const STALE_ENCODING_PHRASES = [
   "write to disk and you're measuring your ssd",
 ];
 
-// The claim itself, in both places it belongs. The canonical sentence is
-// TILE_ENCODING_CLAIM in libviprs-bench src/lib.rs.
+// The claim itself, in both places it belongs. The first entry is
+// TILE_ENCODING_CLAIM from libviprs-bench src/lib.rs, whole: the article
+// carries that sentence verbatim, so there is no reason to check it in pieces.
+// It used to be two fragments with `" under the same DeepZoom layout, so "`
+// falling down the gap between them, which left the layout half of the claim
+// resting on the byte-identity guard alone, and that one is a one-shot anchored
+// on a pre-split blob.
 const REQUIRED_ENCODING_PHRASES = [
-  'writes its tiles as PNG files to a real on-disk sink',
-  'neither side gets an in-RAM-sink or tile-codec advantage',
+  'every engine writes its tiles as PNG files to a real on-disk sink under the same DeepZoom ' +
+    'layout, so neither side gets an in-RAM-sink or tile-codec advantage',
   '<code>--suffix .png</code>',
   '<code>FsSink</code>',
   'the encode cost is paid on both sides',
@@ -546,8 +587,79 @@ test('the_article_states_the_encoding_claim_it_measures', () => {
 });
 
 // ---------------------------------------------------------------------------
+// 8. the_comparison_pages_own_files_point_at_their_own_directory
+//
+// The article's stylesheet, its renderer and its editorial JSON carry the
+// publishing instructions for this page, and libviprs-org has no README, so
+// those comments are not commentary on the instructions, they are the
+// instructions. They came across the move at full similarity with nothing
+// edited inside them, which is what a move should do and is exactly why nothing
+// noticed that several of them still named benchmarks/data, benchmarks/img and
+// benchmarks/js.
+//
+// The failure that sets up is a quiet one. The next person refreshing the
+// libvips figures drops the JSON and the SVGs at benchmarks/data and
+// benchmarks/img, where the libviprs page lives and nothing reads them. The
+// article goes on showing the old numbers. bench-drift stays green, because it
+// reads benchmarks/libvips/data and that is still consistent with itself. Stale
+// figures on a benchmarks page with every check passing.
+//
+// So every benchmarks/ path named anywhere under benchmarks/libvips/ has to be
+// one of two things: somewhere inside this page's own directory, or the drift
+// gate at benchmarks/tools/, which genuinely does sit a level up and is shared.
+//
+// Goes red against: the tree as it stood before this commit, and against any
+// file here that later names a sibling page's directory.
+// ---------------------------------------------------------------------------
 
-const TOTAL = 7;
+const ARTICLE_DIR = path.join(ROOT, 'benchmarks', 'libvips');
+
+// The only two first segments a benchmarks/ path in this page's own files may
+// have. Anything else is a path into somebody else's page.
+const OWN_BENCHMARK_DIRS = new Set(['libvips', 'tools']);
+
+test('the_comparison_pages_own_files_point_at_their_own_directory', () => {
+  const files = [];
+  (function walk(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.isFile()) files.push(full);
+    }
+  })(ARTICLE_DIR);
+
+  assert(files.length >= 10, 'only ' + files.length + ' file(s) under benchmarks/libvips/, so this check is looking at almost nothing');
+
+  const findings = [];
+  let checked = 0;
+  for (const full of files) {
+    const text = fs.readFileSync(full, 'utf8');
+    // The `*` rather than `+` matters: a bare "benchmarks/" with nothing after
+    // it is a stale reference too, and the greedy form would not see it.
+    const re = /benchmarks\/([A-Za-z0-9_.\-]*)/g;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      checked++;
+      if (OWN_BENCHMARK_DIRS.has(m[1])) continue;
+      findings.push(
+        path.relative(ROOT, full) + ':' + (text.slice(0, m.index).split('\n').length) +
+        '  "' + m[0] + '"');
+    }
+  }
+
+  assert(
+    findings.length === 0,
+    findings.length + ' path(s) under benchmarks/libvips/ naming a directory this page does not own:\n  ' +
+      findings.join('\n  ') +
+      '\nThese comments are the publishing instructions for this page, since the repo has no README. ' +
+      'A republish that follows them lands the data where nothing reads it and every check stays green.');
+
+  return checked + ' benchmarks/ path reference(s) across ' + files.length + ' file(s), all inside this page or the shared drift gate';
+});
+
+// ---------------------------------------------------------------------------
+
+const TOTAL = 8;
 console.log('');
 if (failures.length === 0) {
   console.log('ok: ' + TOTAL + ' site-split guard(s) passed');
