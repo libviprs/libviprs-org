@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>libviprs vs libvips — Benchmark Comparison</title>
+  <title>libviprs — Benchmarks</title>
   <link rel="icon" type="image/x-icon" href="../favicon.ico">
   <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="../favicon-16.png">
@@ -11,10 +11,113 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Code+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/benchmarks.css">
   <link rel="stylesheet" href="../topbar.css">
   <script src="../topbar.js" defer></script>
-  <script src="js/scalability-tables.js" defer></script>
+
+  <!--
+    A placeholder, on purpose.
+
+    This is where the libviprs benchmark page goes: engines against each other,
+    one archive against a directory tree, and both of those across releases. The
+    generated content and the tooling that renders it arrive with the
+    publication phase of the benchmark epic; the provenance callout waits on an
+    archived run to point at.
+
+    Nothing goes on this page that is not generated from an archived run by
+    digest, and there are no archived runs yet, so there is not a single number
+    on it. tools/site-checks/page-split.test.js holds it to that.
+
+    The libvips comparison article that used to live here is unchanged at
+    benchmarks/libvips/.
+  -->
+
+  <style>
+    :root, [data-theme="light"] {
+      --primary: #be6e34;
+      --primary-dark: #6d2c0f;
+      --bg: #fafaf8;
+      --text: #2d2d2d;
+      --text-light: #555;
+      --border: #e0dcd4;
+      --panel-bg: #f0ede8;
+      --max-width: 860px;
+    }
+
+    [data-theme="dark"] {
+      --primary: #d4894e;
+      --primary-dark: #e0a06a;
+      --bg: #1a1a1a;
+      --text: #e0e0e0;
+      --text-light: #aaa;
+      --border: #3a3a3a;
+      --panel-bg: #2a2a2a;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: "Source Code Pro", "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-anchor: none;
+    }
+
+    main {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 4rem;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--primary-dark);
+      margin-bottom: 0.35rem;
+    }
+
+    .standfirst {
+      color: var(--text-light);
+      font-size: 1.05rem;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 2px solid var(--border);
+    }
+
+    h2 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--primary-dark);
+      margin: 2rem 0 0.6rem;
+    }
+
+    p { margin-bottom: 0.9rem; color: var(--text-light); }
+
+    p a { color: var(--primary); text-decoration: none; }
+    p a:hover { text-decoration: underline; }
+
+    .pending {
+      background: var(--panel-bg);
+      border-left: 3px solid var(--primary);
+      border-radius: 0 4px 4px 0;
+      padding: 1rem 1.25rem;
+      margin: 1.5rem 0;
+    }
+
+    .pending p:last-child { margin-bottom: 0; }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 1.5rem;
+      text-align: center;
+      color: var(--text-light);
+      font-size: 0.9rem;
+    }
+
+    footer a { color: var(--primary); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
 </head>
 <body>
 
@@ -23,7 +126,7 @@
     <a class="topbar-brand" href="../index.html">
       <img src="https://raw.githubusercontent.com/libviprs/libviprs/main/images/libviprs-logo-claws.svg" alt="">
       <span class="brand-name">libviprs</span>
-      <span class="brand-sub">vs libvips</span>
+      <span class="brand-sub">benchmarks</span>
     </a>
   </div>
   <button class="topbar-burger" id="topbarBurger" type="button"
@@ -47,6 +150,11 @@
       <a href="./" class="nav-item is-current">
         <span class="nav-label nav-label-full">Benchmarks</span>
         <span class="nav-label nav-label-short">Bench</span>
+      </a>
+
+      <a href="libvips/" class="nav-item">
+        <span class="nav-label nav-label-full">libviprs vs libvips</span>
+        <span class="nav-label nav-label-short">vs libvips</span>
       </a>
 
       <a href="../roadmap.html" class="nav-item">
@@ -95,369 +203,25 @@
 </header>
 
 <main>
-<article>
 
-<header class="page-header">
-  <h1>libviprs vs libvips</h1>
-  <p class="byline">Benchmark methodology &middot; v0.4.0 &middot; Per-engine isolated FFI comparison on identical pixel buffers</p>
-</header>
+  <h1>libviprs benchmarks</h1>
+  <p class="standfirst">How libviprs performs against itself: engine against engine, one archive against a directory tree, and both of those as releases go by.</p>
 
-<p>A pure-Rust image pyramiding library is outperforming the C heavyweight it was designed to replace. In head-to-head benchmarks on a 47-megapixel raster &mdash; the kind of large scanned document or gigapixel image that gets tiled for interactive viewing every day &mdash; libviprs generates tiles 5&times; to 6&times; faster than libvips, at process memory on par with it and an engine working set that stays flat as images grow. And this isn't a rigged comparison: both libraries receive the same raw pixel buffer in process memory, both produce DeepZoom tile pyramids with identical parameters &mdash; the kind of tiled output a WebGL map engine like MapLibre GL renders for smooth pan-and-zoom &mdash; and both are measured with the same clock, each in its own isolated process. The difference is architectural.</p>
+  <p>Everything this site has published about performance so far has been libviprs against libvips, which answers a question about the other library rather than about this one. The interesting questions are internal. Which engine should you reach for, and at what size does that answer change? What does putting a whole pyramid in one archive cost or save against writing the classic tile tree, in bytes and in the sheer number of files a filesystem ends up holding? And when any of that moves, was it the code or the machine?</p>
 
-<h2>How We Tested</h2>
-
-<p>Fair benchmarking between libraries written in different languages is notoriously difficult. Shell out to a CLI and you're measuring process spawn time. Write to disk and you're measuring your SSD. To eliminate every variable except the tiling pipeline itself, we call both libraries directly through <code>libvips-rs</code> FFI bindings &mdash; <code>vips_image_new_from_memory</code> plus <code>vips_dzsave</code> for libvips, the native engines for libviprs &mdash; starting from an identical <code>RGB8</code> pixel buffer (a synthetic gradient) already resident in memory. libvips writes raw tiles to a tmpdir (the minimum <code>dzsave</code> allows); libviprs writes to a <code>MemorySink</code> (in-memory collection). Neither side encodes to PNG or JPEG &mdash; this is pure pyramid generation throughput.</p>
-
-<p>Each engine &mdash; libvips included &mdash; is measured in its own child process, so one engine's peak resident memory can never contaminate another's. That isolation is what corrected the earlier, over-optimistic memory numbers (see the Memory Wall section). Every data point is the warm median of seven timed iterations after one warm-up run, reported with a 95% confidence interval, and host load and thermal state are recorded per run. The libvips oracle is version-matched and built from pinned source inside the benchmark container (measured 8.18.4 against a pinned 8.18.4).</p>
-
-<p>We tested ten image sizes from 0.2 megapixels (512&times;360) to 280 megapixels (20000&times;14000), using the aspect ratio of a real large-format scanned document (a 4608&times;3240 pt page). <a class="bench-link" href="../cli/#flag-tile-size">Tile size</a> was 256&times;256 with no <a class="bench-link" href="../cli/#flag-overlap">overlap</a> &mdash; standard DeepZoom configuration. libviprs was tested across all three of its engine modes: monolithic, sequential streaming, and <a class="bench-link" href="../cli/#flag-parallel">parallel MapReduce</a>. The charts below report the single-thread (concurrency&nbsp;=&nbsp;1) series &mdash; a like-for-like comparison against single-threaded libvips; MapReduce's parallel strip rendering is a separate axis that only pays off with spare cores.</p>
-
-<h2>The Numbers</h2>
-
-<div class="chart-wrap">
-  <img src="img/scalability_wall_time.svg" alt="Wall time scalability chart">
-  <p class="chart-caption"><span class="fig-num">Figure&nbsp;1.</span>Wall time vs. image size (single thread). Lower is better. libviprs engines (blue, green, red) stay below libvips (purple) at every size.</p>
-</div>
-
-<p>At the showcase size (8192&times;5760, 47 megapixels), libvips completes in 2,028 ms (Figure&nbsp;1). The libviprs monolithic engine finishes in 340 ms &mdash; 6.0&times; faster. The streaming engine takes 390 ms (5.2&times;) while holding its working set to 21 MB, and the MapReduce engine lands at 354 ms (5.7&times;). Every libviprs engine beats libvips on wall time at every size tested, and the margin widens with scale &mdash; from roughly 3&ndash;4&times; on sub-megapixel images to 5&ndash;6&times; from the showcase size up to 280 megapixels.</p>
-
-<div class="bench-wide">
-  <div class="bench-scroll" tabindex="0" role="region" aria-labelledby="benchTableCaption_engines">
-    <table class="bench-table" data-bench-table="engines">
-      <caption id="benchTableCaption_engines">Engine comparison at 8192&times;5760 (47.2 MP)</caption>
-      <thead>
-        <tr>
-          <th scope="col">Engine</th>
-          <th scope="col">Wall time (ms)</th>
-          <th scope="col">Peak RSS (MB)</th>
-          <th scope="col">Working set (MB)</th>
-          <th scope="col">Throughput (tiles/s)</th>
-          <th scope="col">Memory efficiency (tiles/s per RSS-MB)</th>
-          <th scope="col">Resource cost (RSS-MB&middot;s/tile)</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <th scope="row"><span class="engine-cell"><span class="engine-swatch swatch-vips"></span>libvips&nbsp;8.18</span></th>
-          <td>2,028</td>
-          <td>374</td>
-          <td>&mdash;</td>
-          <td>494</td>
-          <td>1.3</td>
-          <td>0.759</td>
-        </tr>
-        <tr>
-          <th scope="row"><span class="engine-cell"><span class="engine-swatch swatch-mono"></span>libviprs monolithic</span></th>
-          <td>340</td>
-          <td>509</td>
-          <td>135</td>
-          <td>2,944</td>
-          <td>5.8</td>
-          <td>0.173</td>
-        </tr>
-        <tr>
-          <th scope="row"><span class="engine-cell"><span class="engine-swatch swatch-stream"></span>libviprs streaming</span></th>
-          <td>390</td>
-          <td>521</td>
-          <td>21</td>
-          <td>2,564</td>
-          <td>4.9</td>
-          <td>0.203</td>
-        </tr>
-        <tr>
-          <th scope="row"><span class="engine-cell"><span class="engine-swatch swatch-mr"></span>libviprs MapReduce</span></th>
-          <td>354</td>
-          <td>525</td>
-          <td>21</td>
-          <td>2,831</td>
-          <td>5.4</td>
-          <td>0.185</td>
-        </tr>
-      </tbody>
-    </table>
+  <div class="pending">
+    <p>This page is empty on purpose. Nothing goes on it that is not generated from an archived benchmark run, addressed by digest, carrying its own provenance and enough repetitions to say what is signal and what is the host having a bad afternoon. There are no archived runs yet, so there is nothing here to show you.</p>
+    <p>I would rather publish nothing than publish a figure I cannot point at.</p>
   </div>
-</div>
 
-<p>Two of those columns need reading together honestly. On <strong>peak RSS</strong> &mdash; whole-process resident memory &mdash; the three libviprs engines land close to one another and, at this size, slightly above libvips, because every engine holds the same decoded source raster. The <strong>working set</strong> column is where they separate: the monolithic engine carries 135 MB of its own live allocations, while streaming and MapReduce hold just 21 MB. That 21 MB is <em>constant</em> &mdash; it doesn't grow as the image gets taller &mdash; which is what lets those engines keep running where a monolithic buffer, or libvips, would not. And because libviprs turns out tiles 5&ndash;6&times; faster for a comparable resident footprint, all three engines still deliver roughly 4&times; libvips's tiles per RSS-megabyte.</p>
+  <h2>The libvips comparison</h2>
 
-<h2>The Memory Wall</h2>
+  <p>That article has not gone anywhere. It is the same hand-written piece it always was, and it now lives at <a href="libvips/">libviprs vs libvips</a>.</p>
 
-<div class="chart-wrap">
-  <img src="img/scalability_peak_memory.svg" alt="Peak process RSS scalability chart">
-  <p class="chart-caption"><span class="fig-num">Figure&nbsp;2.</span>Peak process RSS vs. image size (single thread). Every engine holds the fully-decoded source raster, so whole-process RSS is dominated by that shared cost &mdash; the four lines track within about 1.4&times; of each other and climb together. Process RSS is not where these engines differ; the working set is.</p>
-</div>
-
-<p>This is the section the previous version of this article got wrong. It headlined libviprs's memory as roughly an order of magnitude smaller than libvips's &mdash; but that compared libviprs's <em>tracked working set</em> against libvips's whole-process <em>RSS</em>, an apples-to-oranges asymmetry. v0.4.0 fixes the measurement: every engine, libvips included, is profiled for peak process RSS in its own isolated process. On that fair footing the picture is more modest and more honest. Both libraries must hold the decoded source raster in memory, so at any given size their process RSS lands in the same ballpark (Figure&nbsp;2).</p>
-
-<p>Measured per engine in isolation at 4096&times;4096, streaming and MapReduce peak at 80 MB &mdash; just under libvips at 85 MB &mdash; while the monolithic engine peaks at 127 MB, trading memory for its throughput lead. So on a like-for-like RSS basis libviprs is competitive: the streaming engines a hair leaner than libvips, monolithic a bit heavier. It is <em>not</em> the order-of-magnitude memory win the old numbers implied.</p>
-
-<p>Where the architecture genuinely pulls away is the engine's own working set &mdash; the live allocations it manages on top of that shared source buffer. libviprs's monolithic engine materialises the full canvas and downscales level-by-level, so its working set is <code>canvas_bytes + canvas_bytes/4</code> and grows with total pixels: 135 MB at 47 MP, 801 MB at 280 MP. The streaming engine instead processes the image in horizontal strips, holding only the current strip plus an accumulator chain that halves at each pyramid level &mdash; a working set of 21 MB at 47 MP that rises only to 49 MB at 280 MP, because it scales with image <em>width</em>, not area. MapReduce uses the same strip model with parallel rendering and the same tiny footprint.</p>
-
-<div class="highlight-box">
-  <p><strong>Memory scaling from 47 MP to 280 MP (6&times; more pixels):</strong></p>
-  <p>libviprs streaming / MapReduce working set: 21 MB &rarr; 49 MB (2.3&times; &mdash; scales with image width, not area)</p>
-  <p>libviprs monolithic working set: 135 MB &rarr; 801 MB (5.9&times; &mdash; scales with total pixels)</p>
-  <p>libvips process RSS: 374 MB &rarr; 2,166 MB (5.8&times; &mdash; scales with total pixels; libvips exposes no comparable working-set figure)</p>
-</div>
-
-<p>The monolithic engine has the same fundamental ceiling as any eager pipeline: its working set grows with total pixel count, and at large enough sizes it will exhaust memory just as libvips's RSS does. The streaming and MapReduce engines break that coupling by making memory a function of canvas width and a configurable strip height, which the engine maximises within a caller-set budget &mdash; so a taller image costs no more.</p>
-
-<h2>Efficiency Under Constraint</h2>
-
-<div class="chart-wrap">
-  <img src="img/scalability_efficiency.svg" alt="Memory efficiency chart — Tiles/s per RSS-MB">
-  <p class="chart-caption"><span class="fig-num">Figure&nbsp;3.</span>Memory efficiency &mdash; tiles/s per MB of peak RSS (single thread). Higher is better. How much tiling work each resident megabyte produces.</p>
-</div>
-
-<p>At 47 megapixels the libviprs engines deliver 4.9 to 5.8 tiles per second per megabyte of peak RSS; libvips delivers 1.3 (Figure&nbsp;3). That's roughly 4&times; the memory efficiency &mdash; not because libviprs uses dramatically less memory (on RSS, it doesn't), but because it produces tiles 5&ndash;6&times; faster for a comparable resident footprint. The gap holds across the sweep and reaches about 6&times; at the largest sizes, where every engine's RSS converges on the same source-dominated ceiling and the efficiency ratio becomes the pure throughput ratio.</p>
-
-<p>This matters for deployment. Cloud containers bill by memory-seconds, and because the streaming engine's working set is a constant 21 MB governed by a single <a class="bench-link" href="../cli/#flag-memory-budget">budget parameter</a>, operators can tile arbitrarily tall images inside a fixed ceiling &mdash; a 512 MB pod stays a 512 MB pod whether the image is 47 or 280 megapixels &mdash; and tune the memory/throughput tradeoff without touching application code.</p>
-
-<div class="chart-wrap">
-  <img src="img/scalability_resource_cost.svg" alt="Resource cost chart — RSS-MB&middot;s per tile">
-  <p class="chart-caption"><span class="fig-num">Figure&nbsp;4.</span>Resource cost &mdash; MB of peak RSS &times; seconds, per tile (single thread). Lower is better. Memory and time in one number &mdash; what you'd pay in a billed environment.</p>
-</div>
-
-<p>The resource-cost chart puts a price on each tile (Figure&nbsp;4). At 47 MP libvips costs 0.759 RSS-MB&middot;s per tile; the libviprs engines cost 0.17 to 0.20 &mdash; about 4&times; cheaper. For a batch pipeline grinding through thousands of large documents a day, a 4&times; cut in the memory-time bill compounds into a materially smaller fleet.</p>
-
-<h2>Raw Speed Still Matters</h2>
-
-<div class="chart-wrap">
-  <img src="img/scalability_throughput.svg" alt="Raw throughput chart — tiles per second">
-  <p class="chart-caption"><span class="fig-num">Figure&nbsp;5.</span>Raw throughput (tiles/s), single thread. Higher is better. The monolithic engine leads; all three libviprs engines sustain several times libvips's rate.</p>
-</div>
-
-<p>If memory is not a constraint &mdash; you have a beefy build server with 64 GB of RAM and just want tiles as fast as possible &mdash; the monolithic engine is the clear winner at 2,944 tiles per second (Figure&nbsp;5). That's 6.0&times; faster than libvips. The advantage comes from simplicity: the entire canvas lives in one contiguous buffer, so tile extraction is a series of <code>memcpy</code> calls from a flat array with no pipeline graph traversal, no region negotiation, no lock contention.</p>
-
-<p>libvips's single-threaded throughput here is 494 tiles per second &mdash; respectable for a demand-driven pipeline, but its architecture carries overhead that shows up at scale. Each tile request walks a DAG of operations, allocates a region, computes the pixels for that region through the pipeline, and frees the region. That per-tile overhead is small in absolute terms but adds up across the 1,001 tiles this pyramid produces.</p>
-
-<h2>Identical Output, Not Cut Corners</h2>
-
-<p>Speed and memory numbers mean nothing if the tiles come out wrong. v0.4.0 verifies that libviprs's output is bit-for-bit identical to libvips's: spot-checking mid-pyramid tiles across the 1024-to-4096-pixel range, every comparison returns PSNR 100.0&nbsp;dB and SSIM 1.0000 &mdash; the signature of pixel-exact agreement, not merely &ldquo;visually close.&rdquo; The wins come from a leaner architecture, not from downsampling shortcuts, lower-precision filters, or skipped tiles.</p>
-
-<h2>How libvips Works (And Why It's Slower Here)</h2>
-
-<p>To understand why a Rust library beats a mature C library, you need to understand what libvips optimises for. libvips was designed as a <em>general-purpose</em> image processing pipeline. Its architecture is built around <code>VipsImage</code> (a lazy pipeline node, not a pixel buffer), <code>VipsRegion</code> (a windowed view into the pipeline), and <code>VipsOperation</code> (a cached, reusable processing step). When you call <code>vips_dzsave</code>, libvips constructs a pipeline graph: load &rarr; shrink &rarr; embed &rarr; tile &rarr; save. Pixels are never computed until a downstream consumer requests a region. Multiple tiles can be processed in parallel, each pulling pixels through the pipeline via their own region.</p>
-
-<p>This architecture is brilliant for composing complex image operations &mdash; you can chain dozens of operations without materialising intermediate results. But for the specific task of tile pyramid generation from a pre-decoded raster, it introduces overhead that a purpose-built engine can avoid. The pipeline graph must be traversed per-tile. Region allocation involves locking. The thread pool must coordinate. And libvips maintains internal caches and buffer pools that inflate resident memory even when the logical working set is small.</p>
-
-<p>libviprs doesn't try to be a general-purpose image processing library. It does one thing: generate tile pyramids. Its <code>Raster</code> type is a flat <code>Vec&lt;u8&gt;</code> with known width, height, and pixel format. Tile extraction is a bounds-checked <code>memcpy</code> from contiguous memory. Downscaling is a hand-tuned 2&times;2 box filter that operates directly on the byte array. There's no pipeline graph, no region negotiation, no operation cache. The entire tiling loop fits in a single function with a straightforward control flow that the compiler can optimise aggressively.</p>
-
-<h2>Three Engines, One API</h2>
-
-<p>libviprs ships three engines behind a unified API. The <strong>monolithic engine</strong> materialises the full canvas and processes levels top-down &mdash; fastest when memory is abundant. The <strong>streaming engine</strong> processes the image in horizontal strips, keeping peak memory proportional to strip height rather than image height &mdash; best for memory-constrained containers. The <a class="bench-link" href="../cli/#flag-parallel"><strong>MapReduce engine</strong></a> extends streaming with parallel strip rendering, overlapping the Map phase (render + tile) across multiple strips while the Reduce phase (downscale propagation) runs sequentially. All three produce byte-identical <a class="bench-link" href="../cli/#pyramid">pyramid output</a>.</p>
-
-<div class="bench-wide">
-  <div class="bench-scroll" tabindex="0" role="region" aria-labelledby="benchTableCaption_picker">
-    <table class="bench-table" data-bench-table="scenarios">
-      <caption id="benchTableCaption_picker">Choosing an engine for your scenario</caption>
-      <thead>
-        <tr>
-          <th scope="col">Scenario</th>
-          <th scope="col">Best engine</th>
-          <th scope="col">Memory complexity</th>
-          <th scope="col">Speed</th>
-          <th scope="col">Best when</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <th scope="row">Beefy server, max speed</th>
-          <td><span class="engine-cell"><span class="engine-swatch swatch-mono"></span>libviprs monolithic</span></td>
-          <td><code>O(canvas&sup2;)</code></td>
-          <td>Fastest &mdash; 2,944&nbsp;tiles/s at 47.2&nbsp;MP</td>
-          <td>RAM is abundant and you want raw throughput.</td>
-        </tr>
-        <tr>
-          <th scope="row">Container, limited RAM</th>
-          <td><span class="engine-cell"><span class="engine-swatch swatch-stream"></span>libviprs streaming</span></td>
-          <td><code>O(width &times; strip)</code></td>
-          <td>Good &mdash; 2,564&nbsp;tiles/s in a 21&nbsp;MB working set</td>
-          <td>Tight memory ceiling (e.g. 512&nbsp;MB pod) on potentially huge images.</td>
-        </tr>
-        <tr>
-          <th scope="row">Multi-core, bounded RAM</th>
-          <td><span class="engine-cell"><span class="engine-swatch swatch-mr"></span>libviprs MapReduce</span></td>
-          <td><code>O(width &times; strip)</code></td>
-          <td>Fast &mdash; 2,831&nbsp;tiles/s, same 21&nbsp;MB working set</td>
-          <td>Spare cores you can spend on parallel strip rendering.</td>
-        </tr>
-        <tr>
-          <th scope="row">Unknown image sizes</th>
-          <td><span class="engine-cell"><span class="engine-swatch swatch-auto"></span>Auto-select</span></td>
-          <td>Adapts to <code>with_memory_budget</code></td>
-          <td>Adapts &mdash; builder picks at runtime</td>
-          <td>Workload spans many image sizes; default for <code>EngineKind::Auto</code>.</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<p>Auto-selection is built into <code>EngineBuilder::new(...).with_engine(EngineKind::Auto)</code> &mdash; and <code>EngineKind::Auto</code> is the default, so it applies even if you never call <code>with_engine</code>. The builder picks the engine at runtime from the source kind (in-memory raster vs. strip source) and the value passed to <a class="bench-link" href="../cli/#flag-memory-budget"><code>with_memory_budget</code></a>. If the monolithic engine fits the budget for a raster source, it's used for maximum throughput. Otherwise, the streaming or MapReduce engine kicks in. No code changes, no configuration files &mdash; just a memory budget parameter.</p>
-
-<h2>Storage Is a Separate Axis</h2>
-
-<p>Everything above compares engines. Which engine you pick and where the tiles land are two different decisions, and the second one has its own costs that none of the columns above can hold. A pyramid is one <a class="bench-link" href="https://github.com/protomaps/PMTiles/blob/main/spec/v3/spec.md">PMTiles v3</a> archive by default now, written through <code>PmTilesSink</code> and read back by <code>pmtiles::Reader</code> over any byte-range source, with the classic tile tree still there behind <a class="bench-link" href="../cli/#flag-storage"><code>--storage directory</code></a>. Any engine can write either, so this is a cross-cut rather than a fourth engine, and it gets its own table.</p>
-
-<p>The columns are the ones that actually separate the two backends. <strong>Filesystem entries</strong> is the one to read first: a tile tree spends one inode per tile plus a directory per level and per column, so a pyramid with twenty thousand tiles in it is twenty thousand-odd entries to copy, sync, back up and list, while the archive is one file whatever the tile count. <strong>Output size</strong> says what the index costs on top of the same tile bytes. The three <strong>read</strong> columns are the other side of the trade: a tile tree lets the kernel's page cache do the work, and an archive has to find the tile in its own directory first, so that is where an archive has to prove it is not paying for the convenience. They separate the first read from the steady state deliberately, because those two are not the same story.</p>
-
-<p>This table is measured by a different harness than the engine bench above, on a deliberately different grid: square canvases, and a 64&nbsp;pixel tile size alongside the usual 256, because small tiles are what drive a tile tree into the leaf directories where the difference shows up at all. That is also why it is a table of its own rather than a column bolted onto the engine comparison: the two sweeps do not share a single size.</p>
-
-<div class="bench-wide">
-  <div class="bench-scroll" tabindex="0" role="region" aria-labelledby="benchTableCaption_storage">
-    <table class="bench-table" data-bench-table="storage">
-      <caption id="benchTableCaption_storage">Same pyramid, two storage backends</caption>
-      <thead>
-        <tr>
-          <th scope="col">Pyramid</th>
-          <th scope="col">Storage</th>
-          <th scope="col">Tiles</th>
-          <th scope="col">Output size (MB)</th>
-          <th scope="col">Filesystem entries</th>
-          <th scope="col">Generation (ms)</th>
-          <th scope="col">Generation (tiles/s)</th>
-          <th scope="col">Cold first read p50 (&micro;s)</th>
-          <th scope="col">Random read p50 (&micro;s)</th>
-          <th scope="col">Random read p99 (&micro;s)</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <th scope="row">2048&times;2048, 256&nbsp;px tiles</th>
-          <td><span class="engine-cell"><span class="engine-swatch swatch-pmtiles"></span>PMTiles archive</span></td>
-          <td>93</td>
-          <td>7.8</td>
-          <td>1</td>
-          <td>90</td>
-          <td>1,033</td>
-          <td>11.46</td>
-          <td>3.83</td>
-          <td>4.92</td>
-        </tr>
-        <tr>
-          <th scope="row">2048&times;2048, 256&nbsp;px tiles</th>
-          <td><span class="engine-cell"><span class="engine-swatch swatch-dir"></span>Directory tree</span></td>
-          <td>93</td>
-          <td>7.8</td>
-          <td>129</td>
-          <td>51</td>
-          <td>1,830</td>
-          <td>6.42</td>
-          <td>4.08</td>
-          <td>4.79</td>
-        </tr>
-        <tr>
-          <th scope="row">8192&times;8192, 256&nbsp;px tiles</th>
-          <td><span class="engine-cell"><span class="engine-swatch swatch-pmtiles"></span>PMTiles archive</span></td>
-          <td>1,373</td>
-          <td>124.1</td>
-          <td>1</td>
-          <td>925</td>
-          <td>1,484</td>
-          <td>38.29</td>
-          <td>6.54</td>
-          <td>10.75</td>
-        </tr>
-        <tr>
-          <th scope="row">8192&times;8192, 256&nbsp;px tiles</th>
-          <td><span class="engine-cell"><span class="engine-swatch swatch-dir"></span>Directory tree</span></td>
-          <td>1,373</td>
-          <td>124.1</td>
-          <td>1,459</td>
-          <td>749</td>
-          <td>1,834</td>
-          <td>6.67</td>
-          <td>5.29</td>
-          <td>7.42</td>
-        </tr>
-        <tr>
-          <th scope="row">16384&times;16384, 256&nbsp;px tiles</th>
-          <td><span class="engine-cell"><span class="engine-swatch swatch-pmtiles"></span>PMTiles archive</span></td>
-          <td>5,469</td>
-          <td>496.5</td>
-          <td>1</td>
-          <td>3,654</td>
-          <td>1,497</td>
-          <td>91.67</td>
-          <td>6.96</td>
-          <td>9.75</td>
-        </tr>
-        <tr>
-          <th scope="row">16384&times;16384, 256&nbsp;px tiles</th>
-          <td><span class="engine-cell"><span class="engine-swatch swatch-dir"></span>Directory tree</span></td>
-          <td>5,469</td>
-          <td>496.5</td>
-          <td>5,620</td>
-          <td>3,090</td>
-          <td>1,770</td>
-          <td>7.54</td>
-          <td>6.08</td>
-          <td>8.04</td>
-        </tr>
-        <tr>
-          <th scope="row">8192&times;8192, 64&nbsp;px tiles</th>
-          <td><span class="engine-cell"><span class="engine-swatch swatch-pmtiles"></span>PMTiles archive</span></td>
-          <td>21,851</td>
-          <td>127.6</td>
-          <td>1</td>
-          <td>1,034</td>
-          <td>21,127</td>
-          <td>69.13</td>
-          <td>1.00</td>
-          <td>1.75</td>
-        </tr>
-        <tr>
-          <th scope="row">8192&times;8192, 64&nbsp;px tiles</th>
-          <td><span class="engine-cell"><span class="engine-swatch swatch-dir"></span>Directory tree</span></td>
-          <td>21,851</td>
-          <td>127.6</td>
-          <td>22,127</td>
-          <td>1,183</td>
-          <td>18,470</td>
-          <td>2.96</td>
-          <td>3.17</td>
-          <td>4.13</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-  <p class="bench-note" data-bench-note="storage" hidden><strong>&dagger; Some measurements are missing.</strong> A row marked &dagger; has at least one cell this export does not carry, and that may be a single column or the whole row. An empty cell is left empty rather than filled in, because a guessed figure on a benchmarks page is a figure somebody quotes back. This table reads its own export, <code>pmtiles_results.json</code>, written by the PMTiles benchmark suite in <a class="bench-link" href="https://github.com/libviprs/libviprs/issues/993">libviprs#993</a> rather than by the engine bench above, so a marked row is waiting on a run of that suite that covers whatever it is missing.</p>
-</div>
-
-<p>Two things in that table are worth reading together. <strong>Filesystem entries</strong> is the column that actually moves: the same 21,851-tile pyramid is <strong>one</strong> file as an archive and <strong>22,127</strong> entries as a tree, and the ratio only grows as tiles get smaller. <strong>Output size</strong> is the column that deliberately does not move. Both backends store the same tile bytes and the PMTiles index costs 527&nbsp;bytes on the smallest pyramid and about 10.8&nbsp;KB on the largest, so the two figures round to the same number at this precision. That is the result, not a rendering fault: the container is close to free.</p>
-
-<p>Generation is a genuine trade and it flips. At 256&nbsp;px tiles the archive is slower to write, by roughly 20% at the two larger sizes and more at the smallest, because it pays to order and index tiles that a tile tree simply drops on the filesystem. At 64&nbsp;px tiles that reverses: the tree now has 22,127 entries to create and close, and the archive finishes first. Random reads follow the same crossover. At 256&nbsp;px the two are a wash, within about a microsecond of each other in both directions, while at 64&nbsp;px the archive answers in 1.00&nbsp;&micro;s against the tree's 3.17. So at ordinary tile sizes you are choosing on operational cost rather than on speed, and at small tile sizes, where a tree hurts most, the archive is ahead on both.</p>
-
-<p><strong>Cold first read p50</strong> is the one column a tile tree wins outright, and it is in the table rather than in a footnote because it is a real reason to pick one. An archive has to fetch its directory before it can answer anything, so the first lookup costs 11 to 92&nbsp;&micro;s where a tile tree answers in 3 to 8, and the gap widens with the pyramid because the directory does. Everything after that is the two random-read columns beside it, with the directory cached. So the shape to avoid is one tile out of a cold archive and then nothing: a tile tree is better at that, and the archive earns its setup back on the second lookup and every one after.</p>
-
-<h2>What libvips Does Better</h2>
-
-<p>This benchmark measures one specific workload: generating a DeepZoom tile pyramid from a pre-decoded raster buffer. libvips is a far more capable library in the general case. It supports hundreds of image operations (colour space conversion, convolution, morphology, affine transforms, compositing), dozens of file formats, and a sophisticated caching and threading model that makes complex multi-step pipelines efficient. If you need to resize, sharpen, colour-correct, watermark, and then tile an image in a single pipeline, libvips does that with a single pass through the pixel data. libviprs does not attempt any of this.</p>
-
-<p>libvips also handles source decoding lazily &mdash; it can tile a 100 GB TIFF file from disk without loading it into memory, because the decode happens per-region through the pipeline. libviprs requires the source raster to be fully decoded before tiling begins (the streaming engine reduces the <em>working set</em> during tiling, but the source is still in memory). For truly massive images that don't fit in RAM at all, libvips's architecture is the only option without preprocessing.</p>
-
-<h2>Methodology Notes</h2>
-
-<p>All engines call into <code>libvips-rs</code> FFI bindings &mdash; <code>vips_image_new_from_memory</code> builds a <code>VipsImage</code> from the same pixel buffer libviprs uses, and <code>vips_dzsave</code> writes raw tiles (no encoding) to a temporary directory, while libviprs engines write to a <code>MemorySink</code>. The key methodology change in v0.4.0: every engine, libvips included, is profiled in its own isolated child process, so peak resident memory is measured per engine with no cross-contamination. This corrects the previous methodology, which compared libviprs's internal <code>MemoryTracker</code> working-set figure against libvips's <code>getrusage</code> peak RSS &mdash; an asymmetry that made libviprs's memory look far lower than a like-for-like RSS comparison bears out. v0.4.0 now reports two clearly separated numbers: peak process RSS (the fair cross-library comparison) and each engine's own tracked working set (the constant-memory story). Every timing is the warm median of seven iterations after a warm-up, with a 95% confidence interval; host load (~2.6 on the run behind these figures) and thermal state are recorded alongside. The libvips oracle is version-matched &mdash; measured 8.18.4 against a pinned 8.18.4 &mdash; and built from source in the benchmark container.</p>
-
-<p>Source code for all benchmarks is in <a class="bench-link" href="https://github.com/libviprs/libviprs">libviprs-bench/src/scalability.rs</a>. The benchmark can be reproduced in Docker via <code>./run-bench.sh</code>, which builds a container with libvips-dev, libpdfium, and libviprs from source.</p>
-
-<h2>What Changed Since v0.3</h2>
-
-<p>Against the prior v0.3.x snapshots, v0.4.0 shows <strong>no performance regressions</strong>: wall time is 45&ndash;48% lower on every shared workload. Read that as &ldquo;nothing got slower,&rdquo; not as a 47% code speedup &mdash; the drop also reflects the methodology change from single cold runs to warm medians of seven iterations, measured on a different, loaded host. Two other things improved. Full engine coverage is restored at large sizes: streaming and MapReduce previously dropped out at and above 1024 pixels under a too-small internal budget, and now run clean across the whole sweep. And memory is now measured per-engine in isolation, which &mdash; as the Memory Wall section describes &mdash; conservatively corrects the earlier, over-optimistic figures downward. The honest read of v0.4.0 is a faster, better-instrumented, and more truthful benchmark, not a set of new records to trumpet.</p>
-
-<div class="conclusion">
-  <h2>Conclusion</h2>
-  <p>libviprs is not a replacement for libvips. It's a specialised tool that does one job &mdash; tile pyramid generation &mdash; and does it several times faster, with tighter and more predictable memory, than the general-purpose library it draws inspiration from. At 47 megapixels the monolithic engine produces tiles 6.0&times; faster than libvips; the streaming and MapReduce engines stay within 5&ndash;6&times; on speed while holding a constant 21 MB working set that decouples memory from image size &mdash; and every tile they emit is bit-identical to libvips's output.</p>
-  <p>For teams tiling thousands of large scans, gigapixel images, and multi-page PDFs daily in containerised pipelines &mdash; feeding the tiled pyramids to a MapLibre GL viewer or any other Deep Zoom / XYZ client &mdash; that combination translates to fewer machines, smaller pods, and faster turnaround. libviprs brings the Rust performance story to a workload that has relied on C for decades &mdash; and the benchmarks, measured honestly, show it was worth the rewrite.</p>
-</div>
-
-</article>
 </main>
 
 <footer>
-  <p>libviprs is MIT licensed. <a href="https://github.com/libviprs/libviprs">View on GitHub</a> &middot; Benchmark data: <a href="https://github.com/libviprs/libviprs">libviprs-bench v0.4.0</a></p>
+  <p>libviprs is MIT licensed. <a href="https://github.com/libviprs/libviprs">View on GitHub</a></p>
 </footer>
 
 </body>
