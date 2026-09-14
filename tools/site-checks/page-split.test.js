@@ -227,6 +227,17 @@ const ENCODING_AFTER_METHOD =
   'is invoked with <code>--suffix .png</code>, and the libviprs engines write through an ' +
   '<code>FsSink</code> at the same codec.';
 
+// The sentence that justified the in-RAM sink. With the sink gone it argued
+// against the methodology the rest of the paragraph describes, so the paragraph
+// talked itself out of its own design. The point it was making is still true and
+// still worth making, it just belongs the other way round now: an asymmetric
+// sink measures storage rather than tiling, which is the reason both sides write
+// PNG to disk rather than the reason neither does.
+const SSD_BEFORE_METHOD = "Write to disk and you're measuring your SSD.";
+
+const SSD_AFTER_METHOD =
+  "Let one side write to disk while the other holds tiles in RAM and you're measuring your SSD.";
+
 const ENCODING_BEFORE_NOTES =
   'and <code>vips_dzsave</code> writes raw tiles (no encoding) to a temporary directory, while ' +
   'libviprs engines write to a <code>MemorySink</code>.';
@@ -249,6 +260,11 @@ const DECLARED_EDITS = [
     why: 'How We Tested said neither side encodes, and both sides have encoded PNG since libviprs-bench#153',
     before: ENCODING_BEFORE_METHOD,
     after: ENCODING_AFTER_METHOD,
+  },
+  {
+    why: 'the same paragraph opened by arguing against the methodology it goes on to describe',
+    before: SSD_BEFORE_METHOD,
+    after: SSD_AFTER_METHOD,
   },
   {
     why: 'the methodology notes told the same stale story a second time',
@@ -468,11 +484,17 @@ test('the_site_still_disables_jekyll_for_every_path_it_serves', () => {
 // time somebody edits the article on purpose.
 //
 // Goes red against: the text as it stood before this branch, against dropping
-// the claim, and against reintroducing the in-RAM sink or the raw tiles.
+// the claim, against reintroducing the in-RAM sink or the raw tiles, and
+// against the paragraph going back to arguing for an asymmetric sink three
+// sentences before it describes a symmetric one.
 // ---------------------------------------------------------------------------
 
 // Phrases that described benchmark tiles landing anywhere but a real on-disk
-// PNG sink. Matched case-insensitively.
+// PNG sink, or argued for the asymmetric sink that put them there. Matched
+// case-insensitively. The last one is the old opening of How We Tested, and it
+// is safe to forbid because the sentence that replaced it reads "write to disk
+// while the other holds tiles in RAM and you're measuring your SSD", which does
+// not contain it.
 const STALE_ENCODING_PHRASES = [
   'neither side encodes',
   'no encoding',
@@ -480,6 +502,7 @@ const STALE_ENCODING_PHRASES = [
   'raw tiles (no encoding)',
   '<code>memorysink</code>',
   'pure pyramid generation throughput',
+  "write to disk and you're measuring your ssd",
 ];
 
 // The claim itself, in both places it belongs. The canonical sentence is
