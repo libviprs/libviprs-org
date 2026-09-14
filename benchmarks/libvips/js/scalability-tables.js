@@ -1,10 +1,11 @@
-/* Renders the three data tables on /benchmarks/ from JSON.
+/* Renders the three data tables on /benchmarks/libvips/ from JSON.
  *
  * Sources (paths resolved relative to this script's own location, so
- * the page works whether served from /, /benchmarks/, or any sub-path):
+ * the page works whether served from /, /benchmarks/libvips/, or any
+ * sub-path):
  *   ../data/scalability_results.json — raw engine-bench output. libviprs-bench
- *     produces this alongside the SVGs; copy both to benchmarks/data
- *     and benchmarks/img on each republish. It is a generated artifact and
+ *     produces this alongside the SVGs; copy both to benchmarks/libvips/data
+ *     and benchmarks/libvips/img on each republish. It is a generated artifact and
  *     nothing in this repo may hand-edit a row into it: the next republish
  *     overwrites the file wholesale, and its producer declares several of
  *     these fields as bare non-optional numbers, so a hand-written null
@@ -625,7 +626,8 @@
 
   // Resolve fetch URLs relative to this script's own location so the
   // page works regardless of where it's mounted. The data lives at
-  // ../data/ relative to the script (benchmarks/js/ → benchmarks/data/).
+  // ../data/ relative to the script
+  // (benchmarks/libvips/js/ → benchmarks/libvips/data/).
   // document.currentScript is set while the script body is executing
   // synchronously — `defer` keeps that intact for classic scripts.
   function dataDir() {
