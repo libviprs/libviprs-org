@@ -1,0 +1,46 @@
+name: site-links
+
+# GitHub Pages serves libviprs.org out of this repository, so a relative path
+# that points at nothing is a live 404 rather than a red build. Nothing checked
+# those paths, and libviprs-org#74 moves a whole article down a level, which is
+# exactly the change that breaks one. This is the check for that.
+#
+# Its own file rather than a job in ci.yml, and deliberately so: adding a *job*
+# to ci.yml reddens the Hook Mirror guard in libviprs-tests/tools/install-hooks.sh
+# unless that job is mirrored or deferred there in the same wave, and a whole
+# new workflow file is exempt. Nothing here duplicates a gate ci.yml already
+# runs, so the two do not race.
+
+on:
+  # Every branch, for the same reason ci.yml takes every branch: a push to a PR
+  # branch has to produce a signal, and `pull_request` does not fire while a PR
+  # is conflicted with its base.
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # the_moved_article_is_byte_identical_apart_from_its_relative_depth
+          # reads the pre-split article out of git by blob id, and a shallow
+          # clone does not carry it. The test fails rather than skips when the
+          # object is missing, so this is not optional.
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Every internal link resolves to a file that exists
+        run: node tools/site-checks/links.js
+
+      - name: The benchmark page split holds
+        run: node tools/site-checks/page-split.test.js
