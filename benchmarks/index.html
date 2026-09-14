@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>libviprs — Benchmarks</title>
+  <link rel="icon" type="image/x-icon" href="../favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="../favicon-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="../apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Code+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../topbar.css">
+  <script src="../topbar.js" defer></script>
+
+  <!--
+    A placeholder, on purpose.
+
+    This is where the libviprs benchmark page goes: engines against each other,
+    one archive against a directory tree, and both of those across releases. The
+    generated content and the tooling that renders it arrive with the
+    publication phase of the benchmark epic; the provenance callout waits on an
+    archived run to point at.
+
+    Nothing goes on this page that is not generated from an archived run by
+    digest, and there are no archived runs yet, so there is not a single number
+    on it. tools/site-checks/page-split.test.js holds it to that.
+
+    The libvips comparison article that used to live here is unchanged at
+    benchmarks/libvips/.
+  -->
+
+  <style>
+    :root, [data-theme="light"] {
+      --primary: #be6e34;
+      --primary-dark: #6d2c0f;
+      --bg: #fafaf8;
+      --text: #2d2d2d;
+      --text-light: #555;
+      --border: #e0dcd4;
+      --panel-bg: #f0ede8;
+      --max-width: 860px;
+    }
+
+    [data-theme="dark"] {
+      --primary: #d4894e;
+      --primary-dark: #e0a06a;
+      --bg: #1a1a1a;
+      --text: #e0e0e0;
+      --text-light: #aaa;
+      --border: #3a3a3a;
+      --panel-bg: #2a2a2a;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: "Source Code Pro", "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-anchor: none;
+    }
+
+    main {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 4rem;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--primary-dark);
+      margin-bottom: 0.35rem;
+    }
+
+    .standfirst {
+      color: var(--text-light);
+      font-size: 1.05rem;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 2px solid var(--border);
+    }
+
+    h2 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--primary-dark);
+      margin: 2rem 0 0.6rem;
+    }
+
+    p { margin-bottom: 0.9rem; color: var(--text-light); }
+
+    p a { color: var(--primary); text-decoration: none; }
+    p a:hover { text-decoration: underline; }
+
+    .pending {
+      background: var(--panel-bg);
+      border-left: 3px solid var(--primary);
+      border-radius: 0 4px 4px 0;
+      padding: 1rem 1.25rem;
+      margin: 1.5rem 0;
+    }
+
+    .pending p:last-child { margin-bottom: 0; }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 1.5rem;
+      text-align: center;
+      color: var(--text-light);
+      font-size: 0.9rem;
+    }
+
+    footer a { color: var(--primary); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<header class="topbar collapsed" id="topbar">
+  <div class="topbar-content">
+    <a class="topbar-brand" href="../index.html">
+      <img src="https://raw.githubusercontent.com/libviprs/libviprs/main/images/libviprs-logo-claws.svg" alt="">
+      <span class="brand-name">libviprs</span>
+      <span class="brand-sub">benchmarks</span>
+    </a>
+  </div>
+  <button class="topbar-burger" id="topbarBurger" type="button"
+          aria-label="Toggle menu" aria-expanded="false" aria-controls="topbar-menu">
+    <span class="burger-icon" aria-hidden="true"></span>
+  </button>
+  <nav class="topbar-menu" id="topbar-menu" aria-hidden="true">
+    <div class="topbar-menu-inner">
+      <a href="../index.html" class="nav-item nav-item-home">
+        <svg class="nav-icon nav-icon-home" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+          <path d="M12 3 2 12h3v8h5v-5h4v5h5v-8h3L12 3z"/>
+        </svg>
+        <span class="nav-label nav-label-full">Home</span>
+      </a>
+
+      <a href="../cli/" class="nav-item">
+        <span class="nav-label nav-label-full">CLI Documentation</span>
+        <span class="nav-label nav-label-short">CLI Docs</span>
+      </a>
+
+      <a href="./" class="nav-item is-current">
+        <span class="nav-label nav-label-full">Benchmarks</span>
+        <span class="nav-label nav-label-short">Bench</span>
+      </a>
+
+      <a href="libvips/" class="nav-item">
+        <span class="nav-label nav-label-full">libviprs vs libvips</span>
+        <span class="nav-label nav-label-short">vs libvips</span>
+      </a>
+
+      <a href="../roadmap.html" class="nav-item">
+        <span class="nav-label nav-label-full">Roadmap</span>
+      </a>
+
+      <a href="https://github.com/libviprs/libviprs" target="_blank" rel="noopener" class="nav-item nav-item-github" aria-label="GitHub repository">
+        <svg class="nav-icon nav-icon-github" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+          <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+        </svg>
+        <span class="nav-label nav-label-full">GitHub</span>
+      </a>
+
+      <a href="https://docs.rs/libviprs" target="_blank" rel="noopener" class="nav-item">
+        <span class="nav-label nav-label-full">API Docs</span>
+      </a>
+
+      <a href="https://github.com/libviprs/libviprs-dep/releases" target="_blank" rel="noopener" class="nav-item">
+        <span class="nav-label nav-label-full">Downloads</span>
+      </a>
+
+      <a href="https://github.com/libviprs/libviprs-dep/blob/main/MANUAL.md" target="_blank" rel="noopener" class="nav-item">
+        <span class="nav-label nav-label-full">Build Tools Manual</span>
+        <span class="nav-label nav-label-short">Build Man</span>
+      </a>
+
+      <a href="https://github.com/libviprs/libviprs/issues" target="_blank" rel="noopener" class="nav-item">
+        <span class="nav-label nav-label-full">Issues</span>
+      </a>
+
+      <hr class="menu-divider">
+
+      <button type="button" class="topbar-theme-toggle" id="themeToggle" role="switch" aria-checked="false" aria-label="Toggle theme">
+        <span class="theme-glyph" aria-hidden="true">☾</span>
+        <span class="theme-label">Dark mode</span>
+        <span class="theme-slider" aria-hidden="true">
+          <span class="theme-slider-track">
+            <span class="theme-slider-sun">☀</span>
+            <span class="theme-slider-moon">☾</span>
+            <span class="theme-slider-knob"></span>
+          </span>
+        </span>
+      </button>
+    </div>
+  </nav>
+</header>
+
+<main>
+
+  <h1>libviprs benchmarks</h1>
+  <p class="standfirst">How libviprs performs against itself: engine against engine, one archive against a directory tree, and both of those as releases go by.</p>
+
+  <p>Everything this site has published about performance so far has been libviprs against libvips, which answers a question about the other library rather than about this one. The interesting questions are internal. Which engine should you reach for, and at what size does that answer change? What does putting a whole pyramid in one archive cost or save against writing the classic tile tree, in bytes and in the sheer number of files a filesystem ends up holding? And when any of that moves, was it the code or the machine?</p>
+
+  <div class="pending">
+    <p>This page is empty on purpose. Nothing goes on it that is not generated from an archived benchmark run, addressed by digest, carrying its own provenance and enough repetitions to say what is signal and what is the host having a bad afternoon. There are no archived runs yet, so there is nothing here to show you.</p>
+    <p>I would rather publish nothing than publish a figure I cannot point at.</p>
+  </div>
+
+  <h2>The libvips comparison</h2>
+
+  <p>That article has not gone anywhere. It is the same hand-written piece it always was, and it now lives at <a href="libvips/">libviprs vs libvips</a>.</p>
+
+</main>
+
+<footer>
+  <p>libviprs is MIT licensed. <a href="https://github.com/libviprs/libviprs">View on GitHub</a></p>
+</footer>
+
+</body>
+</html>
