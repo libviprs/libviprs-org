@@ -380,12 +380,21 @@ test('the_moved_article_is_byte_identical_apart_from_its_relative_depth', () => 
 // 4. the_libviprs_page_publishes_no_number_that_is_not_generated
 //
 // Nothing goes on the libviprs page that is not generated from an archived run
-// by digest, and there are no archived runs yet, so the placeholder carries no
-// number at all. Digits inside markup are fine (an SVG path, a viewport meta);
-// a digit a reader can see is not.
+// addressed by digest. While there were no archived runs, that meant the page
+// carried no number at all; libviprs-org#76 landed the first two runs, so the
+// rule now has teeth in the other direction: every digit a reader can see is
+// inside a GENERATED:<name>:BEGIN/END region, and the page names the run and
+// the document digest each region came from.
 //
-// Goes red against: a hand-written figure in the prose, a table of any kind, or
-// a chart image dropped in ahead of K2.4.
+// The hand-written frame around those regions keeps the old rule exactly. A
+// figure typed into the standfirst is the failure this has always been about,
+// and it still fails here.
+//
+// Goes red against: a hand-written figure in the prose outside the markers, a
+// generated region that turns out to carry no numbers (a renderer that silently
+// emitted nothing), a page that shows numbers without naming the run they came
+// from, and a chart dropped in as an image or a <canvas> rather than as markup
+// a reader sees with JavaScript off.
 // ---------------------------------------------------------------------------
 
 function visibleText(html) {
@@ -395,23 +404,69 @@ function visibleText(html) {
   return t.replace(/\s+/g, ' ').trim();
 }
 
+// Blank a generated region while keeping its newlines, so line numbers in any
+// later failure still point at the right place.
+function withoutGenerated(html) {
+  return html.replace(
+    /<!--\s*GENERATED:[a-z-]+:BEGIN\s*-->[\s\S]*?<!--\s*GENERATED:[a-z-]+:END\s*-->/g,
+    (m) => m.replace(/[^\n]/g, ' '));
+}
+
 test('the_libviprs_page_publishes_no_number_that_is_not_generated', () => {
   const html = read(PLACEHOLDER);
 
-  assert(!/<table\b/i.test(html), 'the libviprs placeholder carries a <table>, and every number on that page has to come from an archived run');
-  assert(!/<canvas\b/i.test(html), 'the libviprs placeholder carries a <canvas>, so something is being charted before there is a run to chart');
-  const charts = (html.match(/<img\b[^>]*src="(?!https?:)[^"]*"/gi) || []);
-  assert(charts.length === 0, 'the libviprs placeholder carries a local image, which on this site means a chart:\n  ' + charts.join('\n  '));
+  const regions = html.match(/<!--\s*GENERATED:([a-z-]+):BEGIN\s*-->/g) || [];
+  assert(regions.length >= 1, 'the libviprs page has no GENERATED region at all, so nothing on it is generated');
 
-  const text = visibleText(html);
-  assert(text.length > 80, 'the libviprs placeholder has almost no text on it (' + text.length + ' chars), so this test is checking nothing');
+  const generated = html.slice(0).match(
+    /<!--\s*GENERATED:[a-z-]+:BEGIN\s*-->[\s\S]*?<!--\s*GENERATED:[a-z-]+:END\s*-->/g) || [];
+  const generatedDigits = generated.join('\n').match(/\d/g) || [];
+  assert(
+    generatedDigits.length > 200,
+    'the generated regions carry ' + generatedDigits.length + ' digit(s), so the renderer emitted almost nothing ' +
+      'and the rest of this test would pass on an empty page');
 
-  const digits = text.match(/[^ ]*\d[^ ]*/g) || [];
+  assert(!/<canvas\b/i.test(html), 'the libviprs page charts into a <canvas>, which is blank with JavaScript off');
+  const images = (html.match(/<img\b[^>]*src="(?!https?:)[^"]*"/gi) || []);
+  assert(images.length === 0,
+    'the libviprs page carries a local image, which on this site means a chart, and a chart here is inline SVG so a ' +
+      'reader sees it with JavaScript off:\n  ' + images.join('\n  '));
+
+  // Every run the page renders has to be named on the page, by id and by
+  // digest. "Generated from an archived run" is only checkable if the page says
+  // which one.
+  const historyPath = path.join(ROOT, 'benchmarks', 'history.json');
+  assert(fs.existsSync(historyPath), 'benchmarks/history.json is missing, so the page has nothing to be generated from');
+  const history = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
+  assert(Array.isArray(history) && history.length > 0, 'benchmarks/history.json holds no runs');
+  for (const run of history) {
+    // The importer carries the producer's own integrity block through, so the
+    // document digest lives at integrity.document; the flat spelling is what a
+    // history written before that block was carried has. Reading only one of
+    // the two is the shape mismatch that cost this lane a round.
+    const digest = (run.integrity && run.integrity.document) || run.documentDigest;
+    assert(run.runId && digest,
+      'a run in benchmarks/history.json has no runId, and no digest at integrity.document or documentDigest, ' +
+        'so it is not archived by digest');
+    assert(html.includes(run.runId), 'the page renders run ' + run.runId + ' without naming it');
+    assert(html.includes(digest),
+      'the page renders run ' + run.runId + ' without naming the document digest it came from');
+  }
+
+  // And the frame around the generated regions stays free of figures.
+  const frame = visibleText(withoutGenerated(html));
+  assert(frame.length > 80, 'the hand-written frame has almost no text on it (' + frame.length + ' chars), so this test is checking nothing');
+
+  const digits = frame.match(/[^ ]*\d[^ ]*/g) || [];
   assert(
     digits.length === 0,
-    'the libviprs placeholder shows ' + digits.length + ' number(s) a reader can see: ' + JSON.stringify(digits) + '\n' +
-      'Nothing goes on that page that is not generated from an archived run by digest, and there are no ' +
-      'archived runs yet.');
+    'the hand-written frame of the libviprs page shows ' + digits.length + ' number(s) a reader can see: ' +
+      JSON.stringify(digits) + '\n' +
+      'Every number on that page comes out of an archived run through ' +
+      'benchmarks/tools/render-latest.mjs, which means it lives between GENERATED markers.');
+
+  return regions.length + ' generated region(s), ' + generatedDigits.length + ' generated digit(s), ' +
+    history.length + ' run(s) named by id and digest, 0 figures in the frame';
 });
 
 // ---------------------------------------------------------------------------

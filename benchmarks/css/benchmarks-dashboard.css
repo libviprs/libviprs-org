@@ -1,0 +1,400 @@
+/* benchmarks/css/benchmarks-dashboard.css
+ *
+ * The generated libviprs benchmark page.
+ *
+ * The class names here are the contract this page shares with causl's
+ * dashboard, frozen in libviprs-bench at tools/contract/ and pinned in
+ * benchmarks/tools/config.json under `contract`: .results-table, .num, .conf,
+ * .status-callout, .section-head, .absent, .swatch, and the chart classes. The
+ * markup render-latest.mjs emits uses those names so the parameterised chart
+ * layer attaches to a page that already says everything without it.
+ *
+ * What is NOT taken from upstream is the palette. causl's dashboard.css is
+ * written against causl brand tokens (--causal-cyan, --surface-base, --space-*)
+ * that do not exist on this site, so freezing that file here would import a
+ * second design system to fight the one libviprs.org already has. The tokens
+ * below are the same ones benchmarks/libvips/css/benchmarks.css uses, so the
+ * two benchmark pages look like they belong to the same site.
+ *
+ * benchmarks/tools/render-latest.test.mjs::every_class_the_renderer_emits_is_styled
+ * is the gate on that: a class the renderer emits and nothing here styles is a
+ * red test rather than an unreadable table on a live page.
+ */
+
+/* ----- Theme tokens ------------------------------------------------------ */
+
+:root,
+[data-theme="light"] {
+  --primary: #be6e34;
+  --primary-dark: #6d2c0f;
+  --accent: #d0704d;
+  --bg: #fafaf8;
+  --text: #2d2d2d;
+  --text-light: #555;
+  --code-bg: #f0ede8;
+  --panel-bg: #f0ede8;
+  --border: #e0dcd4;
+  --white: #fff;
+  --hero-bg: #6d2c0f;
+  --table-header-bg: #f0ede8;
+  --grid: #e0dcd4;
+  --ok: #2f6b4f;
+  --warn: #8a6d1f;
+  --bad: #9c3b2e;
+  --max-width: 1040px;
+}
+
+[data-theme="dark"] {
+  --primary: #d4894e;
+  --primary-dark: #e0a06a;
+  --accent: #d0704d;
+  --bg: #1a1a1a;
+  --text: #e0e0e0;
+  --text-light: #aaa;
+  --code-bg: #2a2a2a;
+  --panel-bg: #242424;
+  --border: #3a3a3a;
+  --white: #fff;
+  --hero-bg: #2c1608;
+  --table-header-bg: #2a2a2a;
+  --grid: #3a3a3a;
+  --ok: #7fc0a0;
+  --warn: #d8bd72;
+  --bad: #e08a7c;
+}
+
+/* ----- Reset + base ------------------------------------------------------ */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: "Source Code Pro", "IBM Plex Sans", -apple-system, BlinkMacSystemFont,
+               "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  overflow-anchor: none;
+}
+
+main {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 4rem;
+}
+
+h1 { font-size: 1.85rem; font-weight: 700; color: var(--primary-dark); margin-bottom: 0.35rem; }
+
+.standfirst {
+  color: var(--text-light);
+  font-size: 1.05rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid var(--border);
+}
+
+p { margin-bottom: 0.9rem; color: var(--text-light); }
+a { color: var(--primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+code, .mono {
+  font-family: "IBM Plex Mono", "Source Code Pro", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.86em;
+}
+code { background: var(--code-bg); padding: 0.05rem 0.28rem; border-radius: 3px; }
+.mono { word-break: break-all; }
+.digest { letter-spacing: 0.02em; }
+
+/* ----- Sections ---------------------------------------------------------- */
+
+.page-section {
+  margin: 3rem 0 0;
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.section-head { margin-bottom: 0.9rem; }
+
+.section-kicker {
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--primary);
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.section-head h2 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--primary-dark);
+  line-height: 1.3;
+}
+
+h3 { font-size: 1.02rem; font-weight: 700; color: var(--text); margin: 1.6rem 0 0.5rem; }
+
+.lead { color: var(--text); font-size: 1rem; }
+.footnote { font-size: 0.88rem; color: var(--text-light); }
+.unit { font-size: 0.82em; color: var(--text-light); }
+
+/* ----- The claim --------------------------------------------------------- */
+
+.claim-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1.25rem 0;
+}
+
+.claim-figure {
+  flex: 1 1 200px;
+  background: var(--panel-bg);
+  border-left: 3px solid var(--primary);
+  border-radius: 0 4px 4px 0;
+  padding: 0.85rem 1rem;
+}
+
+.claim-number {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 1.9rem;
+  font-weight: 600;
+  color: var(--primary-dark);
+  line-height: 1.1;
+}
+
+.claim-label { font-size: 0.82rem; color: var(--text-light); margin-top: 0.2rem; }
+.claim-note { font-size: 0.9rem; }
+
+/* ----- Callouts ---------------------------------------------------------- */
+
+.status-callout {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: 0 4px 4px 0;
+  padding: 0.9rem 1.1rem;
+  margin: 1.25rem 0;
+}
+
+.status-callout p { margin-bottom: 0.6rem; }
+.status-callout p:last-child { margin-bottom: 0; }
+.status-callout ul { margin: 0 0 0 1.1rem; color: var(--text-light); font-size: 0.9rem; }
+
+/* The division between what this host can say exactly and what it cannot grade.
+   Loud on purpose: a reader who meets a latency chart and finds the floor three
+   sections later quotes the latency. */
+.callout-hard {
+  border-left-width: 4px;
+  border-left-color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 6%, var(--panel-bg));
+}
+
+.callout-hard strong { color: var(--text); }
+
+.era-rule { stroke: var(--primary-dark); stroke-width: 1.4; stroke-dasharray: 2 2; }
+
+details.status-callout > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.92rem;
+}
+details.status-callout[open] > summary { margin-bottom: 0.8rem; }
+
+/* ----- Tables ------------------------------------------------------------ */
+
+.table-wrap { overflow-x: auto; margin: 0.8rem 0 1.2rem; }
+
+.results-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.84rem;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+.results-table caption {
+  caption-side: top;
+  text-align: left;
+  font-size: 0.82rem;
+  color: var(--text-light);
+  padding-bottom: 0.45rem;
+}
+
+.results-table th,
+.results-table td {
+  border: 1px solid var(--border);
+  padding: 0.3rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.results-table thead th {
+  background: var(--table-header-bg);
+  font-weight: 700;
+  position: sticky;
+  top: 0;
+}
+
+.results-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.results-table .best { font-weight: 700; color: var(--ok); }
+
+.rowgroup th {
+  background: var(--table-header-bg);
+  font-weight: 700;
+  color: var(--primary-dark);
+}
+
+.row-low td, .row-low th { background: color-mix(in srgb, var(--warn) 7%, transparent); }
+
+/* The two causes of low confidence read differently, because they are
+   different facts: a saturated timer is the instrument's limit, a high CoV is a
+   measurement that moved about. */
+.row-saturated th[scope="row"] { border-left: 3px solid var(--warn); }
+.row-noisy th[scope="row"] { border-left: 3px dotted var(--bad); }
+
+.legend-note { font-size: 0.84rem; margin: 0 0 0.7rem; }
+
+.mark {
+  display: inline-block;
+  font-size: 0.72rem;
+  padding: 0.02rem 0.3rem;
+  border-radius: 3px;
+}
+.mark-saturated { border-left: 3px solid var(--warn); background: var(--code-bg); }
+.mark-noisy { border-left: 3px dotted var(--bad); background: var(--code-bg); }
+.row-absent td, .row-absent th { color: var(--text-light); font-style: italic; white-space: normal; }
+.row-agreement td, .row-agreement th { background: color-mix(in srgb, var(--primary) 6%, transparent); }
+
+.absent { color: var(--text-light); font-style: italic; }
+.unranked { color: var(--text-light); }
+
+.swatch {
+  display: inline-block;
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 2px;
+  margin-right: 0.35rem;
+  vertical-align: baseline;
+}
+
+/* ----- Chips ------------------------------------------------------------- */
+
+.conf, .verdict, .iverdict, .gate {
+  display: inline-block;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  padding: 0.05rem 0.34rem;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.conf-high { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.conf-low { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+
+/* Equality verdicts on exact numbers. Deliberately a different class from the
+   performance chips below: an invariant that agrees and a timing that did not
+   regress are two different claims, and the guard that says an ungateable cell
+   is never chipped has to be able to tell them apart. */
+.iverdict-equal { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.iverdict-within { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 35%, transparent); }
+.iverdict-ratio { color: var(--primary-dark); border-color: color-mix(in srgb, var(--primary) 45%, transparent); }
+.iverdict-differs { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+.iverdict-none { color: var(--text-light); }
+.verdict-first { color: var(--text-light); }
+.verdict-unknown { color: var(--text-light); }
+.verdict-pass { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.verdict-noise { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.verdict-improved { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.verdict-regressed { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+
+/* A cell that is not gateable gets this and never a .verdict chip. */
+.gate { color: var(--text-light); border-style: dashed; }
+.gate-on { color: var(--ok); border-style: solid; border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+
+/* ----- Charts ------------------------------------------------------------ */
+
+.charts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.2rem;
+  margin: 1rem 0 1.4rem;
+}
+
+.chart { flex: 1 1 380px; min-width: 0; }
+
+.chart-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.3rem;
+}
+
+.chart svg { width: 100%; height: auto; display: block; }
+
+.chart-grid { stroke: var(--grid); stroke-width: 1; }
+.chart-axis { stroke: var(--text-light); stroke-width: 1; }
+.chart-axis-label { fill: var(--text-light); font-size: 10px; font-family: inherit; }
+.chart-tick { fill: var(--text-light); font-size: 9px; font-family: inherit; }
+.chart-line { fill: none; stroke-width: 1.8; }
+.chart-band { opacity: 0.16; stroke: none; }
+.chart-point { stroke: var(--bg); stroke-width: 1; }
+
+.step-rule { stroke: var(--bad); stroke-width: 1.4; stroke-dasharray: 4 3; }
+
+.step-labels { margin: 0.4rem 0 1rem 1.1rem; font-size: 0.84rem; color: var(--text-light); }
+.step-label { margin-bottom: 0.2rem; }
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.9rem;
+  list-style: none;
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-light);
+}
+
+.legend-item { display: flex; align-items: center; gap: 0.3rem; }
+.legend-swatch { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 2px; }
+.legend-label { white-space: nowrap; }
+
+/* ----- Families, method, caveats ----------------------------------------- */
+
+.family-block { margin: 1.4rem 0 2rem; }
+.family-title { margin-top: 0; }
+
+.meta-list { list-style: none; margin: 0.5rem 0 1rem; font-size: 0.86rem; }
+
+.meta-item {
+  padding: 0.22rem 0 0.22rem 0.9rem;
+  border-left: 2px solid var(--border);
+  color: var(--text-light);
+  margin-bottom: 0.18rem;
+}
+.meta-item strong { color: var(--text); font-weight: 600; }
+
+.caveat {
+  border-left: 3px solid var(--border);
+  padding: 0.2rem 0 0.2rem 1rem;
+  margin: 1rem 0;
+}
+.caveat-title { margin: 0 0 0.25rem; font-size: 0.95rem; color: var(--primary-dark); }
+.caveat p { margin-bottom: 0; font-size: 0.92rem; }
+
+/* ----- Footer ------------------------------------------------------------ */
+
+footer {
+  border-top: 1px solid var(--border);
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--text-light);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 640px) {
+  main { padding: 1.75rem 1rem 3rem; }
+  .claim-number { font-size: 1.5rem; }
+  .results-table { font-size: 0.78rem; }
+}
