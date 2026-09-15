@@ -1,0 +1,116 @@
+name: benchmark-ingest
+
+# The benchmark history on this site is a frozen copy of libviprs-bench's
+# `tools/publish/history.json` at the revision `benchmarks/BENCH_REV` names, and
+# this is the job that proves it.
+#
+# Not by comparing the copy. A copy that matches proves the copy is a copy, and
+# a history edited in both places would pass that. So this checks the ORIGIN:
+# every entry has to join an archived document at the pinned revision by run id,
+# that document's four digests are recomputed with the pinned revision's own
+# canonicaliser and have to equal both the entry's integrity block and the
+# archive index's row, and the document has to still pass the rules that let it
+# be published at all.
+#
+# That is not hypothetical tidiness. Before this, the two entries the page drew
+# named run ids that no document in `libviprs-bench/archive/` carried, so the
+# live figures could not be checked against the artefacts they came from, and
+# nothing here could notice.
+#
+# Its own file rather than a job in ci.yml, deliberately: adding a *job* there
+# reddens the Hook Mirror guard in libviprs-tests/tools/install-hooks.sh unless
+# it is mirrored or deferred in the same wave, and a whole new workflow file is
+# exempt. site-links.yml and benchmark-page.yml are the precedents.
+#
+# It overlaps benchmark-page.yml by one step, `render-latest.mjs --check`, and
+# that overlap is on purpose. Page-against-history is a fact about this
+# repository alone and has to keep being gated when the benchmark repository is
+# unreachable or the pin is being moved; history-against-origin needs the other
+# repository. Two claims, two jobs, and the cheap one does not depend on the
+# expensive one.
+#
+# All nine org repos are public, so `github.token` reaches libviprs-bench with
+# no secret. libviprs-org#72 is the precedent: the `SYNC_CLI_TOKEN` the CLI sync
+# was believed to need turned out never to have existed, and the checkout had
+# been using `github.token` the whole time.
+
+on:
+  # Every branch, for the same reason ci.yml, site-links.yml and
+  # benchmark-page.yml take every branch: a push to a PR branch has to produce a
+  # signal, and `pull_request` does not fire while a PR is conflicted with its
+  # base.
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Read the pin
+        id: pin
+        run: |
+          set -euo pipefail
+          rev="$(tr -d '[:space:]' < benchmarks/BENCH_REV)"
+          case "$rev" in
+            [0-9a-f]*) ;;
+            *) echo "::error::benchmarks/BENCH_REV holds '$rev', which is not a commit sha"; exit 1 ;;
+          esac
+          if [ "${#rev}" -ne 40 ]; then
+            echo "::error::benchmarks/BENCH_REV holds a ${#rev}-character value. A pin is a full 40-character sha; a short one is ambiguous and a branch name is not a pin at all."
+            exit 1
+          fi
+          echo "rev=$rev" >> "$GITHUB_OUTPUT"
+          echo "pinned to libviprs-bench $rev"
+
+      - name: Check out libviprs-bench at the pinned revision
+        uses: actions/checkout@v4
+        with:
+          repository: libviprs/libviprs-bench
+          ref: ${{ steps.pin.outputs.rev }}
+          path: bench
+          # The ingest reads every file with `git show <rev>:<path>` rather than
+          # out of the working tree, so the objects have to be here.
+          fetch-depth: 0
+
+      - name: Every entry on the page is backed by an archived document
+        run: node benchmarks/tools/ingest.mjs --bench bench --check
+
+      - name: The ingest's own guards
+        env:
+          BENCH_DIR: bench
+        run: node --test benchmarks/tools/ingest.test.mjs
+
+      # A gate that cannot fail is not a gate. This adds an entry no archived
+      # document supports, which is precisely the state the page was in before,
+      # and asserts the check goes red. It runs on copies: nothing in the working
+      # tree is touched.
+      - name: --check can actually fail
+        run: |
+          set -eu
+          tmp="$(mktemp -d)"
+          cp benchmarks/history.json "$tmp/history.json"
+          cp benchmarks/index.html "$tmp/index.html"
+          node -e '
+            const fs = require("fs");
+            const p = process.argv[1];
+            const h = JSON.parse(fs.readFileSync(p, "utf8"));
+            h.push({ ...h[0], runId: "20260915T999999Z-invented-by-hand" });
+            fs.writeFileSync(p, JSON.stringify(h));
+          ' "$tmp/history.json"
+          if node benchmarks/tools/ingest.mjs --bench bench --check \
+               --history "$tmp/history.json" --page "$tmp/index.html"; then
+            echo "::error::--check passed on a history carrying a run no archived document supports, so it is not gating anything"
+            exit 1
+          fi
+          echo "--check is red on an unbacked run, as it should be"
