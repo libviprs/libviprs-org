@@ -1138,6 +1138,57 @@ const versionAxis = (list) => list.map((r, i) => ({
   i, label: r.version, commit: r.commit, runId: r.runId, era: eraKey(r),
 }));
 
+/** Every run this family's charts draw, named, with the digest it is archived
+ *  under.
+ *
+ *  A chart that plots a point from a run the page does not name breaks the rule
+ *  the whole site runs on, and it breaks it in the way that is hardest to
+ *  notice, because the chart looks complete. The version axis already carried
+ *  each point's run id as data, which is a run id in a tooltip nobody opens and
+ *  is not naming it.
+ *
+ *  It sits beside the charts rather than in the method section on purpose: a
+ *  reader looking at a point and asking "which run is that" should not have to
+ *  go anywhere. The era column is here for the same reason: it says why the line
+ *  stops, so a gap on the axis reads as two experiments rather than as missing
+ *  data.
+ */
+function runProvenance(list) {
+  const eras = [];
+  const eraOf = (run) => {
+    const key = eraKey(run);
+    if (!eras.includes(key)) eras.push(key);
+    return eras.indexOf(key) + 1;
+  };
+  const rows = list
+    .map((run) => {
+      const era = eraOf(run);
+      return `            <tr>
+              <td><code class="mono">${esc(run.version)}</code></td>
+              <td>${esc(String(run.capturedAt).slice(0, 10))}</td>
+              <td>${esc(run.host.arch)}${run.host.ncpu ? `, ${count(run.host.ncpu)} cores` : ''}</td>
+              <td>era ${era}</td>
+              <td><code class="mono">${esc(run.runId)}</code></td>
+              <td><code class="mono">${esc(run.digest)}</code></td>
+            </tr>`;
+    })
+    .join('\n');
+  return `      <div class="table-wrap">
+        <table class="results-table">
+          <caption>The runs these charts draw. Every point above comes from one of them, and each one is
+            archived in libviprs-bench under the digest shown, so a reader can go and check any figure on
+            this page against the document it came from. A line never joins two eras.</caption>
+          <thead>
+            <tr><th scope="col">version</th><th scope="col">captured</th><th scope="col">host</th>
+                <th scope="col">era</th><th scope="col">run</th><th scope="col">document digest</th></tr>
+          </thead>
+          <tbody>
+${rows}
+          </tbody>
+        </table>
+      </div>`;
+}
+
 /** Every cell, every series, including the replicate pair, in a collapsible
  *  block. The low-confidence rows are in here with their numbers and a reason,
  *  because dropping them would make an untested backend and an untrusted
@@ -1326,6 +1377,7 @@ ${rows}
         </table>
       </div>
 ${hardnessCallout(run, { where: `history-${familyId}` })}
+${runProvenance(list)}
       <div class="charts">
 ${charts}
       </div>
