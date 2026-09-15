@@ -30,8 +30,11 @@ the page. `--check` is the same verification without the writes, and
 ## What --check actually checks
 
 Not that the copy matches. A copy that matches proves the copy is a copy, and a
-history edited in both places would sail through that. So it checks the origin:
-every entry has to join an archived document at the pinned revision by run id,
+history edited in both places would sail through that. So it checks the origin,
+and it checks it over the entries in `history.json` itself, because that is the
+file the page is generated from; the byte comparison with the pinned original
+comes after. Every entry has to join an archived document at the pinned revision
+by run id,
 that document's four integrity digests are recomputed with the pinned revision's
 own canonicaliser and have to equal both the entry's `integrity` block and the
 archive index's row, and the document has to still pass the rules that let it be
