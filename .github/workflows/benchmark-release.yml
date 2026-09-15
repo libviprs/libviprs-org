@@ -1,25 +1,25 @@
 name: benchmark-release
 
-# Merge to `release` -> measure -> publish -> merge `release` back to `main`.
+# Merge to `release` -> ingest -> publish -> merge `release` back to `main`.
 #
 # GitHub Pages serves libviprs.org from `main` at `/`, so the merge back to main
 # at the end is the step that actually publishes. Everything before it is what
 # earns the right to.
 #
 # ---------------------------------------------------------------------------
-# THE ONE THING TO UNDERSTAND BEFORE EDITING THIS FILE
+# THIS WORKFLOW NO LONGER MEASURES ANYTHING, AND THAT IS THE POINT
 #
 # A benchmark cannot be measured on a GitHub-hosted runner and published. Not
 # "should not": the publish path refuses it, on purpose, and it is right to.
 #
-#   * `tools/publish/import-run.mjs` refuses a run whose cells were mostly
-#     measured under contention, on the cause (`machineLoad.quiet`) rather than
-#     on the consequence. A hosted runner is a shared virtual machine with
-#     neighbours nobody can see.
-#   * It refuses a run whose emulation probe is anything but exactly `false`,
+#   * the importer refuses a run whose cells were mostly measured under
+#     contention, on the cause (`machineLoad.quiet`) rather than on the
+#     consequence. A hosted runner is a shared virtual machine with neighbours
+#     nobody can see.
+#   * it refuses a run whose emulation probe is anything but exactly `false`,
 #     absent included. The published PMTiles numbers this epic replaced were
 #     almost certainly Rosetta and nothing recorded it.
-#   * It refuses a run that is not in an archive index by digest, because a
+#   * it refuses a run that is not in an archive index by digest, because a
 #     document sitting in a working directory is not citable.
 #
 # And the numbers would not be worth having even if it let them through. On a
@@ -27,11 +27,27 @@ name: benchmark-release
 # with itself by a median of about 50% across one sweep. On a hosted runner that
 # floor would be larger than anything it was trying to measure.
 #
-# So the measuring happens on the measurement host and nowhere else. The
-# `capture` job below runs on a self-hosted runner that can reach it, and it
-# will not fall back to a hosted one: a misconfigured repository gets a red run
-# saying what is missing, never a green run publishing noise.
+# This file used to work around that with a `capture` job on a self-hosted
+# runner that refused to fall back. The simpler and more honest shape is the one
+# it has now: measuring happens on the measurement host, driven from a person's
+# machine by `tools/capture.py` in libviprs-bench, and what reaches this
+# repository is an already-archived, already-imported, digest-verified history.
+# CI verifies and publishes. It does not measure.
+#
 # ---------------------------------------------------------------------------
+# WHAT IT DOES NOW
+#
+# `benchmarks/BENCH_REV` pins one libviprs-bench commit, and
+# `benchmarks/history.json` is a frozen copy of that revision's
+# `tools/publish/history.json`. This workflow moves the pin, syncs the copy,
+# regenerates the page from it, and opens the merge back into main.
+#
+# The pin is deliberate rather than a follow-main. Following main would mean a
+# capture publishes itself with no commit here, and "which benchmark revision is
+# this page showing" would stop being answerable from this repository alone. The
+# cost is that somebody has to bump it, and this workflow is that somebody: a
+# dispatch with `bench_rev` moves it, and a plain merge to `release` republishes
+# whatever the branch already pins.
 #
 # Its own file, not a job in ci.yml, for two reasons that are both concrete.
 # Adding a job to ci.yml reddens the Hook Mirror guard in
@@ -52,7 +68,7 @@ name: benchmark-release
 # when they are green.
 #
 # Two settings this depends on, both owner actions, both checked at the top of
-# the publish job rather than discovered at the end of it:
+# the job rather than discovered at the end of it:
 #
 #   * `BENCH_RELEASE_TOKEN`, a fine-grained PAT scoped to this repository with
 #     Contents and Pull requests read/write. A branch pushed with GITHUB_TOKEN
@@ -63,6 +79,11 @@ name: benchmark-release
 #   * Repository "Allow auto-merge" is currently OFF
 #     (`allow_auto_merge: false`), so `gh pr merge --auto` is not available and
 #     this waits on the checks itself with a bounded timeout.
+#
+# Reading libviprs-bench needs no secret at all: all nine org repos are public
+# and `github.token` reaches it, which libviprs-org#72 established when the
+# `SYNC_CLI_TOKEN` the CLI sync was believed to need turned out never to have
+# existed.
 # ---------------------------------------------------------------------------
 
 on:
@@ -70,20 +91,13 @@ on:
     branches: [release]
   workflow_dispatch:
     inputs:
-      profile:
+      bench_rev:
         description: >-
-          Which sweep to capture. `full` is the publishable one. `ci` proves the
-          harness runs, is never a measurement, and the importer refuses it.
-        type: choice
-        options: [full, xl]
-        default: full
-      capture:
-        description: >-
-          Take a fresh capture on the measurement host. Turn this off to publish
-          a document that was already captured and archived by hand, which is
-          the normal route while there is no self-hosted runner.
-        type: boolean
-        default: true
+          The libviprs-bench commit to publish from, as a full 40-character sha.
+          Leave empty to republish whatever benchmarks/BENCH_REV already pins,
+          which is what a plain merge to `release` does.
+        type: string
+        required: false
       allow_unchecked_merge:
         description: >-
           Merge the pull request without waiting for the required checks. For
@@ -99,157 +113,15 @@ permissions:
   issues: write
 
 concurrency:
-  # Two release merges would race on the same branch, the same pull request and
-  # the same measurement host.
+  # Two release merges would race on the same branch and the same pull request.
   group: benchmark-release
   cancel-in-progress: false
 
 env:
   BENCH_REPO: libviprs/libviprs-bench
-  PROFILE: ${{ inputs.profile || 'full' }}
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # 1. Can this run measure anything, and does it need to?
-  #
-  # Separate from the capture so a misconfigured repository fails in ten seconds
-  # on a hosted runner with a readable message, rather than queueing forever
-  # against a self-hosted label that does not exist.
-  # ---------------------------------------------------------------------------
-  preflight:
-    runs-on: ubuntu-latest
-    outputs:
-      capture: ${{ steps.decide.outputs.capture }}
-      runner: ${{ steps.decide.outputs.runner }}
-    steps:
-      - name: Decide whether to capture, and on what
-        id: decide
-        env:
-          WANT: ${{ inputs.capture == null && 'true' || inputs.capture }}
-          RUNNER_LABEL: ${{ vars.BENCH_RUNNER_LABEL }}
-        run: |
-          set -euo pipefail
-          if [ "$WANT" != "true" ]; then
-            echo "capture=no" >> "$GITHUB_OUTPUT"
-            echo "runner=none" >> "$GITHUB_OUTPUT"
-            echo "Capture turned off for this run. The publish job will import whatever archived document"
-            echo "the benchmark repository already carries, and refuse if there is nothing publishable."
-            exit 0
-          fi
-          if [ -z "${RUNNER_LABEL:-}" ]; then
-            echo "::error::A capture was asked for and no BENCH_RUNNER_LABEL repository variable is set, so there is no runner that can reach the measurement host. This workflow will not fall back to a GitHub-hosted runner: a hosted runner is shared and virtualised, the importer refuses a run measured under contention, and the numbers would not be worth having if it did not. Set BENCH_RUNNER_LABEL to the label of a self-hosted runner with access to the measurement host, or dispatch this workflow with capture=false to publish an already-archived document."
-            exit 1
-          fi
-          echo "capture=yes" >> "$GITHUB_OUTPUT"
-          echo "runner=$RUNNER_LABEL" >> "$GITHUB_OUTPUT"
-          echo "Capturing on self-hosted runner '$RUNNER_LABEL' at profile ${PROFILE}."
-
-  # ---------------------------------------------------------------------------
-  # 2. Measure, on the measurement host.
-  #
-  # `tools/capture-nas.sh` does the whole thing and leaves the machine as it
-  # found it: it pushes the tree with `.git` (without it the provenance layer
-  # cannot resolve a commit and the aggregator refuses the run), runs every
-  # command in a throw-away container including the ones that do not feel like
-  # work, retrieves with `ssh cat` because the SFTP subsystem is not available
-  # there, and cleans up on a trap.
-  #
-  # It does not archive. Archiving is a separate, deliberate step, because the
-  # archive is what makes a number citable and putting it on the end of a
-  # capture would make it automatic.
-  # ---------------------------------------------------------------------------
-  capture:
-    needs: preflight
-    if: needs.preflight.outputs.capture == 'yes'
-    runs-on: ${{ needs.preflight.outputs.runner }}
-    timeout-minutes: 180
-    steps:
-      - name: Check out libviprs-bench
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ env.BENCH_REPO }}
-          path: bench
-          # The capture pushes the tree WITH .git to the measurement host, and
-          # the provenance layer resolves the commit out of it. A shallow clone
-          # resolves nothing and the aggregator refuses the run.
-          fetch-depth: 0
-
-      - name: Refuse a profile that is not publishable
-        working-directory: bench
-        run: |
-          set -euo pipefail
-          case "$PROFILE" in
-            full|xl) echo "profile $PROFILE is publishable" ;;
-            *) echo "::error::profile '$PROFILE' is not publishable. 'ci' proves the harness runs, is never a measurement, and archives indistinguishably from a real one, which is why the importer refuses it. Nothing should be able to reach the site through it."; exit 1 ;;
-          esac
-
-      - name: Capture both families natively
-        working-directory: bench
-        run: tools/capture-nas.sh --profile "$PROFILE" --out "$GITHUB_WORKSPACE/capture"
-
-      - name: Archive the documents by digest
-        working-directory: bench
-        run: |
-          set -euo pipefail
-          # The archive is the thing that makes a number citable: it indexes a
-          # document against its digests under a run id. `storage-aggregate` is
-          # the only door into it, it refuses rather than reports, and a refusal
-          # is exit 1 because it is an answer and not a failure to run.
-          #
-          # One binary for both families, and `--root` is the BASE directory:
-          # the family subdirectory is derived from the document's own `family`
-          # field, precisely so an engines document cannot be filed under
-          # archive/storage where the next storage run would start in the middle
-          # of it.
-          #
-          # --check first, so a document that is going to be refused is refused
-          # before the archive is touched, and the reasons land in their own log
-          # group rather than inside a failed --archive.
-          admitted=0
-          for family in storage engines; do
-            doc="$GITHUB_WORKSPACE/capture/${family}-x86.json"
-            if [ ! -f "$doc" ]; then
-              echo "::error::the capture produced no document for the $family family at $doc"
-              exit 1
-            fi
-            echo "::group::$family: would this be archived?"
-            if ! cargo run --quiet --bin storage-aggregate -- --check "$doc"; then
-              echo "::endgroup::"
-              echo "::warning::the $family document was refused at the archive door; it is not archived and will not be published"
-              continue
-            fi
-            echo "::endgroup::"
-            cargo run --quiet --bin storage-aggregate -- --archive "$doc" --root archive
-            admitted=$((admitted + 1))
-          done
-          if [ "$admitted" -eq 0 ]; then
-            echo "::error::neither family was admissible, so this capture archived nothing. The reasons are in the groups above; a contended, emulated or dirty run is exactly what that door exists to stop."
-            exit 1
-          fi
-          echo "archived $admitted document(s)"
-
-      - name: Keep the archived documents for the publish job
-        uses: actions/upload-artifact@v4
-        with:
-          name: benchmark-archive
-          path: bench/archive/
-          if-no-files-found: error
-          retention-days: 30
-
-  # ---------------------------------------------------------------------------
-  # 3. Publish: import, regenerate, gate, commit to `release`, and open the
-  #    merge back to `main`.
-  #
-  # Nothing here measures anything, so it runs on a hosted runner quite happily.
-  # It imports a document that was already archived by digest somewhere else,
-  # which is the whole point of the archive.
-  # ---------------------------------------------------------------------------
   publish:
-    needs: [preflight, capture]
-    # `always()` because the capture job is skipped on a publish-only run, and a
-    # skipped dependency would otherwise skip this too. The failure() arm keeps
-    # a failed capture from publishing anything.
-    if: always() && needs.preflight.result == 'success' && needs.capture.result != 'failure' && needs.capture.result != 'cancelled'
     runs-on: ubuntu-latest
     steps:
       - name: Refuse to start without the token the merge back needs
@@ -258,7 +130,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${BENCH_RELEASE_TOKEN:-}" ]; then
-            echo "::error::BENCH_RELEASE_TOKEN is not set. A branch pushed with GITHUB_TOKEN does not start a workflow run, so the pull request this opens would carry none of main's seven required checks and there would be nothing to merge on. Checked here rather than after a three-hour capture. Set a fine-grained PAT scoped to this repository with Contents and Pull requests read/write."
+            echo "::error::BENCH_RELEASE_TOKEN is not set. A branch pushed with GITHUB_TOKEN does not start a workflow run, so the pull request this opens would carry none of main's seven required checks and there would be nothing to merge on. Set a fine-grained PAT scoped to this repository with Contents and Pull requests read/write."
             exit 1
           fi
           echo "token present"
@@ -266,7 +138,6 @@ jobs:
       - name: Check out libviprs-org at the release branch
         uses: actions/checkout@v4
         with:
-          path: libviprs-org
           ref: ${{ github.ref_name }}
           fetch-depth: 0
           # Without this, actions/checkout leaves the token in .git/config as an
@@ -275,75 +146,52 @@ jobs:
           persist-credentials: false
           token: ${{ secrets.BENCH_RELEASE_TOKEN }}
 
-      - name: Check out libviprs-bench
+      - name: Decide which libviprs-bench revision this publishes
+        id: pin
+        env:
+          REQUESTED: ${{ inputs.bench_rev }}
+        run: |
+          set -euo pipefail
+          rev="${REQUESTED:-$(tr -d '[:space:]' < benchmarks/BENCH_REV)}"
+          if ! printf '%s' "$rev" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error::'$rev' is not a full 40-character libviprs-bench commit sha. A short sha is ambiguous and a branch name is not a pin at all, which is the whole reason this site pins rather than following main."
+            exit 1
+          fi
+          echo "rev=$rev" >> "$GITHUB_OUTPUT"
+          if [ -n "${REQUESTED:-}" ]; then
+            echo "moving the pin to $rev"
+          else
+            echo "republishing the pinned $rev"
+          fi
+
+      - name: Check out libviprs-bench at that revision
         uses: actions/checkout@v4
         with:
           repository: ${{ env.BENCH_REPO }}
+          ref: ${{ steps.pin.outputs.rev }}
           path: bench
+          # The ingest reads every file with `git show <rev>:<path>` rather than
+          # out of the working tree, so the objects have to be here.
           fetch-depth: 0
-
-      - name: Take the archived documents from the capture, if there was one
-        if: needs.capture.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: benchmark-archive
-          path: bench/archive/
 
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      # Every archived document that is newer than what the history already
-      # carries. The importer decides what is publishable, one document at a
-      # time, and reports every reason rather than the first. Re-importing a run
-      # that is already in the history replaces its entry rather than appending
-      # a second copy, so this is safe to re-run.
-      - name: Import every archived document the history does not have
-        id: import
-        run: |
-          set -euo pipefail
-          imported=0
-          refused=0
-          for family in storage engines; do
-            index="bench/archive/${family}/index.json"
-            [ -f "$index" ] || { echo "no archive index for $family, skipping"; continue; }
-            for file in $(node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('$index','utf8')).map(e=>e.file).join('\n'))"); do
-              doc="bench/archive/${family}/${file}"
-              echo "::group::$family $file"
-              if node bench/tools/publish/import-run.mjs \
-                   --document "$doc" \
-                   --archive "bench/archive/${family}" \
-                   --history libviprs-org/benchmarks/history.json; then
-                imported=$((imported + 1))
-              else
-                # A refusal is a result, not an error. A document that cannot be
-                # published is exactly what the gates are for, and a run that
-                # refuses everything is caught below rather than here.
-                echo "::warning::$family $file was refused; see the reasons above"
-                refused=$((refused + 1))
-              fi
-              echo "::endgroup::"
-            done
-          done
-          echo "imported=$imported" >> "$GITHUB_OUTPUT"
-          echo "refused=$refused" >> "$GITHUB_OUTPUT"
-          if [ "$imported" -eq 0 ]; then
-            echo "::error::nothing was publishable: $refused document(s) refused and none imported. An empty reading is a refusal and not a result, so this stops here rather than opening a pull request that changes nothing."
-            exit 1
-          fi
-          echo "imported $imported document(s), refused $refused"
-
-      - name: Regenerate the page from the history
-        working-directory: libviprs-org
-        run: node benchmarks/tools/render-latest.mjs
+      # Verify the origin, take the history, regenerate the page, and check
+      # itself, in one command. It refuses before it writes anything, so a
+      # revision whose history is not backed by its own archive leaves the page
+      # exactly as it was and says why.
+      - name: Ingest the pinned history and regenerate the page
+        run: node benchmarks/tools/ingest.mjs --bench bench --sync --rev "${{ steps.pin.outputs.rev }}"
 
       # The same gates the required contexts run, before anything is committed.
       # A regeneration that cannot satisfy them is a report, not a patch.
       - name: Run the gates this change has to satisfy
-        working-directory: libviprs-org
         run: |
           set -euo pipefail
+          node benchmarks/tools/ingest.mjs --bench bench --check
           node benchmarks/tools/render-latest.mjs --check
           node benchmarks/tools/render-latest.test.mjs
           node tools/site-checks/links.js
@@ -353,18 +201,16 @@ jobs:
 
       - name: Commit the regenerated page to the release branch
         id: commit
-        working-directory: libviprs-org
         env:
           GH_TOKEN: ${{ secrets.BENCH_RELEASE_TOKEN }}
-          IMPORTED: ${{ steps.import.outputs.imported }}
-          REFUSED: ${{ steps.import.outputs.refused }}
+          REV: ${{ steps.pin.outputs.rev }}
         run: |
           set -euo pipefail
           git config user.name "libviprs-org benchmarks"
           git config user.email "noreply@github.com"
-          # Named paths. The import and the render touch exactly these two, and
-          # a wildcard here would sweep whatever else a capture left in the tree.
-          git add benchmarks/history.json benchmarks/index.html
+          # Named paths. The ingest touches exactly these three, and a wildcard
+          # here would sweep whatever else the job left in the tree.
+          git add benchmarks/BENCH_REV benchmarks/history.json benchmarks/index.html
           if git diff --cached --quiet; then
             echo "changed=0" >> "$GITHUB_OUTPUT"
             echo "the regenerated page is identical to what is committed; nothing to publish"
@@ -372,13 +218,12 @@ jobs:
           fi
           echo "changed=1" >> "$GITHUB_OUTPUT"
           runs=$(node -e "const h=require('./benchmarks/history.json'); process.stdout.write(h.map(r=>r.family+' '+r.runId).join('\n  '))")
-          git commit -m "benchmarks: publish $IMPORTED newly archived run(s)
+          git commit -m "benchmarks: publish libviprs-bench ${REV}
 
-          Imported through libviprs-bench tools/publish/import-run.mjs, which
-          recomputes the four integrity digests rather than trusting them and
-          refuses a run that is emulated, contended, dirty, unarchived or on a
-          profile that is not publishable. $REFUSED document(s) were refused on
-          this run and are not on the page.
+          The history on this page is a frozen copy of that revision's
+          tools/publish/history.json, and every entry in it was joined to an
+          archived document at the same revision with its four integrity digests
+          recomputed rather than trusted.
 
           The history now carries:
             $runs"
@@ -394,15 +239,13 @@ jobs:
       - name: Open the merge back into main
         id: pr
         if: steps.commit.outputs.changed == '1'
-        working-directory: libviprs-org
         env:
           GH_TOKEN: ${{ secrets.BENCH_RELEASE_TOKEN }}
-          IMPORTED: ${{ steps.import.outputs.imported }}
-          REFUSED: ${{ steps.import.outputs.refused }}
+          REV: ${{ steps.pin.outputs.rev }}
           UNCHECKED: ${{ inputs.allow_unchecked_merge }}
         run: |
           set -euo pipefail
-          title="benchmarks: publish ${IMPORTED} newly archived run(s)"
+          title="benchmarks: publish libviprs-bench ${REV:0:12}"
           note=""
           if [ "${UNCHECKED:-false}" = "true" ]; then
             note="
@@ -411,10 +254,11 @@ jobs:
           fi
           body="Opened by \`.github/workflows/benchmark-release.yml\` after a merge to \`release\`.
 
-          ${IMPORTED} archived run(s) imported, ${REFUSED} refused. Every number on \`/benchmarks/\` comes from a document that was archived by digest before it was published, and the importer recomputes those digests rather than trusting them.
+          The page is regenerated from libviprs-bench \`${REV}\`. Nothing here measured anything: the capture happens on the measurement host through \`tools/capture.py\` in that repository, and what this reads is an already-archived, already-imported history. Every entry was joined to an archived document at that revision and its four integrity digests were recomputed rather than trusted.
 
           These gates ran in the job that opened this, before anything was committed:
 
+          - \`ingest.mjs --check\`
           - \`render-latest.mjs --check\`
           - \`render-latest.test.mjs\`
           - \`tools/site-checks/links.js\` and \`page-split.test.js\`
@@ -434,7 +278,6 @@ jobs:
 
       - name: Wait for the required checks, then merge
         if: steps.commit.outputs.changed == '1'
-        working-directory: libviprs-org
         env:
           GH_TOKEN: ${{ secrets.BENCH_RELEASE_TOKEN }}
           PR: ${{ steps.pr.outputs.number }}
@@ -452,7 +295,7 @@ jobs:
           # timeout is bounded: a run that hangs here forever is a run nobody
           # notices has stopped.
           if ! timeout 45m gh pr checks "$PR" --watch --fail-fast; then
-            echo "::error::the required checks on #$PR did not go green, so the regenerated page is not being merged to main. The branch and the pull request are both intact; nothing is lost. If Actions is disabled and the checks cannot run at all, re-dispatch this workflow with capture=false and allow_unchecked_merge=true after running the gates locally."
+            echo "::error::the required checks on #$PR did not go green, so the regenerated page is not being merged to main. The branch and the pull request are both intact; nothing is lost. If Actions is disabled and the checks cannot run at all, re-dispatch this workflow with allow_unchecked_merge=true after running the gates locally."
             exit 1
           fi
           gh pr merge "$PR" --merge --delete-branch=false
@@ -461,7 +304,6 @@ jobs:
       - name: A failure has to be visible somewhere other than the Actions tab
         if: failure()
         continue-on-error: true
-        working-directory: libviprs-org
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -474,8 +316,8 @@ jobs:
 
           The likeliest causes, in the order they bite:
 
-          - **no capture runner.** \`BENCH_RUNNER_LABEL\` is unset, so there is nowhere to measure. Dispatch with \`capture=false\` to publish an already-archived document instead.
-          - **nothing publishable.** Every archived document was refused. The reasons are in the import step's log, one per document, and a refusal is a result rather than a bug: a contended, emulated or unarchived run is exactly what those gates exist to stop.
+          - **the pinned revision's history is not backed by its own archive.** The ingest refuses an entry no archived document supports, and that is a result rather than a bug: it is the state the page was in before this existed. Capture again with \`tools/capture.py\` in libviprs-bench and pin the commit that publishes.
+          - **the pin is not a full sha.** A short sha is ambiguous and a branch name is not a pin.
           - **the checks did not go green.** The regenerated page is committed to \`release\` and the pull request is open; nothing is lost.
 
           This issue is opened once and its body is rewritten on each later failure, so it stays a single thread. Close it when the run is green."
