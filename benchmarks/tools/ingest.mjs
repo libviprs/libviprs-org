@@ -171,13 +171,26 @@ function ruleSet(producer, key, faults, consequence) {
  *  Returns `{ refusals, configFaults, checked }`. Every reason, never the first:
  *  a page that is going to need three captures should say so once.
  */
-export async function verifyOrigin({ benchDir, rev }) {
+export async function verifyOrigin({ benchDir, rev, history: given }) {
   const refusals = [];
   const configFaults = [];
   const historyText = readAtRev(benchDir, rev, BENCH.history);
-  const history = JSON.parse(historyText);
+  // The entries to verify default to the pinned revision's own history, and
+  // `--check` hands in the FROZEN COPY instead. Verifying the copy is not
+  // redundant with comparing it: equality plus a verified original does imply a
+  // verified copy, but a refusal that reads "the copy differs" when the real
+  // problem is a run no document supports sends the reader to the wrong file.
+  // The first version of this checked the original only, and its own CI
+  // mutation, which adds an unbacked run to the copy, went red on the byte
+  // comparison while claiming to prove something else.
+  let history;
+  try {
+    history = given ?? JSON.parse(historyText);
+  } catch (e) {
+    return { refusals: [`the history handed to this check is not JSON (${e.message})`], configFaults, history: [], historyText };
+  }
   if (!Array.isArray(history)) {
-    return { refusals: [`${BENCH.history} at ${rev} is not a JSON array`], configFaults, history: [], historyText };
+    return { refusals: [`the history is not a JSON array`], configFaults, history: [], historyText };
   }
 
   const producer = JSON.parse(readAtRev(benchDir, rev, BENCH.config)).producer ?? {};
@@ -433,7 +446,28 @@ async function main(argv) {
   }
 
   console.log(`libviprs-bench ${rev}`);
-  const { refusals, configFaults, historyText } = await verifyOrigin({ benchDir, rev });
+  // On `--check` the entries verified are the ones the page is generated from,
+  // which is the frozen copy. On `--sync` they are the pinned revision's,
+  // because the copy is about to be replaced by it.
+  const frozen = !sync && existsSync(historyPath) ? readFileSync(historyPath, 'utf8') : null;
+  let frozenEntries;
+  if (!sync) {
+    if (frozen === null) {
+      console.error(`REFUSED: there is no frozen history at ${historyPath} to check.\n`);
+      return EXIT.REFUSED;
+    }
+    try {
+      frozenEntries = JSON.parse(frozen);
+    } catch (e) {
+      console.error(`REFUSED: ${historyPath} is not JSON (${e.message}).\n`);
+      return EXIT.REFUSED;
+    }
+  }
+  const { refusals, configFaults, historyText } = await verifyOrigin({
+    benchDir,
+    rev,
+    history: frozenEntries,
+  });
 
   if (configFaults.length > 0) {
     console.error(
@@ -455,10 +489,9 @@ async function main(argv) {
   }
 
   if (!sync) {
-    // The frozen copy is checked LAST and only once the origin holds, so a
-    // mismatch here reads as "the copy is stale" rather than being the first
-    // thing a reader sees when the real problem is upstream.
-    const frozen = existsSync(historyPath) ? readFileSync(historyPath, 'utf8') : null;
+    // The byte comparison comes LAST and only once the copy's own entries hold,
+    // so "this copy is not the pinned one" is never the sentence a reader gets
+    // when the real problem is a run nothing supports.
     if (frozen !== historyText) {
       console.error(
         `REFUSED: ${historyPath} is not the pinned revision's tools/publish/history.json.\n\n` +

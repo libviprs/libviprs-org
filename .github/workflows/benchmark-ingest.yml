@@ -93,9 +93,12 @@ jobs:
 
       # A gate that cannot fail is not a gate. This adds an entry no archived
       # document supports, which is precisely the state the page was in before,
-      # and asserts the check goes red. It runs on copies: nothing in the working
-      # tree is touched.
-      - name: --check can actually fail
+      # and asserts the check goes red FOR THAT REASON. The reason matters: an
+      # earlier version of this step went red on the byte comparison instead,
+      # which is a true refusal of a different thing and would have stayed green
+      # through a verifier that had stopped joining runs to documents at all.
+      # It runs on copies: nothing in the working tree is touched.
+      - name: --check can actually fail, and on the right sentence
         run: |
           set -eu
           tmp="$(mktemp -d)"
@@ -109,8 +112,13 @@ jobs:
             fs.writeFileSync(p, JSON.stringify(h));
           ' "$tmp/history.json"
           if node benchmarks/tools/ingest.mjs --bench bench --check \
-               --history "$tmp/history.json" --page "$tmp/index.html"; then
+               --history "$tmp/history.json" --page "$tmp/index.html" 2> "$tmp/why"; then
             echo "::error::--check passed on a history carrying a run no archived document supports, so it is not gating anything"
             exit 1
           fi
-          echo "--check is red on an unbacked run, as it should be"
+          cat "$tmp/why"
+          if ! grep -q 'carries this run id' "$tmp/why"; then
+            echo "::error::--check refused, but not for the reason this step exists to prove. It never said the invented run has no archived document behind it, so something else turned it away and this step is measuring that instead."
+            exit 1
+          fi
+          echo "--check is red on an unbacked run, and says so, as it should be"
