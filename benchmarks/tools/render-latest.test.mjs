@@ -132,13 +132,14 @@ test('a_run_that_is_not_archived_by_digest_is_refused', () => {
 test('the_low_confidence_band_is_computed_from_the_documents_own_timer', () => {
   const asIs = renderInto(history);
   assert(asIs.code === 0, `the committed history did not render: ${asIs.err}`);
-  assert(/4\.1\s*(&micro;|µ|&#181;)?s?/.test(asIs.html()), 'the rendered page never states the 4.1 us floor it computed');
+  assert(/data-timer-floor="4\.1"/.test(asIs.html()), 'the rendered page never states the 4.1 us floor it computed');
 
   const doubled = JSON.parse(JSON.stringify(history));
   for (const run of doubled) if (run.measurement?.timerTickNs) run.measurement.timerTickNs *= 2;
   const r = renderInto(doubled);
   assert(r.code === 0, `the doubled-tick history did not render: ${r.err}`);
-  assert(/8\.2/.test(r.html()), 'doubling the measured timer tick did not move the stated floor to 8.2 us, so the page holds a literal');
+  assert(/data-timer-floor="8\.2"/.test(r.html()), 'doubling the measured timer tick did not move the stated floor to 8.2 us, so the page holds a literal');
+  assert(!/data-timer-floor="4\.1"/.test(r.html()), 'the 4.1 us floor survives a host whose clock ticks twice as slowly');
   return 'floor tracks measurement.timerTickNs x measurement.minTicksPerSample';
 });
 
