@@ -1,0 +1,79 @@
+{
+  "_readme": [
+    "Every `secrets.NAME` and `vars.NAME` this repository's workflows read, and what",
+    "each one is. cli/tools/sync-pin.test.js fails when a workflow reads a name that",
+    "is not here, and when a name here is read by no workflow.",
+    "",
+    "This file exists because of libviprs-org#72. `ci.yml` checked libviprs-cli out",
+    "with `secrets.SYNC_CLI_TOKEN || github.token` and SYNC_CLI_TOKEN had never been",
+    "created. The expression resolved to github.token on every run that ever ran,",
+    "libviprs-cli is public, so the checkout worked and no run reported anything. The",
+    "file read as though a private-repo path was configured, and the first person to",
+    "want that path would have found out from a red run. libviprs-org#63 is the same",
+    "shape one rung worse: CLI_COUNTERPART_REV was never set either, and an unset",
+    "variable resolves to the empty string, which actions/checkout reads as `the",
+    "default branch`.",
+    "",
+    "A token cannot be checked from the log. A real run masks it: the sync job's",
+    "checkout prints `token: ***` whether the value came from a secret or from",
+    "github.token, so nothing on that line tells you which route the run took. A ref",
+    "is not masked, and the same step prints `ref: 23f85a8c...` in the clear. That",
+    "asymmetry is where the two `kind`s below come from.",
+    "",
+    "kinds:",
+    "  required            the name is set, and the workflow must read it plainly.",
+    "                      A `||` fallback is refused: it turns a missing credential",
+    "                      into a step that quietly does something else.",
+    "  optional-announced  a secret the workflow may read as `secrets.X || <other>`,",
+    "                      on the condition that some step in the same file says in",
+    "                      the log which of the two routes the run took, and warns on",
+    "                      the fallback arm. `announced_by` names that step, and the",
+    "                      guard goes and finds it.",
+    "  optional-visible    a variable the workflow may read as `vars.X || <other>`.",
+    "                      No announcement, because the value it overrides is echoed",
+    "                      unmasked in the step's own `with:` block, so a run that",
+    "                      took the override says so by itself.",
+    "",
+    "`secrets.GITHUB_TOKEN` and `github.token` are the platform's own and need no",
+    "entry; the guard knows them and refuses an entry for them."
+  ],
+
+  "secrets": {
+    "CLI_RESYNC_TOKEN": {
+      "kind": "optional-announced",
+      "set": false,
+      "announced_by": "Say which PR-creation route this run is on",
+      "why": [
+        "cli-resync.yml opens the re-sync pull request. GITHUB_TOKEN cannot open one",
+        "here while the repository's `Allow GitHub Actions to create and approve pull",
+        "requests` switch is off, so the workflow takes a fine-grained PAT when one is",
+        "set and falls back to github.token when it is not. The two routes really do",
+        "behave differently (a PAT push starts ci.yml on the sync branch and a",
+        "GITHUB_TOKEN push does not), which is why the fallback is worth having at all",
+        "and why the run has to say which one it is on.",
+        "",
+        "It is NOT set today. Creating it is an owner action; libviprs-org#68 wrote",
+        "down both routes and neither has been taken yet."
+      ]
+    }
+  },
+
+  "vars": {
+    "CLI_COUNTERPART_REV": {
+      "kind": "optional-visible",
+      "set": false,
+      "why": [
+        "A one-off override for the revision the `sync` gate checks libviprs-cli out",
+        "at. It used to be the whole pin and was never set, which is libviprs-org#63:",
+        "the gate compared the frozen copy against whatever libviprs-cli main happened",
+        "to be that morning. The committed file cli/rust/COUNTERPART_REV is the pin now",
+        "and this survives only as the override.",
+        "",
+        "It needs no route announcement because it cannot hide. The `Resolve the",
+        "pinned counterpart revision` step echoes the file's value, and the checkout",
+        "step's own `with:` block echoes the ref it actually used, unmasked, two lines",
+        "later. A run that took the override shows both numbers and they disagree."
+      ]
+    }
+  }
+}

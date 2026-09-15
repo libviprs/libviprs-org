@@ -129,8 +129,8 @@ jobs:
           # private one, and only the second case tells you the secret is
           # missing. cli/tools/sync-pin.test.js now fails on any secret or
           # variable reference in .github/workflows/ that is not declared in
-          # cli/tools/workflow-inputs.json, and on any optional one that does
-          # not say in the log which route the run took.
+          # .github/workflow-inputs.json, and on any secret fallback that does
+          # not say in the log which of its two routes the run took.
           token: ${{ github.token }}
 
       - name: Assert frozen CLI copy is in sync with the pinned revision
