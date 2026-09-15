@@ -217,7 +217,7 @@ function concurrencyOf(cell) {
  *  size group together. */
 const baseCell = (cell) => String(cell).replace(/\+c\d+$/, '');
 
-function normSample(raw, run, { recovered = false } = {}) {
+function normSample(raw, run) {
   const key = need(raw, 'key', 'the metric a row reports');
   const { scenario, metric } = splitKey(key);
   const gated = optional(raw, 'gated', false) === true;
@@ -252,7 +252,6 @@ function normSample(raw, run, { recovered = false } = {}) {
     spreadCell: optional(raw, 'replicateSpreadCell', null),
     concurrency: concurrencyOf(raw.cell),
     baseCell: baseCell(raw.cell),
-    recovered,
   };
 }
 
@@ -279,21 +278,33 @@ function normalise(run) {
   const libraries = need(run, 'libraries', 'the series this run measured');
   const declaredReplicateCell = optional(run, 'replicate.cell', null);
 
-  // A replicate is the same cell measured twice. The run declares which cell
-  // that is, so anything in `replicates` naming a different cell is not a
-  // replicate of anything: it is a distinct cell filed under the wrong heading,
-  // and dropping it would silently lose a whole arm of the experiment. The
-  // engines run does exactly this with its eight-thread cells, which share a
-  // tile count with their single-thread twins. They are read as the cells they
-  // say they are, and the page says how many were recovered and why.
+  // A replicate is one cell measured again at another placement, and the run
+  // declares which cell that is. Anything in `replicates` naming a different
+  // cell is not a replicate of anything: it is a distinct cell filed under the
+  // wrong heading, and a whole arm of an experiment can hide in there. An
+  // importer that keyed replicate detection on tile count rather than on cell
+  // identity did exactly that with the engines sweep's second thread count, and
+  // this page recovered those rows and said so.
+  //
+  // libviprs-bench keys on full cell identity now, so the condition is inert.
+  // It stays as a REFUSAL rather than as a recovery, which is the opposite of
+  // where it started and is the better end of the trade: recovering meant the
+  // page held a second opinion about the producer's output and published on it,
+  // and a regression here would go on being quietly corrected. A regression now
+  // stops the render and names the cells. Publishing half an experiment is
+  // worse than publishing none of it.
   const rawReplicates = optional(run, 'replicates', []);
   const trueReplicates = rawReplicates.filter((s) => s.cell === declaredReplicateCell);
   const misfiled = rawReplicates.filter((s) => s.cell !== declaredReplicateCell);
+  if (misfiled.length > 0) {
+    const cells = [...new Set(misfiled.map((s) => s.cell))].sort();
+    refuse(`run ${runId} files ${misfiled.length} row(s) as replicates of ${JSON.stringify(declaredReplicateCell)}, ` +
+      `and they name ${cells.length} other cell(s): ${cells.join(', ')}.\n` +
+      '         A replicate is one cell measured again, so those rows are distinct cells under the wrong heading ' +
+      'and\n         a whole arm of the sweep is hiding in them. Fix the producer rather than the page.');
+  }
 
-  const samples = [
-    ...need(run, 'samples', 'the measured cells').map((s) => normSample(s, run)),
-    ...misfiled.map((s) => normSample(s, run, { recovered: true })),
-  ];
+  const samples = need(run, 'samples', 'the measured cells').map((s) => normSample(s, run));
 
   const measurement = need(run, 'measurement', 'the method section');
   const covFloor = optional(run, 'measurement.covLowConfidence', config.confidence.covLowConfidence);
@@ -301,8 +312,6 @@ function normalise(run) {
   const timerApplicable = samples.filter((s) => s.timerSaturated !== null);
   const counts = {
     measured: samples.length,
-    fromSamples: run.samples.length,
-    recovered: misfiled.length,
     notMeasured: optional(run, 'skipped', []).length,
     lowConfidence: samples.filter((s) => s.confidence !== 'high').length,
     timerApplicable: timerApplicable.length,
@@ -373,7 +382,10 @@ function normalise(run) {
     replicatePair: trueReplicates.map((s) => normSample(s, run)),
     replicateCell: declaredReplicateCell,
     replicateReps: optional(run, 'replicate.replicateReps', null),
+    estimator: optional(run, 'replicate.estimator', null),
     spreadPct: optional(run, 'replicate.spreadPct', {}),
+    driftPct: optional(run, 'replicate.driftPct', {}),
+    residualPct: optional(run, 'replicate.residualPct', {}),
     invariants,
     modelled: optional(run, 'modelled', []),
     skipped: optional(run, 'skipped', []).map((s) => ({
@@ -434,6 +446,18 @@ function spreadFor(run, series, key, cell = null) {
 
 const bandPct = (run, series, key) => spreadFor(run, series, key);
 
+/** The other two thirds of the dispersion trio. `spreadPct` is the whole floor,
+ *  `driftPct` is how much of it is the sweep trending across its placements,
+ *  and `residualPct` is what is left once that trend is taken out. A floor that
+ *  is mostly drift says the host warmed up or the cache filled; a floor that is
+ *  mostly residual says it is simply noisy. The document carries all three now,
+ *  so the page shows all three rather than picking one. */
+const trioFor = (run, series, key) => ({
+  spread: spreadFor(run, series, key, null),
+  drift: Number.isFinite(run.driftPct?.[`${series}.${key}`]) ? run.driftPct[`${series}.${key}`] / 100 : null,
+  residual: Number.isFinite(run.residualPct?.[`${series}.${key}`]) ? run.residualPct[`${series}.${key}`] / 100 : null,
+});
+
 /** How far apart the run's own replicate pair came out, across every key it
  *  covers. This is the single most important number on the timing half of the
  *  page and it is nowhere near constant between families: the storage pair
@@ -441,11 +465,11 @@ const bandPct = (run, series, key) => spreadFor(run, series, key);
  *  minutes apart on the same machine. A page that draws a band that wide
  *  without saying that the width is typical is presenting the timings as
  *  firmer than they are. */
-function spreadSummary(run) {
-  const vals = Object.values(run.spreadPct ?? {}).filter(Number.isFinite).sort((a, b) => a - b);
+function spreadSummary(run, field = 'spreadPct') {
+  const vals = Object.values(run[field] ?? {}).filter(Number.isFinite).map(Math.abs).sort((a, b) => a - b);
   if (vals.length === 0) return null;
   const mid = vals.length % 2 ? vals[(vals.length - 1) / 2] : (vals[vals.length / 2 - 1] + vals[vals.length / 2]) / 2;
-  const worstKey = Object.entries(run.spreadPct).reduce((a, b) => (b[1] > a[1] ? b : a));
+  const worstKey = Object.entries(run[field]).reduce((a, b) => (Math.abs(b[1]) > Math.abs(a[1]) ? b : a));
   return { n: vals.length, median: mid / 100, max: vals[vals.length - 1] / 100, worstKey: worstKey[0] };
 }
 
@@ -518,6 +542,68 @@ function chipFor(v) {
   const title = v.why ? ` title="${esc(prose(v.why))}"` : '';
   if (V.noChipKinds.includes(v.kind)) return `<span class="gate"${title}>${label}</span>`;
   return `<span class="verdict verdict-${esc(v.kind)}"${title}>${label}</span>`;
+}
+
+/** What this host can and cannot say, split three ways and counted.
+ *
+ *  1. The invariants are not sampled at all. They are what the artefact IS:
+ *     the same tiles, the same bytes, the same entry counts, every placement.
+ *  2. Some measured columns come out at exactly 0.000% across every placement
+ *     of the replicate control. Those are counts, and the harness reproduces
+ *     them to the digit.
+ *  3. Everything else is a timing, and on this host the replicate control
+ *     disagrees with itself by about half across a sweep.
+ *
+ *  The third of those is the reason no timing on this page carries a verdict
+ *  chip, and it belongs next to the timings rather than three sections below
+ *  them. A reader who sees a latency chart and a floor mentioned later quotes
+ *  the latency. */
+function hardness(run) {
+  const spreads = Object.entries(run.spreadPct ?? {});
+  if (spreads.length === 0) return null;
+  const exact = spreads.filter(([, v]) => v === 0);
+  const varying = spreads.filter(([, v]) => v > 0).map(([, v]) => v).sort((a, b) => a - b);
+  const mid = (a) => (a.length === 0 ? null : a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2);
+  const worst = spreads.reduce((a, b) => (b[1] > a[1] ? b : a));
+  return {
+    invariantNames: [...new Set(run.invariants.map((i) => i.name))].sort(),
+    invariantRows: run.invariants.length,
+    exactKeys: exact.map(([k]) => k).sort(),
+    varyingCount: varying.length,
+    median: mid(varying) === null ? null : mid(varying) / 100,
+    max: varying.length ? varying[varying.length - 1] / 100 : null,
+    worstKey: worst[0],
+    placements: run.replicateReps,
+    estimator: run.estimator,
+  };
+}
+
+/** The callout that says it. Rendered wherever a reader might otherwise take a
+ *  timing for a result, which is more than one place on purpose. */
+function hardnessCallout(run, { where }) {
+  const h = hardness(run);
+  if (h === null) return '';
+  const fam = config.families[run.family];
+  const exactMetrics = [...new Set(h.exactKeys.map((k) => k.split('.').slice(1).join('.')))].sort();
+  return `    <div class="status-callout callout-hard" data-hard-median="${h.median === null ? 'n/a' : (h.median * 100).toFixed(2)}" data-hard-exact="${count(h.exactKeys.length)}" data-hard-varying="${count(h.varyingCount)}" data-hard-where="${esc(where)}">
+      <p><strong>What this host can say exactly, and what it cannot say at all.</strong></p>
+      <p><strong>Exact.</strong> The invariants below are not sampled: ${count(h.invariantRows)} rows across
+        ${h.invariantNames.length} kinds (${h.invariantNames.map((n) => `<code class="mono">${esc(fam.invariantLabel?.[n] ?? n)}</code>`).join(', ')}).
+        They are what the artefact is, not a measurement of it, so there is nothing for a placement to move.
+        ${h.exactKeys.length ? `${count(h.exactKeys.length)} measured column${h.exactKeys.length === 1 ? '' : 's'} join${h.exactKeys.length === 1 ? 's' : ''} them:
+          ${exactMetrics.map((m) => `<code class="mono">${esc(m)}</code>`).join(', ')} came out at exactly 0.000%
+          across all ${count(h.placements)} placements of the replicate control.` : ''}</p>
+      <p><strong>Not gradeable.</strong> The other ${count(h.varyingCount)} measured columns are timings, and the
+        replicate control, the same cell measured again at ${count(h.placements)} points through the sweep,
+        disagreed with itself by a median of <strong>${pct(h.median, 1)}</strong> and by ${pct(h.max, 1)} at its
+        worst, on <code class="mono">${esc(h.worstKey)}</code>. Identical code, one host, one sweep. So no timing
+        from this run carries a verdict chip, and a difference smaller than that floor is not a difference this
+        run could have seen. Read the timings here as measurements of this machine on this afternoon, not as a
+        ranking.</p>
+      <p>That floor is not the clock. Only ${count(run.counts.timerSaturated)} of ${count(run.counts.measured)}
+        cells are timer-saturated, and the floor is about the same on the metrics the clock resolves easily as on
+        the ones it does not.</p>
+    </div>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -674,6 +760,8 @@ function claimSection() {
       <div class="claim-figure"><div class="claim-number">${count(most)}</div><div class="claim-label">filesystem ${most === 1 ? 'entry' : 'entries'}, ${esc(fam.series.label[mostSeries] ?? mostSeries)}, the same cell</div></div>
       <div class="claim-figure"><div class="claim-number">${pct(worstByteGap)}</div><div class="claim-label">the widest the byte totals ever get apart, at <code class="mono">${esc(worstCell ?? 'n/a')}</code></div></div>
     </div>
+
+${hardnessCallout(run, { where: 'claim' })}
 
     <p class="claim-note">No bands on any of this, and no chart of it either. These numbers do not vary: they came
       out the same on every repetition, and they came out the same on the capture before this one on a busier
@@ -856,16 +944,6 @@ ${rows}
     </div>`;
   }
 
-  const recovered = run.counts.recovered > 0 ? `    <div class="status-callout" data-recovered="${count(run.counts.recovered)}" data-measured="${count(run.counts.measured)}" data-from-samples="${count(run.counts.fromSamples)}">
-      <p><strong>${count(run.counts.recovered)} of this run's rows arrived filed as replicates of a cell they are not.</strong>
-        The run declares <code class="mono">${esc(run.replicateCell)}</code> as the cell it measured twice, and a
-        replicate is the same cell measured twice. These rows name different cells, at
-        ${concurrencies.map((c) => `${c} thread${c === 1 ? '' : 's'}`).join(' and ')}, which share a tile count with
-        their twins and are otherwise a separate arm of the experiment. The page reads them as the cells they say
-        they are. Dropping them would have lost half of what this run measured, with nothing on the page to say
-        so.</p>
-    </div>` : '';
-
   const charts = fam.chartKeys.map((ck) => {
     const rows = run.samples.filter((s) => s.key === ck.key && (lowC === null || s.concurrency === lowC));
     if (rows.length === 0) return '';
@@ -903,7 +981,6 @@ ${rows}
         missing is anything that could grade them.</p>
     </div>
 
-${recovered}
 ${tables}
 
 ${concurrencyBlock}
@@ -938,7 +1015,7 @@ function niceTicks(lo, hi, log) {
 /** One chart, as inline SVG, so it is in the markup rather than drawn later.
  *  `data-series-key` is what the invariant guard reads: an invariant name
  *  appearing there would mean something exact had been charted. */
-function chartSvg({ title, family, run, key, unit, xOf, yOf, xLabel, yLabel, logX, logY, steps = [], xTicks = null, rows }) {
+function chartSvg({ title, family, run, key, unit, xOf, yOf, xLabel, yLabel, logX, logY, steps = [], xTicks = null, rows, eraBreaks = null }) {
   const fam = config.families[family];
   if (!rows || rows.length === 0) return '';
 
@@ -971,7 +1048,23 @@ function chartSvg({ title, family, run, key, unit, xOf, yOf, xLabel, yLabel, log
     if (own.length === 0) return '';
     const colour = fam.series.color[id] ?? '#888';
     const dash = fam.series.dash[id];
-    const d = own.map((s, i) => `${i === 0 ? 'M' : 'L'}${sx(xOf(s)).toFixed(1)},${sy(yOf(s)).toFixed(1)}`).join(' ');
+
+    // The line is broken wherever the era is. Two runs in different eras are
+    // two experiments, and a segment joining them draws a change that nothing
+    // measured: these captures are x86_64 on six cores and every earlier one is
+    // arm64 on eight, so a single path across them would read as the engine
+    // having got slower. Host fingerprint and filesystem type are era axes for
+    // exactly this reason, and the axis carries a rule where the break is.
+    const segments = [];
+    for (const pt of own) {
+      const era = pt._run ? eraKey(pt._run) : '';
+      const last = segments[segments.length - 1];
+      if (last && last.era === era) last.points.push(pt);
+      else segments.push({ era, points: [pt] });
+    }
+    const d = segments
+      .map((seg) => seg.points.map((s, i) => `${i === 0 ? 'M' : 'L'}${sx(xOf(s)).toFixed(1)},${sy(yOf(s)).toFixed(1)}`).join(' '))
+      .join(' ');
 
     // The band is the replicate spread measured for this very key inside the
     // very run the point came from, or nothing at all. A band drawn from
@@ -992,6 +1085,8 @@ function chartSvg({ title, family, run, key, unit, xOf, yOf, xLabel, yLabel, log
     return `${band}<path class="chart-line" data-series-key="${esc(`${family}:${id}:${key}`)}" d="${d}" stroke="${esc(colour)}"${dash ? ` stroke-dasharray="${esc(dash)}"` : ''}/>${dots}`;
   }).join('\n      ');
 
+  const eraRules = (eraBreaks ?? []).map((b) => `<line class="era-rule" data-era-break="${esc(b.label)}" x1="${sx(b.x).toFixed(1)}" y1="${PAD.t}" x2="${sx(b.x).toFixed(1)}" y2="${H - PAD.b}"/>`).join('\n      ');
+
   const stepRules = steps.map((st) => `<line class="step-rule" data-invariant-step="${esc(`${st.name} ${st.series} ${st.cell}`)}" x1="${sx(st.x).toFixed(1)}" y1="${PAD.t}" x2="${sx(st.x).toFixed(1)}" y2="${H - PAD.b}"/>`).join('\n      ');
 
   const legend = fam.series.order.filter((id) => rows.some((s) => s.series === id)).map((id) =>
@@ -1002,6 +1097,7 @@ function chartSvg({ title, family, run, key, unit, xOf, yOf, xLabel, yLabel, log
         <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)}" preserveAspectRatio="xMidYMid meet">
       ${grid}
       ${seriesPaths}
+      ${eraRules}
       ${stepRules}
       <line class="chart-axis" x1="${PAD.l}" y1="${PAD.t}" x2="${PAD.l}" y2="${H - PAD.b}"/>
       <line class="chart-axis" x1="${PAD.l}" y1="${H - PAD.b}" x2="${W - PAD.r}" y2="${H - PAD.b}"/>
@@ -1152,6 +1248,10 @@ function historySection() {
         xOf: (s) => s._x, yOf: (s) => s.median,
         xLabel: 'version', yLabel: first.unit, logX: false, logY: false,
         steps,
+        // Where the era changes, the line is broken and the axis carries a rule.
+        eraBreaks: axis.slice(1)
+          .map((a, i) => (a.era === axis[i].era ? null : { x: a.i - 0.5, label: `${axis[i].label} to ${a.label}` }))
+          .filter(Boolean),
         // The x axis is the version axis, so it is labelled with versions. A
         // numeric tick here would be the index of the run in the history, which
         // is a number about the file rather than about the software.
@@ -1165,11 +1265,14 @@ function historySection() {
       return fam.series.order.filter((id) => own.some((s) => s.series === id)).map((id) => {
         const s = own.find((x) => x.series === id);
         const spread = Number.isFinite(s.spreadPct) ? s.spreadPct : bandPct(run, id, key);
+        const trio = trioFor(run, id, key);
         return `        <tr${s.confidence === 'high' ? '' : ' class="row-low"'} title="${esc(prose(s.gateBlockers.join('; ') || s.lowConfidenceReasons.join('; ')))}">` +
           `<th scope="row"><code class="mono">${esc(key)}</code></th>` +
           `<td><span class="swatch" style="background:${esc(fam.series.color[id] ?? '#888')}"></span>${esc(fam.series.label[id] ?? id)}</td>` +
           `<td class="num">${num(s.median)} <span class="unit">${esc(s.unit)}</span></td>` +
           `<td class="num">${spread === null ? '<span class="absent">no replicate</span>' : `&plusmn;${pct(spread, 2)}`}</td>` +
+          `<td class="num">${trio.drift === null ? '<span class="absent">none</span>' : `${trio.drift >= 0 ? '+' : ''}${pct(trio.drift, 2)}`}</td>` +
+          `<td class="num">${trio.residual === null ? '<span class="absent">none</span>' : pct(trio.residual, 2)}</td>` +
           `<td class="num">${count(s.reps)}</td>` +
           `<td>${confChip(s.confidence)}</td>` +
           `<td>${chipFor(rule(familyId, list, id, key, headlineCell))}</td></tr>`;
@@ -1182,13 +1285,19 @@ ${steps.map((st) => `      <li class="step-label" data-invariant-step="${esc(`${
 
     const spreadCell = run.samples.find((s) => s.spreadCell)?.spreadCell ?? run.replicateCell;
     const spread = spreadSummary(run);
-    const spreadLine = spread === null ? '' : `<p data-spread-median="${(spread.median * 100).toFixed(2)}" data-spread-max="${(spread.max * 100).toFixed(2)}" data-spread-keys="${count(spread.n)}">
-        <strong>How wide those bands are is itself a result.</strong> Across the ${count(spread.n)} keys the pair
-        covers it disagreed with itself by a median of ${pct(spread.median, 1)}, and by ${pct(spread.max, 1)} at
-        its worst, on <code class="mono">${esc(spread.worstKey)}</code>. Two measurements of identical code on one
-        host, minutes apart. Read every timing on this page against that: a change smaller than the band is not a
-        change this run could have seen, and a band this wide is why nothing here is graded even where the
-        producer has a threshold to grade it against.</p>`;
+    const drift = spreadSummary(run, 'driftPct');
+    const residual = spreadSummary(run, 'residualPct');
+    const est = run.estimator;
+    const spreadLine = spread === null ? '' : `<p data-spread-median="${(spread.median * 100).toFixed(2)}" data-spread-max="${(spread.max * 100).toFixed(2)}" data-spread-keys="${count(spread.n)}"${drift ? ` data-drift-median="${(drift.median * 100).toFixed(2)}"` : ''}${residual ? ` data-residual-median="${(residual.median * 100).toFixed(2)}"` : ''}>
+        <strong>How wide those bands are is itself a result.</strong> Across the ${count(spread.n)} keys the
+        control covers it disagreed with itself by a median of ${pct(spread.median, 1)}, and by
+        ${pct(spread.max, 1)} at its worst, on <code class="mono">${esc(spread.worstKey)}</code>${est ? `,
+        estimated as a <code class="mono">${esc(est.method)}</code> over ${count(est.reps)} placements at
+        ${(est.coverage * 100).toFixed(0)}% coverage` : ''}.
+        ${drift && residual ? `Of that floor, a median of ${pct(Math.abs(drift.median), 1)} is the sweep trending
+          across its placements and ${pct(residual.median, 1)} is what is left once the trend is taken out, so it
+          is noise rather than a warm-up.` : ''}
+        A change smaller than the floor is not a change this run could have seen.</p>`;
     return `    <div class="family-block">
       <h3 class="family-title">${esc(fam.label)}</h3>
       <p>${list.length === 1
@@ -1203,17 +1312,20 @@ ${steps.map((st) => `      <li class="step-label" data-invariant-step="${esc(`${
       ${spreadLine}
       <div class="table-wrap">
         <table class="results-table">
-          <caption>Headline cells for <code class="mono">${esc(headlineCell)}</code>, latest run.</caption>
+          <caption>Headline cells for <code class="mono">${esc(headlineCell)}</code>, latest run. Spread is the
+            whole replicate floor; drift is how much of it is the sweep trending across its
+            ${count(run.replicateReps)} placements; residual is what is left with the trend taken out.</caption>
           <thead>
             <tr><th scope="col">key</th><th scope="col">series</th><th scope="col">median</th>
-                <th scope="col">replicate spread</th><th scope="col">reps</th>
-                <th scope="col">confidence</th><th scope="col">gate</th></tr>
+                <th scope="col">spread</th><th scope="col">drift</th><th scope="col">residual</th>
+                <th scope="col">reps</th><th scope="col">confidence</th><th scope="col">gate</th></tr>
           </thead>
           <tbody>
 ${rows}
           </tbody>
         </table>
       </div>
+${hardnessCallout(run, { where: `history-${familyId}` })}
       <div class="charts">
 ${charts}
       </div>
@@ -1276,8 +1388,8 @@ function methodSection() {
         <li class="meta-item"><strong>estimator</strong> ${esc(m.interval?.statistic ?? 'not recorded')}, ${esc(m.interval?.method ?? 'no interval')}${m.interval?.level ? ` at ${(m.interval.level * 100).toFixed(0)}% over ${count(m.interval.resamples)} resamples` : ''}</li>
         <li class="meta-item"><strong>timer</strong> tick ${num(m.timerTickNs)} ns, call cost ${num(m.timerCallNs)} ns, ${count(m.minTicksPerSample)} ticks minimum, so <span data-timer-floor="${floor === null ? 'n/a' : floor.toFixed(1)}">anything under ${floor === null ? 'n/a' : floor.toFixed(1)} &micro;s is below what this host's clock can resolve</span></li>
         <li class="meta-item"><strong>page cache</strong> ${esc(m.pageCache ?? 'not recorded')}. Cold here means a cold reader: a fresh process opening an artefact it has not opened. Nothing dropped the kernel's caches, and the run does not pretend otherwise.</li>
-        <li class="meta-item"><strong>replicate pair</strong> ${run.replicateCell ? `<code class="mono">${esc(run.replicateCell)}</code> measured ${count(run.replicateReps)} times, ${count(c.replicated)} rows, which is where every band on this page comes from` : 'none, so nothing on this page draws a band'}</li>
-        <li class="meta-item"><strong>cells</strong> ${count(c.measured)} measured${c.recovered ? ` (${count(c.fromSamples)} filed as samples and ${count(c.recovered)} recovered from the replicates array, see the note above)` : ''}, ${count(c.notMeasured)} that produced no number, ${count(c.lowConfidence)} low confidence. Of the ${count(c.timerApplicable)} where saturation is even a question, ${count(c.timerSaturated)} are under the floor; ${count(c.noisy)} have a coefficient of variation above ${pct(run.covFloor, 0)}${c.declared ? `; ${count(c.declared)} are declared by a model rather than measured` : ''}.</li>
+        <li class="meta-item"><strong>replicate control</strong> ${run.replicateCell ? `<code class="mono">${esc(run.replicateCell)}</code> at ${count(run.replicateReps)} placements through the sweep, ${count(c.replicated)} rows, which is where every band on this page comes from. Estimator <code class="mono">${esc(run.estimator?.method ?? 'not recorded')}</code>${run.estimator?.coverage ? ` at ${(run.estimator.coverage * 100).toFixed(0)}% coverage, multiplier ${num(run.estimator.multiplier)}` : ''}. A floor from ${count(run.replicateReps)} placements and a floor from two are different statistics, which is why the document says which.` : 'none, so nothing on this page draws a band'}</li>
+        <li class="meta-item"><strong>cells</strong> ${count(c.measured)} measured, ${count(c.notMeasured)} that produced no number, ${count(c.lowConfidence)} low confidence. Of the ${count(c.timerApplicable)} where saturation is even a question, ${count(c.timerSaturated)} are under the floor; ${count(c.noisy)} have a coefficient of variation above ${pct(run.covFloor, 0)}${c.declared ? `; ${count(c.declared)} are declared by a model rather than measured` : ''}.</li>
       </ul>
       <p class="footnote"><strong>Not gateable, and why:</strong></p>
       <ul class="meta-list">
