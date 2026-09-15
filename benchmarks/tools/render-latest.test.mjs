@@ -26,6 +26,7 @@
  *   17. every_sample_field_a_verdict_rule_reads_is_declared_in_samples_carry
  *   18. the_two_causes_of_low_confidence_are_told_apart
  *   19. two_cells_with_the_same_tile_count_stay_two_cells
+ *   20. the_thread_count_effect_is_classified_at_the_largest_image
  *
  * Every count in here is read off benchmarks/history.json rather than written
  * down, because the last capture's figures outlived the capture by one round
@@ -270,9 +271,20 @@ test('a_replicate_of_a_cell_it_is_not_is_read_as_the_cell_it_says_it_is', () => 
   const rowsFor = (cell) => (section.match(new RegExp(`<code class="mono">${cell.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</code>`, 'g')) || []).length;
   assert(rowsFor(declared) > 0, `the declared replicate cell ${declared} is missing from the engines tables`);
 
-  // And the page says it happened, with the count and the reason.
-  assert(new RegExp(`\\b${misfiled.length}\\b`).test(html),
-    `the page never says how many rows (${misfiled.length}) were recovered from the replicates array`);
+  // And the page says it happened, with the counts and the reason. The counts
+  // are read off an attribute rather than grepped for as a substring: a page
+  // that merged the whole replicates array in, true pair included, still
+  // contains the digits 144 somewhere, and a substring check passes on it.
+  const m = section.match(/data-recovered="(\d+)"[^>]*data-measured="(\d+)"[^>]*data-from-samples="(\d+)"/);
+  assert(m, 'the engines section carries no machine-readable recovery counts, so this guard can only grep');
+  const [, gotRecovered, gotMeasured, gotFromSamples] = m.map(Number);
+  assert(gotRecovered === misfiled.length,
+    `the page says ${gotRecovered} rows were recovered; the run has ${misfiled.length} filed under a cell they are not`);
+  assert(gotFromSamples === enginesRun.samples.length,
+    `the page says ${gotFromSamples} rows arrived as samples; the run has ${enginesRun.samples.length}`);
+  assert(gotMeasured === enginesRun.samples.length + misfiled.length,
+    `the page counts ${gotMeasured} measured cells; samples plus recovered is ${enginesRun.samples.length + misfiled.length}. ` +
+    'Counting the true replicate pair as distinct cells is the other way to get this wrong.');
   assert(/filed as replicates of a cell they are not/.test(html),
     'the page recovers the rows without saying it did, which is a silent second opinion about the producer');
   return `${misfiled.length} recovered across ${recoveredCells.length} cells, ${trueReps.length} true replicate rows kept as replicates, stated on the page`;
@@ -658,8 +670,28 @@ test('the_memory_column_is_per_engine_and_the_page_counts_what_proves_it', () =>
   const html = renderInto(history).html();
   const section = html.slice(html.indexOf('GENERATED:engines:BEGIN'), html.indexOf('GENERATED:engines:END'));
 
+  const attrs = section.match(/data-identical-groups="(\d+)"[^>]*data-engine-groups="(\d+)"/);
+  assert(attrs, 'the engines section carries no machine-readable identical-group count');
+  assert(Number(attrs[1]) === identical && Number(attrs[2]) === groups.length,
+    `the page says ${attrs[1]} of ${attrs[2]} groups are identical; the run has ${identical} of ${groups.length}`);
   assert(section.includes(`${identical} of ${groups.length}`),
-    `the page does not state the ${identical}-of-${groups.length} identical-group count that is the evidence the column is per engine`);
+    `the page does not state the ${identical}-of-${groups.length} identical-group count in its prose`);
+
+  // A count that is really a constant passes every check above while the run
+  // says something else, so make one group identical and require the page to
+  // notice. This is the shape of "we fixed the watermark" going stale.
+  const rigged = clone(history);
+  const rrun = rigged.find((r) => r.family === 'engines');
+  const victim = fam.memoryClaimCell;
+  const target = rrun.samples.find((s) => s.cell === victim && s.key === fam.memoryKey).median;
+  for (const s of [...rrun.samples, ...(rrun.replicates ?? [])]) {
+    if (s.cell === victim && s.key === fam.memoryKey) s.median = target;
+  }
+  const rh = renderInto(rigged).html();
+  const rsec = rh.slice(rh.indexOf('GENERATED:engines:BEGIN'), rh.indexOf('GENERATED:engines:END'));
+  const rattrs = rsec.match(/data-identical-groups="(\d+)"/);
+  assert(rattrs && Number(rattrs[1]) === identical + 1,
+    `making one group identical did not move the count off ${identical}, so it is a constant rather than a count`);
   assert(/peak resident set/i.test(section), 'the page never names the peak resident set column');
 
   // The claim cell's figures are on the page, both of them, distinct.
@@ -916,6 +948,78 @@ test('two_cells_with_the_same_tile_count_stay_two_cells', () => {
   assert(groups === allCells.size,
     `the storage invariants table has ${groups} row group(s) for ${allCells.size} cell(s), so cells are being collapsed`);
   return `${checked} shared tile count(s) across both families, ${groups} row groups for ${allCells.size} storage cells`;
+});
+
+// ---------------------------------------------------------------------------
+// 20. the_thread_count_effect_is_classified_at_the_largest_image
+//
+// Whether an engine trades memory for threads is read at the largest image, not
+// at whichever size shows the widest gap. At the small end every engine is
+// dominated by fixed setup: the monolithic engine's peak moves 13.9% on a
+// 25-tile pyramid and 0.1% on a 2119-tile one, so reading the widest gap calls
+// it a thread-scaler, which is the opposite of what it does anywhere it
+// matters.
+//
+// Goes red against: classifying on the widest gap across sizes, and against
+// classifying on the first size in the array.
+// ---------------------------------------------------------------------------
+test('the_thread_count_effect_is_classified_at_the_largest_image', () => {
+  const fam = config.families.engines;
+  const all = shownSamples(enginesRun).filter((s) => s.key === fam.memoryKey);
+  const conc = (c) => { const m = /\+c(\d+)$/.exec(c); return m ? Number(m[1]) : null; };
+  const base = (c) => String(c).replace(/\+c\d+$/, '');
+  const arms = [...new Set(all.map((s) => conc(s.cell)).filter((c) => c !== null))].sort((a, b) => a - b);
+  assert(arms.length >= 2, 'the engines run has one thread count, so there is nothing to classify');
+  const [lowC, highC] = [arms[0], arms[arms.length - 1]];
+
+  const scaleOf = new Map(all.map((s) => [s.cell, s.scale]));
+  const bases = [...new Set(all.map((s) => base(s.cell)))]
+    .sort((a, b) => scaleOf.get(`${a}+c${lowC}`) - scaleOf.get(`${b}+c${lowC}`));
+  const largest = bases[bases.length - 1];
+  const smallest = bases[0];
+  assert(largest !== smallest, 'every image is the same size, so this guard is checking nothing');
+
+  const deltaAttr = (html, id) => {
+    const m = html.match(new RegExp(`data-delta-${id}="([-\\d.]+)"`));
+    assert(m, `the page carries no classified delta for ${id}`);
+    return Number(m[1]);
+  };
+
+  const asIs = renderInto(history).html();
+  assert(/data-classified-at="([^"]+)"/.test(asIs), 'the page never says which image the classification was read at');
+  assert(asIs.match(/data-classified-at="([^"]+)"/)[1] === largest,
+    `the page classifies at ${asIs.match(/data-classified-at="([^"]+)"/)[1]}, not at the largest image ${largest}`);
+
+  // A big move at the SMALLEST image must not move an engine's classification.
+  const smallOnly = clone(history);
+  const srun = smallOnly.find((r) => r.family === 'engines');
+  for (const s of [...srun.samples, ...(srun.replicates ?? [])]) {
+    if (s.cell === `${smallest}+c${highC}` && s.key === fam.memoryKey) s.median *= 1.5;
+  }
+  const smallHtml = renderInto(smallOnly).html();
+  for (const id of fam.series.order) {
+    assert(Math.abs(deltaAttr(smallHtml, id) - deltaAttr(asIs, id)) < 0.05,
+      `a 50% jump at the smallest image moved ${id}'s classification from ${deltaAttr(asIs, id)}% to ` +
+      `${deltaAttr(smallHtml, id)}%, so the classification is reading the wrong size`);
+  }
+
+  // A big move at the LARGEST image must move it.
+  const bigOnly = clone(history);
+  const brun = bigOnly.find((r) => r.family === 'engines');
+  const flatId = fam.series.order.find((id) => Math.abs(deltaAttr(asIs, id)) < 1);
+  assert(flatId, 'no engine is flat in this capture, so there is nothing to flip');
+  for (const s of [...brun.samples, ...(brun.replicates ?? [])]) {
+    if (s.cell === `${largest}+c${highC}` && s.key === fam.memoryKey && s.library === flatId) s.median *= 1.5;
+  }
+  const bigHtml = renderInto(bigOnly).html();
+  assert(deltaAttr(bigHtml, flatId) > 40,
+    `a 50% jump at the largest image left ${flatId}'s classified delta at ${deltaAttr(bigHtml, flatId)}%`);
+  const text = bigHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  const risingClause = text.match(/([A-Za-z, ]+?) ris(?:e|es) with the thread count/);
+  assert(risingClause, `${flatId} jumped 50% at the largest image and the page calls nothing rising`);
+  assert(risingClause[1].includes(fam.series.label[flatId] ?? flatId),
+    `the page says "${risingClause[1].trim()}" rises, and ${flatId} is the engine that jumped 50%`);
+  return `classified at ${largest}, deltas ${fam.series.order.map((id) => `${id} ${deltaAttr(asIs, id)}%`).join(', ')}`;
 });
 
 // ---------------------------------------------------------------------------
