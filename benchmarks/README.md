@@ -37,8 +37,11 @@ comes after. Every entry has to join an archived document at the pinned revision
 by run id, that document's four integrity digests are recomputed with the pinned revision's
 own canonicaliser and have to equal both the entry's `integrity` block and the
 archive index's row, and the document has to still pass the rules that let it be
-published at all: not emulated, release build, clean tree, publishable profile,
-and a run whose typical cell was quiet.
+published at all: not emulated, a release build with assertions off, a clean tree
+on both sides, a publishable profile, at least one measured cell, and a run whose
+typical cell was quiet. The publishable profiles and the family names come out of
+the pinned revision's own importer config; the rest are written out in
+`ingest.mjs`, because over there they are code rather than config.
 
 That last part is not tidiness. Before this existed, the two entries the page
 drew named run ids that no document in `libviprs-bench/archive/` carried, so the

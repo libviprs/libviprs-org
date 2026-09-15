@@ -275,13 +275,39 @@ test('an empty history is refused rather than published as a blank page', async 
   assert.ok(refusals.some((r) => /carries no runs at all/.test(r)), refusals.join('\n'));
 });
 
-test('the pin has to be a full commit sha', async () => {
+test('the pin has to be a full commit sha when it is read', async () => {
   // Red against accepting a branch name. A pin that can move is not a pin, and
   // "which benchmark revision is this page showing" stops being answerable from
   // this repository.
   const dir = mkdtempSync(join(tmpdir(), 'pin-'));
   writeFileSync(join(dir, 'BENCH_REV'), 'main\n');
   assert.throws(() => readPin(join(dir, 'BENCH_REV')), /not a full 40-character commit sha/);
+});
+
+test('the pin has to be a full commit sha when it is WRITTEN, which is the door that was open', () => {
+  // Red against validating only on the read. `--rev` never reads a pin, so
+  // `--sync --rev main` was accepted, published that one run from a moving ref,
+  // and left BENCH_REV holding `main` for the next --check to refuse. The write
+  // is the door that matters and it was the one without a lock.
+  const dir = mkdtempSync(join(tmpdir(), 'pin-'));
+  const pin = join(dir, 'BENCH_REV');
+  const history = join(dir, 'history.json');
+  const page = join(dir, 'index.html');
+  writeFileSync(pin, `${PINNED}\n`);
+  writeFileSync(history, '[]\n');
+  cpSync(join(here, '..', 'index.html'), page);
+  for (const bad of ['main', PINNED.slice(0, 12), 'origin/main']) {
+    assert.throws(
+      () =>
+        runIngest([
+          '--bench', BENCH_DIR, '--sync', '--rev', bad,
+          '--pin', pin, '--history', history, '--page', page,
+        ]),
+      (e) => /not a full 40-character commit sha/.test(String(e.stderr)),
+      `--rev ${bad} was accepted`,
+    );
+    assert.equal(readFileSync(pin, 'utf8').trim(), PINNED, 'and the pin is untouched');
+  }
 });
 
 test('a dirty benchmark checkout cannot put anything on the page', async () => {
@@ -370,7 +396,16 @@ test('--sync regenerates the page from the pinned history', () => {
   // A hand edit inside a generated region, which is the failure the staleness
   // gate exists for, and an empty history, which is the failure this sync
   // exists for. Both have to be gone afterwards.
+  //
+  // The control on the mutation, because 22127 is a figure a capture can change:
+  // the moment the page stops carrying it the replace is a no-op, the page never
+  // contains 22128, and the assertion below passes forever while proving
+  // nothing.
   writeFileSync(page, readFileSync(page, 'utf8').replace('22127', '22128'));
+  assert.ok(
+    readFileSync(page, 'utf8').includes('22128'),
+    'the page really was mutated; if 22127 is no longer on the page, pick a figure that is',
+  );
   runIngest(['--bench', BENCH_DIR, '--sync', '--history', history, '--page', page]);
   assert.equal(readFileSync(history, 'utf8'), readAtRev(BENCH_DIR, PINNED, BENCH.history));
   assert.ok(

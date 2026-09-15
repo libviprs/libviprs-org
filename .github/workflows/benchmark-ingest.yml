@@ -62,12 +62,11 @@ jobs:
         run: |
           set -euo pipefail
           rev="$(tr -d '[:space:]' < benchmarks/BENCH_REV)"
-          case "$rev" in
-            [0-9a-f]*) ;;
-            *) echo "::error::benchmarks/BENCH_REV holds '$rev', which is not a commit sha"; exit 1 ;;
-          esac
-          if [ "${#rev}" -ne 40 ]; then
-            echo "::error::benchmarks/BENCH_REV holds a ${#rev}-character value. A pin is a full 40-character sha; a short one is ambiguous and a branch name is not a pin at all."
+          # The whole string, not its first character. `case $rev in [0-9a-f]*)`
+          # passes any forty characters that happen to start with a hex digit,
+          # while saying in its error that it established a commit sha.
+          if ! printf '%s' "$rev" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error::benchmarks/BENCH_REV holds '$rev', which is not a full 40-character commit sha. A short one is ambiguous and a branch name is not a pin at all."
             exit 1
           fi
           echo "rev=$rev" >> "$GITHUB_OUTPUT"

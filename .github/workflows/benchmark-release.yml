@@ -142,7 +142,8 @@ jobs:
           fetch-depth: 0
           # Without this, actions/checkout leaves the token in .git/config as an
           # http.extraheader for the whole job, including the steps that run the
-          # generators. The push step re-attaches it for as long as it needs it.
+          # generators. The push step passes it on its own command line instead,
+          # so it never goes back into that file.
           persist-credentials: false
           token: ${{ secrets.BENCH_RELEASE_TOKEN }}
 
@@ -227,9 +228,13 @@ jobs:
 
           The history now carries:
             $runs"
-          git remote set-url origin \
-            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          # Pushed with the credential on the command line rather than written
+          # into .git/config. `persist-credentials: false` on the checkout exists
+          # to keep the token out of that file, and `git remote set-url` put it
+          # straight back, where it then sat through `gh pr create` and through a
+          # `gh pr checks --watch` that can run forty-five minutes.
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "HEAD:${GITHUB_REF_NAME}"
 
       # ---------------------------------------------------------------------
       # The merge back to main. This is what puts the page on libviprs.org:
