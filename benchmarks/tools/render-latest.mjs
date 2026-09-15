@@ -564,9 +564,9 @@ function niceTicks(lo, hi, log) {
 /** One chart, as inline SVG, so it is in the markup rather than drawn later.
  *  `data-series-key` is what the invariant guard reads: an invariant name
  *  appearing there would mean something exact had been charted. */
-function chartSvg({ title, family, run, key, unit, xOf, yOf, xLabel, yLabel, logX, logY, filter, steps = [] }) {
+function chartSvg({ title, family, run, key, unit, xOf, yOf, xLabel, yLabel, logX, logY, filter, steps = [], xTicks = null, rows: given = null }) {
   const fam = config.families[family];
-  const rows = displayed(run).filter((s) => s.key === key).filter((s) => (filter ? filter(s) : true));
+  const rows = given ?? displayed(run).filter((s) => s.key === key).filter((s) => (filter ? filter(s) : true));
   if (rows.length === 0) return '';
 
   const xs = rows.map(xOf).filter(Number.isFinite);
@@ -589,7 +589,8 @@ function chartSvg({ title, family, run, key, unit, xOf, yOf, xLabel, yLabel, log
 
   const grid = [
     ...niceTicks(ylo, yhi, logY).map((v) => `<line class="chart-grid" x1="${PAD.l}" y1="${sy(v).toFixed(1)}" x2="${W - PAD.r}" y2="${sy(v).toFixed(1)}"/><text class="chart-tick" x="${PAD.l - 6}" y="${(sy(v) + 3.5).toFixed(1)}" text-anchor="end">${esc(num(v))}</text>`),
-    ...niceTicks(xlo, xhi, logX).map((v) => `<text class="chart-tick" x="${sx(v).toFixed(1)}" y="${H - PAD.b + 15}" text-anchor="middle">${esc(num(v))}</text>`),
+    ...(xTicks ?? niceTicks(xlo, xhi, logX).map((v) => ({ v, label: num(v) })))
+      .map(({ v, label }) => `<text class="chart-tick" x="${sx(v).toFixed(1)}" y="${H - PAD.b + 15}" text-anchor="middle">${esc(label)}</text>`),
   ].join('\n      ');
 
   const seriesPaths = fam.series.order.map((id) => {
@@ -599,14 +600,21 @@ function chartSvg({ title, family, run, key, unit, xOf, yOf, xLabel, yLabel, log
     const dash = fam.series.dash[id];
     const d = own.map((s, i) => `${i === 0 ? 'M' : 'L'}${sx(xOf(s)).toFixed(1)},${sy(yOf(s)).toFixed(1)}`).join(' ');
 
-    // The band is the replicate spread this run measured for this very key, or
-    // nothing at all. A band drawn from anywhere else is a band about a
-    // different experiment.
-    const spread = bandPct(run, id, key);
-    const band = spread === null ? '' :
-      `<path class="chart-band" fill="${esc(colour)}" d="${own.map((s, i) => `${i === 0 ? 'M' : 'L'}${sx(xOf(s)).toFixed(1)},${sy(yOf(s) * (1 + spread)).toFixed(1)}`).join(' ')} ${own.slice().reverse().map((s) => `L${sx(xOf(s)).toFixed(1)},${sy(yOf(s) * (1 - spread)).toFixed(1)}`).join(' ')} Z"/>`;
+    // The band is the replicate spread measured for this very key inside the
+    // very run the point came from, or nothing at all. A band drawn from
+    // anywhere else is a band about a different experiment, which is why it is
+    // looked up per point rather than once per series.
+    const spreadAt = (s) => bandPct(s._run ?? run, id, key);
+    const band = own.every((s) => spreadAt(s) === null) ? '' :
+      `<path class="chart-band" fill="${esc(colour)}" d="${own.map((s, i) => `${i === 0 ? 'M' : 'L'}${sx(xOf(s)).toFixed(1)},${sy(yOf(s) * (1 + (spreadAt(s) ?? 0))).toFixed(1)}`).join(' ')} ${own.slice().reverse().map((s) => `L${sx(xOf(s)).toFixed(1)},${sy(yOf(s) * (1 - (spreadAt(s) ?? 0))).toFixed(1)}`).join(' ')} Z"/>`;
 
-    const dots = own.map((s) => `<circle class="chart-point" cx="${sx(xOf(s)).toFixed(1)}" cy="${sy(yOf(s)).toFixed(1)}" r="3" fill="${esc(colour)}"><title>${esc(fam.series.label[id] ?? id)} ${esc(s.cell)}: ${esc(num(yOf(s)))} ${esc(unit)}</title></circle>`).join('');
+    // The band each point carries is in the markup, not only in the geometry.
+    // A band drawn once per series from whichever run happened to be in hand
+    // looks identical to a band drawn per point until you read the numbers.
+    const dots = own.map((s) => {
+      const sp = spreadAt(s);
+      return `<circle class="chart-point" data-band-pct="${sp === null ? 'none' : (sp * 100).toFixed(2)}" cx="${sx(xOf(s)).toFixed(1)}" cy="${sy(yOf(s)).toFixed(1)}" r="3" fill="${esc(colour)}"><title>${esc(fam.series.label[id] ?? id)} ${esc(s.cell)}: ${esc(num(yOf(s)))} ${esc(unit)}${sp === null ? ', no replicate spread measured' : `, replicate spread ${pct(sp, 2)}`}</title></circle>`;
+    }).join('');
 
     return `${band}<path class="chart-line" data-series-key="${esc(`${family}:${id}:${key}`)}" d="${d}" stroke="${esc(colour)}"${dash ? ` stroke-dasharray="${esc(dash)}"` : ''}/>${dots}`;
   }).join('\n      ');
@@ -680,10 +688,21 @@ function fullResults(familyId) {
     fam.series.order.indexOf(a.series) - fam.series.order.indexOf(b.series) ||
     (a.replicateIndex ?? 0) - (b.replicateIndex ?? 0));
 
+  // Low confidence has two causes and they are not the same fact. A
+  // timer-saturated row sits at the instrument's resolution limit: more
+  // repetitions will not help, and the number is a statement about the clock as
+  // much as about the code. A high-CoV row is a noisy measurement of something
+  // the clock can resolve perfectly well, and more repetitions would tighten
+  // it. Rendering them identically loses that, so they carry different marks.
+  const covFloor = run.measurement?.covLowConfidence ?? config.confidence.covLowConfidence;
   const rows = all.map((s) => {
+    const saturated = s.timerSaturated === true;
+    const noisy = Number.isFinite(s.cov) && s.cov > covFloor;
     const low = s.confidence !== 'high';
+    const cls = [low ? 'row-low' : '', saturated ? 'row-saturated' : '', noisy ? 'row-noisy' : '']
+      .filter(Boolean).join(' ');
     const why = s.lowConfidenceReasons.join('; ') || s.gateBlockers.join('; ');
-    return `        <tr${low ? ' class="row-low"' : ''}${why ? ` title="${esc(prose(why))}"` : ''}>` +
+    return `        <tr${cls ? ` class="${cls}"` : ''}${why ? ` title="${esc(prose(why))}"` : ''}>` +
       `<th scope="row"><code class="mono">${esc(s.cell)}</code></th>` +
       `<td><code class="mono">${esc(s.key)}</code></td>` +
       `<td><span class="swatch" style="background:${esc(fam.series.color[s.series] ?? '#888')}"></span>${esc(fam.series.label[s.series] ?? s.series)}</td>` +
@@ -703,8 +722,17 @@ function fullResults(familyId) {
     `<td class="absent" colspan="7"><strong>${esc(s.outcome)}</strong>: ${prose(s.reason ?? 'no reason recorded')}</td></tr>`).join('\n');
 
   const c = run.cellCounts ?? {};
+  const nSat = all.filter((s) => s.timerSaturated === true).length;
+  const nNoisy = all.filter((s) => Number.isFinite(s.cov) && s.cov > covFloor).length;
   return `      <details class="status-callout">
         <summary>Every cell in <code class="mono">${esc(fam.label)}</code>: ${count(c.measured)} measured, ${count(c.notMeasured)} that produced no number, ${count(c.lowConfidence)} low confidence</summary>
+        <p class="legend-note">Two marks, because low confidence has two causes.
+          <span class="mark mark-saturated">at the clock's limit</span> is a median under the
+          ${timerFloorUs(run) === null ? 'n/a' : timerFloorUs(run).toFixed(1)} &micro;s this host's timer can
+          resolve (${count(nSat)} rows): more repetitions will not help, because the instrument is the limit.
+          <span class="mark mark-noisy">noisy</span> is a coefficient of variation above
+          ${pct(covFloor, 0)} (${count(nNoisy)} rows): the clock can resolve it fine, the measurement simply
+          moved about. Neither is chipped.</p>
         <div class="table-wrap">
           <table class="results-table">
             <thead>
@@ -733,20 +761,28 @@ function historySection() {
     const eras = new Set(axis.map((a) => a.era)).size;
 
     const charts = fam.headlineKeys.map((key) => {
-      const rows = displayed(run).filter((s) => s.key === key && s.cell === fam.headlineCell);
+      // One point per archived run, at that run's position on the version axis,
+      // each carrying the run it came from so its band is its own run's
+      // replicate spread. A single-run history therefore draws one point and no
+      // line, which is what it is: a measurement, not a trend.
+      const rows = runs.flatMap((r, i) => displayed(r)
+        .filter((s) => s.key === key && s.cell === fam.headlineCell)
+        .map((s) => ({ ...s, _x: i, _run: r })));
       if (rows.length === 0) return '';
       const unit = rows[0].unit;
-      // x is the run's position on the version axis, which is why a single-run
-      // history draws a single point and no line, rather than a trend.
       return chartSvg({
         title: `${config.metricLabel[rows[0].metric] ?? rows[0].metric}, ${config.scenarioLabel[rows[0].scenario] ?? rows[0].scenario}, ${fam.headlineCell}`,
-        family: familyId, run, key, unit,
-        xOf: () => runs.length - 1,
+        family: familyId, run, key, unit, rows,
+        xOf: (s) => s._x,
         yOf: (s) => s.median,
-        xLabel: `version (${axis.map((a) => a.label).join(', ')})`,
+        xLabel: 'version',
         yLabel: unit, logX: false, logY: false,
         filter: (s) => s.cell === fam.headlineCell,
         steps: steps.map((st) => ({ ...st, x: st.x })),
+        // The x axis is the version axis, so it is labelled with versions. A
+        // numeric tick here would be the index of the run in the history, which
+        // is a number about the file rather than about the software.
+        xTicks: axis.map((a) => ({ v: a.i, label: a.label })),
       });
     }).filter(Boolean).join('\n');
 

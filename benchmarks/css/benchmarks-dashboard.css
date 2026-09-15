@@ -233,6 +233,23 @@ details.status-callout[open] > summary { margin-bottom: 0.8rem; }
 }
 
 .row-low td, .row-low th { background: color-mix(in srgb, var(--warn) 7%, transparent); }
+
+/* The two causes of low confidence read differently, because they are
+   different facts: a saturated timer is the instrument's limit, a high CoV is a
+   measurement that moved about. */
+.row-saturated th[scope="row"] { border-left: 3px solid var(--warn); }
+.row-noisy th[scope="row"] { border-left: 3px dotted var(--bad); }
+
+.legend-note { font-size: 0.84rem; margin: 0 0 0.7rem; }
+
+.mark {
+  display: inline-block;
+  font-size: 0.72rem;
+  padding: 0.02rem 0.3rem;
+  border-radius: 3px;
+}
+.mark-saturated { border-left: 3px solid var(--warn); background: var(--code-bg); }
+.mark-noisy { border-left: 3px dotted var(--bad); background: var(--code-bg); }
 .row-absent td, .row-absent th { color: var(--text-light); font-style: italic; white-space: normal; }
 .row-verdict td, .row-verdict th { background: color-mix(in srgb, var(--primary) 6%, transparent); }
 
