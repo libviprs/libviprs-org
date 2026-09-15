@@ -20,6 +20,9 @@
  *   11. every_class_the_renderer_emits_is_styled
  *   12. a_suppressed_metric_is_named_with_the_reason_it_is_suppressed
  *   13. a_metric_that_got_faster_is_not_a_regression_and_a_delta_inside_the_spread_is_noise
+ *   14. every_sample_field_a_verdict_rule_reads_is_declared_in_samples_carry
+ *   15. the_two_causes_of_low_confidence_are_told_apart
+ *   16. two_cells_with_the_same_tile_count_stay_two_cells
  *
  * Plain Node, no dependency and no build step (libviprs-org#62).
  *
@@ -520,11 +523,16 @@ test('a_metric_that_got_faster_is_not_a_regression_and_a_delta_inside_the_spread
   const at = (run, series, key) => (run.samples ?? []).find(
     (x) => x.series === series && x.key === key && x.cell === cell && (x.replicateIndex ?? 0) === 0);
 
-  // Make the four cells under test gateable in both runs, so the rule is what
+  // Make the five cells under test gateable in both runs, so the rule is what
   // decides the chip rather than the gate. gated implies high confidence
   // everywhere the importer writes it, so the fixture keeps that true.
-  const gateable = [['pmtiles', 'read_plan_order.lookups_per_s'], ['directory', 'read_plan_order.lookups_per_s'],
-    ['pmtiles', 'open.p50'], ['pmtiles', 'read_random.p50']];
+  const gateable = [
+    ['pmtiles', 'read_plan_order.lookups_per_s'],
+    ['directory', 'read_plan_order.lookups_per_s'],
+    ['pmtiles', 'open.p50'],
+    ['pmtiles', 'read_random.p50'],
+    ['directory', 'read_random.p50'],
+  ];
   for (const run of [base, next]) {
     for (const [series, key] of gateable) {
       const s = at(run, series, key);
@@ -534,18 +542,32 @@ test('a_metric_that_got_faster_is_not_a_regression_and_a_delta_inside_the_spread
     }
   }
 
-  const spreadOf = (series, key) => next.replicate.spreadPct[`${series}.${key}`];
-  assert(Number.isFinite(spreadOf('pmtiles', 'open.p50')), 'the fixture needs a measured spread for pmtiles open.p50');
+  const spreadOf = (run, series, key) => run.replicate.spreadPct[`${series}.${key}`];
+  const dirPlanSpread = spreadOf(next, 'directory', 'read_plan_order.lookups_per_s');
+  assert(Number.isFinite(dirPlanSpread) && dirPlanSpread < 5,
+    `the fixture needs directory read_plan_order.lookups_per_s to have a spread under 5%, it has ${dirPlanSpread}`);
+  assert(config.verdict.passPct === 0.05 && config.verdict.improvedPct === 0.10,
+    'this fixture picks its deltas off the configured bands, and they have moved');
 
-  // higher-is-better, and the number went UP by 20%: improved, not regressed.
+  // higher-is-better, number UP 20%: improved. Never regressed.
   at(next, 'pmtiles', 'read_plan_order.lookups_per_s').median *= 1.20;
-  // higher-is-better, and the number went DOWN by 20%: regressed.
-  at(next, 'directory', 'read_plan_order.lookups_per_s').median *= 0.80;
-  // lower-is-better, moved by 1%, inside the ~2% spread: noise.
+  // higher-is-better, number UP 5%: clear of its ~3.9% spread, inside the 10%
+  // improved band and inside the 5% pass band, so it reads as a pass. This is
+  // the literal shape of the direction trap: the number went up and a rule that
+  // subtracts and compares calls it a regression.
+  at(next, 'directory', 'read_plan_order.lookups_per_s').median *= 1.05;
+  // lower-is-better, moved 1%, inside the ~2% spread: noise.
   at(next, 'pmtiles', 'open.p50').median *= 1.01;
+  // lower-is-better, UP 20%: regressed.
+  at(next, 'directory', 'read_random.p50').median *= 1.20;
   // lower-is-better, moved 20%, but nothing measured a spread for it: no ruling.
   at(next, 'pmtiles', 'read_random.p50').median *= 1.20;
   delete next.replicate.spreadPct['pmtiles.read_random.p50'];
+
+  // One band per point, not one per series: the second run's spread for this
+  // key is three times the first's, so the two points have to draw differently.
+  next.replicate.spreadPct['pmtiles.read_plan_order.lookups_per_s'] =
+    spreadOf(base, 'pmtiles', 'read_plan_order.lookups_per_s') * 3;
 
   two.splice(two.indexOf(base) + 1, 0, next);
   const r = renderInto(two);
@@ -559,39 +581,195 @@ test('a_metric_that_got_faster_is_not_a_regression_and_a_delta_inside_the_spread
   assert(capStart !== -1, 'the page has no headline table to read chips out of');
   const headlineTable = html.slice(capStart, html.indexOf('</table>', capStart));
 
-  const rowFor = (series, key) => {
+  const chipOf = (series, key) => {
     const label = fam.series.label[series];
     const rows = headlineTable.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || [];
     const hits = rows.filter((row) => row.includes(`>${key}<`) && row.includes(`>${label}</td>`));
-    assert(hits.length <= 1, `${hits.length} headline rows match ${series} ${key}, so this read is ambiguous`);
-    return hits[0];
-  };
-
-  const chipOf = (series, key) => {
-    const row = rowFor(series, key);
-    assert(row, `no rendered row for ${series} ${key}`);
-    const m = row.match(/<span class="(verdict verdict-[a-z]+|gate)"[^>]*>([^<]*)<\/span>\s*<\/td>\s*<\/tr>/);
-    assert(m, `the row for ${series} ${key} carries no chip at all:\n${row}`);
+    assert(hits.length === 1, `${hits.length} headline rows match ${series} ${key}, expected exactly one`);
+    const m = hits[0].match(/<span class="(verdict verdict-[a-z]+|gate)"[^>]*>([^<]*)<\/span>\s*<\/td>\s*<\/tr>/);
+    assert(m, `the row for ${series} ${key} carries no chip at all:\n${hits[0]}`);
     return { cls: m[1], text: m[2] };
   };
 
-  const improved = chipOf('pmtiles', 'read_plan_order.lookups_per_s');
-  assert(improved.cls === 'verdict verdict-improved',
-    `a higher-is-better metric that went up 20% rendered as "${improved.text}" (${improved.cls}), not improved`);
+  const expect = [
+    ['pmtiles', 'read_plan_order.lookups_per_s', 'verdict verdict-improved', 'a higher-is-better metric that went up 20%'],
+    ['directory', 'read_plan_order.lookups_per_s', 'verdict verdict-pass', 'a higher-is-better metric that improved 5%, which is inside the pass band'],
+    ['pmtiles', 'open.p50', 'verdict verdict-noise', 'a 1% move inside the measured replicate spread'],
+    ['directory', 'read_random.p50', 'verdict verdict-regressed', 'a lower-is-better metric that went up 20%'],
+    ['pmtiles', 'read_random.p50', 'gate', 'a 20% move with no measured spread, which nothing can rule on'],
+  ];
+  for (const [series, key, cls, what] of expect) {
+    const chip = chipOf(series, key);
+    assert(chip.cls === cls, `${what} rendered as "${chip.text}" (${chip.cls}), expected ${cls}`);
+    assert(!/regress/.test(chip.cls) || cls.includes('regressed'),
+      `${what} was called a regression, which is the direction trap`);
+  }
 
-  const regressed = chipOf('directory', 'read_plan_order.lookups_per_s');
-  assert(regressed.cls === 'verdict verdict-regressed',
-    `a higher-is-better metric that went down 20% rendered as "${regressed.text}" (${regressed.cls}), not regressed`);
+  // The version axis carries one point per archived run, not one point for the
+  // latest with the rest of the history thrown away.
+  const svgStart = html.indexOf('<svg', html.indexOf('lookups per second'));
+  const svg = html.slice(svgStart, html.indexOf('</svg>', svgStart));
+  const points = (svg.match(/<circle[^>]*class="chart-point"/g) || []).length;
+  assert(points === 4,
+    `the version chart draws ${points} point(s); two runs of two series is four, so the history is being thrown away`);
+  const xs = new Set([...svg.matchAll(/<circle[^>]*class="chart-point"[^>]*\scx="([-\d.]+)"/g)].map((m) => m[1]));
+  assert(xs.size === 2, `the version chart puts every point at ${xs.size} x position(s); two runs is two`);
 
-  const noise = chipOf('pmtiles', 'open.p50');
-  assert(noise.cls === 'verdict verdict-noise',
-    `a 1% move inside the ${spreadOf('pmtiles', 'open.p50').toFixed(2)}% replicate spread rendered as "${noise.text}" (${noise.cls}), not noise`);
+  const bands = new Set([...svg.matchAll(/<circle[^>]*data-band-pct="([^"]+)"/g)].map((m) => m[1]));
+  assert(bands.size >= 3,
+    `the version chart draws ${bands.size} distinct band width(s) across two runs whose spreads differ by a ` +
+    'factor of three and two series; a band reused across the axis is a band about a different experiment');
 
-  const unknown = chipOf('pmtiles', 'read_random.p50');
-  assert(unknown.cls === 'gate',
-    `a 20% move with no measured spread rendered as "${unknown.text}" (${unknown.cls}); with nothing to tell a change from noise there is no ruling to draw`);
+  return 'direction read per metric, noise before the thresholds, no ruling without a spread, one point per run, one band per point';
+});
 
-  return 'direction read per metric, noise before the thresholds, no ruling without a spread';
+// ---------------------------------------------------------------------------
+// 14. every_sample_field_a_verdict_rule_reads_is_declared_in_samples_carry
+//
+// libviprs-bench#76 names the trap: groupSections builds a fixed-shape chart
+// point and that object is the only thing computeVerdict ever sees, so a rule
+// reading a sample field that was not carried across reads undefined. A rule
+// that silently reads undefined behaves exactly like a rule that was switched
+// off, and an inert rule is indistinguishable from a passing one.
+//
+// This renderer reads its samples directly rather than through groupSections,
+// so it does not hit the trap today. It will the moment the frozen dashboard
+// drives the same rules, and by then the rule and the config will be far apart
+// in a diff. So the guard is now: every field the rule function reads is either
+// declared in samples.carry or is one of the two things a chart point is by
+// construction.
+//
+// Goes red against: a verdict rule that grows a new field read without the
+// config growing with it.
+// ---------------------------------------------------------------------------
+
+// A point IS its series and its value; those are not carried, they are what a
+// point is. Everything else a rule reads has to be declared.
+const INTRINSIC_TO_A_POINT = new Set(['series', 'median']);
+
+test('every_sample_field_a_verdict_rule_reads_is_declared_in_samples_carry', () => {
+  const src = readFileSync(RENDERER, 'utf8');
+  const open_ = src.indexOf('function rule(');
+  assert(open_ !== -1, 'render-latest.mjs has no rule() to read, so this guard is checking nothing');
+  const body = src.slice(open_, src.indexOf('\nfunction ', open_ + 10));
+  assert(body.length > 400, 'the rule body came out too short to be the real one');
+
+  const read = new Set();
+  for (const m of body.matchAll(/\b([ab])\.([A-Za-z_][A-Za-z0-9_]*)/g)) read.add(m[2]);
+  // b[V.gate.field] is a config-named read, so the field it names counts too.
+  if (/\b[ab]\[V\.gate\.field\]/.test(body)) read.add(config.verdict.gate.field);
+  assert(read.size >= 3, `the rule reads ${read.size} sample field(s), which is too few to be the real rule`);
+
+  const carried = new Set(config.samples.carry);
+  const undeclared = [...read].filter((f) => !carried.has(f) && !INTRINSIC_TO_A_POINT.has(f));
+  assert(undeclared.length === 0,
+    `${undeclared.length} sample field(s) the verdict rule reads are not in config samples.carry: ` +
+    JSON.stringify(undeclared) + '\nA rule reading a field that was not carried reads undefined, which looks ' +
+    'exactly like a rule that is switched off.');
+
+  // And the two the direction and gate rules turn on specifically.
+  for (const f of ['direction', config.verdict.gate.field]) {
+    assert(carried.has(f), `samples.carry does not declare "${f}", which the verdict rules turn on`);
+  }
+  return `${read.size} field(s) read, ${undeclared.length} undeclared`;
+});
+
+// ---------------------------------------------------------------------------
+// 15. the_two_causes_of_low_confidence_are_told_apart
+//
+// 159 cells in the first capture are low confidence and they are low for two
+// different reasons. 106 sit under the floor this host's clock can resolve:
+// that is the instrument's limit, and more repetitions will not move it. The
+// rest have a coefficient of variation above what the producer accepts: the
+// clock can resolve those perfectly well, the measurement simply moved about,
+// and more repetitions would tighten them.
+//
+// Rendering both with the same mark throws that away, and the two lead to
+// different actions. Neither gets a chip either way.
+//
+// Goes red against: one mark for both, a page that names neither cause, and a
+// mark on a row that is fine.
+// ---------------------------------------------------------------------------
+test('the_two_causes_of_low_confidence_are_told_apart', () => {
+  const r = renderInto(history);
+  const html = r.html();
+
+  const covFloor = storageRun.measurement.covLowConfidence;
+  const saturated = storageRun.samples.filter((s) => s.timerSaturated === true);
+  const noisy = storageRun.samples.filter((s) => Number.isFinite(s.cov) && s.cov > covFloor);
+  assert(saturated.length === 106, `expected 106 timer-saturated cells, the history has ${saturated.length}`);
+  assert(noisy.length > 0, 'no high-CoV cells in the history, so this guard is checking nothing');
+  assert(saturated.length !== noisy.length, 'the two causes have the same count here, so a count check proves nothing');
+
+  const rowsWith = (cls) => (html.match(new RegExp(`<tr[^>]*class="[^"]*\\b${cls}\\b[^"]*"`, 'g')) || []).length;
+  const nSat = rowsWith('row-saturated');
+  const nNoisy = rowsWith('row-noisy');
+  assert(nSat === saturated.length, `the page marks ${nSat} rows as at the clock's limit, the run has ${saturated.length}`);
+  assert(nNoisy === noisy.length, `the page marks ${nNoisy} rows as noisy, the run has ${noisy.length}`);
+  assert(nSat !== nNoisy, 'both causes are marked the same number of times, so they are not being told apart');
+
+  // Both causes are named on the page, with the number behind each.
+  assert(/clock's limit/.test(html), 'the page never says what the saturated mark means');
+  assert(/coefficient of variation/.test(html), 'the page never says what the noisy mark means');
+
+  // And neither is chipped.
+  const marked = html.match(/<tr[^>]*class="[^"]*\brow-(saturated|noisy)\b[^"]*"[\s\S]*?<\/tr>/g) || [];
+  const chipped = marked.filter((row) => /class="verdict/.test(row));
+  assert(chipped.length === 0, `${chipped.length} low-confidence row(s) carry a verdict chip`);
+  return `${nSat} at the clock's limit, ${nNoisy} noisy, told apart, 0 chipped`;
+});
+
+// ---------------------------------------------------------------------------
+// 16. two_cells_with_the_same_tile_count_stay_two_cells
+//
+// Tile count is not a unique key. 21851 tiles is both 8192x8192@64+gradient and
+// 8192x8192@64+noise, and 16369 is both 4096x6256@46 cells. A section keyed on
+// tile count alone draws gradient and noise as one line, and nothing on the
+// page says it did.
+//
+// Goes red against: a cell identity that drops the source, and a table that
+// collapses two cells onto one row.
+// ---------------------------------------------------------------------------
+test('two_cells_with_the_same_tile_count_stay_two_cells', () => {
+  const byScale = new Map();
+  for (const s of storageRun.samples) {
+    if (!byScale.has(s.scale)) byScale.set(s.scale, new Set());
+    byScale.get(s.scale).add(s.cell);
+  }
+  const shared = [...byScale.entries()].filter(([, cells]) => cells.size > 1);
+  assert(shared.length > 0,
+    'no tile count in this run covers more than one cell, so the collision this guards against cannot happen ' +
+    'and the guard is checking nothing');
+
+  for (const [scale, cells] of shared) {
+    for (const cell of cells) {
+      const own = storageRun.samples.filter((s) => s.cell === cell);
+      const sources = new Set(own.map((s) => s.source));
+      assert(sources.size === 1, `cell ${cell} carries ${sources.size} sources, so its identity is not a cell`);
+      assert(cell.includes([...sources][0]),
+        `cell id "${cell}" does not carry its source "${[...sources][0]}", so it collides with the other ` +
+        `cell at ${scale} tiles`);
+    }
+  }
+
+  const r = renderInto(history);
+  const html = r.html();
+  for (const [, cells] of shared) {
+    for (const cell of cells) {
+      assert(html.includes(cell), `the page never names cell ${cell}, so two cells collapsed into one`);
+    }
+  }
+
+  // And the invariants table keeps one row group per cell. Grouping it on the
+  // tile count instead would put gradient and noise in the same group with one
+  // of the two silently winning, which is the collision in its most damaging
+  // place: the table the headline claim is read off.
+  const allCells = new Set(storageRun.samples.map((s) => s.cell));
+  const groups = (html.match(/<tr class="rowgroup"><th scope="rowgroup"[^>]*>[\s\S]*?<\/tr>/g) || []).length;
+  assert(groups === allCells.size,
+    `the invariants table has ${groups} row group(s) for ${allCells.size} cell(s), so cells are being collapsed`);
+
+  return `${shared.length} tile count(s) shared by more than one cell, ${groups} row groups for ${allCells.size} cells`;
 });
 
 // ---------------------------------------------------------------------------

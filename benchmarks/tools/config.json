@@ -256,7 +256,7 @@
   "notMeasured": [
     {
       "title": "HTTP, and object storage",
-      "body": "Every read on this page is a local file read. PMTiles is designed to be range-requested off a static host or a bucket, which is where a single addressable archive pays for itself hardest, and none of that is measured here. The request counts below are the closest thing on the page, and they are a count rather than a timing."
+      "body": "Every read on this page is a local file read. PMTiles is designed to be range-requested off a static host or a bucket, which is where a single addressable archive pays for itself hardest, and none of that is measured here. The request counts in the full results are the closest thing on the page, and they are a count rather than a timing."
     },
     {
       "title": "A cold page cache",
