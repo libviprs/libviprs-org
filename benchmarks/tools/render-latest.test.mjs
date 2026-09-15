@@ -94,9 +94,40 @@ function renderInto(history, { config = CONFIG } = {}) {
 
 const history = readJson(HISTORY);
 const config = readJson(CONFIG);
-const storageRun = history.find((r) => r.family === 'storage');
-const enginesRun = history.find((r) => r.family === 'engines');
+/** The run the PAGE was drawn from: the latest by `capturedAt`, which is what
+ *  `latest()` in the renderer returns.
+ *
+ *  This used to be `history.find(...)`, the FIRST entry of the family, and that
+ *  agreed with the renderer only for as long as the history held one run per
+ *  family. The moment it held two storage runs, this suite started checking an
+ *  older run against a page rendered from a newer one, and ten guards failed
+ *  saying things like "storage carries no driftPct" about a run that is not on
+ *  the page at all. The history is meant to accumulate, so that was a latent
+ *  bug waiting for the second capture rather than a problem with it. */
+const latestOf = (family) =>
+  history
+    .filter((r) => r.family === family)
+    .sort((a, b) => String(a.capturedAt).localeCompare(String(b.capturedAt)))
+    .at(-1);
+
+const storageRun = latestOf('storage');
+const enginesRun = latestOf('engines');
 assert(storageRun && enginesRun, 'the committed history is missing a family, so most of this suite is checking nothing');
+
+// And the belt to that pair of braces: the run this suite picked has to be the
+// run the page names. Agreeing with the renderer by reimplementing its rule is
+// how the two drifted apart in the first place, so this checks the answer
+// rather than the method.
+{
+  const page = readFileSync(PAGE, 'utf8');
+  for (const run of [storageRun, enginesRun]) {
+    assert(
+      page.includes(run.runId),
+      `this suite is reading ${run.family} run ${run.runId} and the page does not name it, ` +
+        'so every assertion below is about a run nobody is looking at',
+    );
+  }
+}
 
 // Everything the tests count, read off the history rather than written down.
 const covFloor = storageRun.measurement.covLowConfidence;
