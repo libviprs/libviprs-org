@@ -180,6 +180,19 @@ h3 { font-size: 1.02rem; font-weight: 700; color: var(--text); margin: 1.6rem 0 
 .status-callout p:last-child { margin-bottom: 0; }
 .status-callout ul { margin: 0 0 0 1.1rem; color: var(--text-light); font-size: 0.9rem; }
 
+/* The division between what this host can say exactly and what it cannot grade.
+   Loud on purpose: a reader who meets a latency chart and finds the floor three
+   sections later quotes the latency. */
+.callout-hard {
+  border-left-width: 4px;
+  border-left-color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 6%, var(--panel-bg));
+}
+
+.callout-hard strong { color: var(--text); }
+
+.era-rule { stroke: var(--primary-dark); stroke-width: 1.4; stroke-dasharray: 2 2; }
+
 details.status-callout > summary {
   cursor: pointer;
   font-weight: 600;

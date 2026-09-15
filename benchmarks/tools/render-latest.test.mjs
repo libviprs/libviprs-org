@@ -10,7 +10,7 @@
  *    1. a_run_that_is_not_archived_by_digest_is_refused
  *    2. the_document_digest_is_read_from_the_integrity_block_and_from_a_flat_field
  *    3. a_field_the_page_needs_and_the_producer_stopped_writing_is_a_refusal_naming_it
- *    4. a_replicate_of_a_cell_it_is_not_is_read_as_the_cell_it_says_it_is
+ *    4. a_replicate_of_a_cell_it_is_not_is_refused
  *    5. the_low_confidence_band_is_computed_from_the_documents_own_timer
  *    6. every_low_confidence_cell_is_shown_marked_and_never_chipped
  *    7. no_invariant_is_charted
@@ -28,6 +28,9 @@
  *   19. two_cells_with_the_same_tile_count_stay_two_cells
  *   20. the_thread_count_effect_is_classified_at_the_largest_image
  *   21. the_page_says_how_wide_its_own_bands_are
+ *   22. two_architectures_never_share_a_line
+ *   23. the_page_says_what_is_exact_and_what_is_not_gradeable_where_the_timings_are
+ *   24. the_dispersion_trio_and_the_estimator_that_made_it_are_on_the_page
  *
  * Every count in here is read off benchmarks/history.json rather than written
  * down, because the last capture's figures outlived the capture by one round
@@ -237,58 +240,57 @@ test('a_field_the_page_needs_and_the_producer_stopped_writing_is_a_refusal_namin
 });
 
 // ---------------------------------------------------------------------------
-// 4. a_replicate_of_a_cell_it_is_not_is_read_as_the_cell_it_says_it_is
+// 4. a_replicate_of_a_cell_it_is_not_is_refused
 //
-// A replicate is the same cell measured twice, and the run declares which cell
-// that is. The engines run files its eight-thread cells in the replicates array
-// because they share a tile count with their single-thread twins, so a renderer
-// that trusts the array label silently loses half the experiment and nothing on
-// the page says a word about it.
+// A replicate is one cell measured again at another placement, and the run
+// declares which cell that is. Anything in `replicates` naming a different cell
+// is a distinct cell filed under the wrong heading, and a whole arm of an
+// experiment can hide in there: an importer that keyed replicate detection on
+// tile count rather than cell identity swallowed the engines sweep's second
+// thread count exactly that way.
 //
-// Goes red against: dropping the replicates array wholesale (the concurrency
-// arm disappears), merging it wholesale (the true replicate pair is counted as
-// a distinct cell and doubles the cell count), and recovering the rows without
-// saying so on the page.
+// libviprs-bench keys on full cell identity now, so the committed history has
+// none, and this page used to recover such rows and say so. That was the wrong
+// end of the trade. Recovering meant the page held a second opinion about the
+// producer and published on it, and a regression would go on being quietly
+// corrected. It refuses now, and names the cells.
+//
+// Goes red against: a renderer that recovers the rows (the old behaviour), one
+// that drops them silently, and one that refuses without saying which cells.
 // ---------------------------------------------------------------------------
-test('a_replicate_of_a_cell_it_is_not_is_read_as_the_cell_it_says_it_is', () => {
-  const declared = declaredReplicateCell(enginesRun);
-  assert(declared, 'the engines run declares no replicate cell, so this guard is checking nothing');
-  const misfiled = (enginesRun.replicates ?? []).filter((s) => s.cell !== declared);
-  const trueReps = (enginesRun.replicates ?? []).filter((s) => s.cell === declared);
-  assert(misfiled.length > 0, 'nothing is misfiled in the committed history, so this guard is checking nothing');
-  assert(trueReps.length > 0, 'the engines run has no true replicate rows, so the split this checks is trivial');
-
-  const r = renderInto(history);
-  assert(r.code === 0, `render failed: ${r.err}`);
-  const html = r.html();
-
-  // Every recovered cell is on the page.
-  const recoveredCells = [...new Set(misfiled.map((s) => s.cell))];
-  for (const cell of recoveredCells) {
-    assert(html.includes(cell), `recovered cell ${cell} is nowhere on the page, so the concurrency arm was dropped`);
+test('a_replicate_of_a_cell_it_is_not_is_refused', () => {
+  for (const run of history) {
+    const declared = run.replicate?.cell;
+    assert(declared, `${run.family} declares no replicate cell`);
+    const stray = (run.replicates ?? []).filter((s) => s.cell !== declared);
+    assert(stray.length === 0,
+      `${run.family} carries ${stray.length} row(s) in replicates naming a cell other than ${declared}; ` +
+      'the committed history is supposed to be clean of that');
   }
-  // The true replicate pair is NOT counted as a distinct cell.
-  const section = html.slice(html.indexOf('GENERATED:engines:BEGIN'), html.indexOf('GENERATED:engines:END'));
-  const rowsFor = (cell) => (section.match(new RegExp(`<code class="mono">${cell.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</code>`, 'g')) || []).length;
-  assert(rowsFor(declared) > 0, `the declared replicate cell ${declared} is missing from the engines tables`);
 
-  // And the page says it happened, with the counts and the reason. The counts
-  // are read off an attribute rather than grepped for as a substring: a page
-  // that merged the whole replicates array in, true pair included, still
-  // contains the digits 144 somewhere, and a substring check passes on it.
-  const m = section.match(/data-recovered="(\d+)"[^>]*data-measured="(\d+)"[^>]*data-from-samples="(\d+)"/);
-  assert(m, 'the engines section carries no machine-readable recovery counts, so this guard can only grep');
-  const [, gotRecovered, gotMeasured, gotFromSamples] = m.map(Number);
-  assert(gotRecovered === misfiled.length,
-    `the page says ${gotRecovered} rows were recovered; the run has ${misfiled.length} filed under a cell they are not`);
-  assert(gotFromSamples === enginesRun.samples.length,
-    `the page says ${gotFromSamples} rows arrived as samples; the run has ${enginesRun.samples.length}`);
-  assert(gotMeasured === enginesRun.samples.length + misfiled.length,
-    `the page counts ${gotMeasured} measured cells; samples plus recovered is ${enginesRun.samples.length + misfiled.length}. ` +
-    'Counting the true replicate pair as distinct cells is the other way to get this wrong.');
-  assert(/filed as replicates of a cell they are not/.test(html),
-    'the page recovers the rows without saying it did, which is a silent second opinion about the producer');
-  return `${misfiled.length} recovered across ${recoveredCells.length} cells, ${trueReps.length} true replicate rows kept as replicates, stated on the page`;
+  // Put one back and require a refusal that names the cell.
+  const mutated = clone(history);
+  const run = mutated.find((r) => r.family === 'engines');
+  const declared = run.replicate.cell;
+  const impostor = clone(run.replicates[0]);
+  impostor.cell = 'not-the-replicate-cell@256+c9';
+  run.replicates.push(impostor);
+
+  const r = renderInto(mutated);
+  assert(r.code !== 0, 'a row filed as a replicate of a cell it is not rendered anyway, so it was recovered or dropped');
+  assert(/refus/i.test(r.err), `the misfiled row did not produce a refusal:\n${r.err}`);
+  assert(r.err.includes('not-the-replicate-cell@256+c9'),
+    `the refusal does not name the offending cell:\n${r.err}`);
+  assert(r.err.includes(declared), `the refusal does not name the declared replicate cell ${declared}`);
+
+  // And the true replicate rows are still counted as replicates, not as cells.
+  const clean = renderInto(history);
+  assert(clean.code === 0, `the clean history did not render: ${clean.err}`);
+  const measured = Number(clean.out.match(/storage\s+\S+\s+(\d+) cell/)[1]);
+  assert(measured === history.find((x) => x.family === 'storage').samples.length,
+    `the page counts ${measured} storage cells; the run has ${history.find((x) => x.family === 'storage').samples.length} samples ` +
+    'and its replicate rows must not be counted among them');
+  return `0 misfiled in the committed history, a planted one refuses naming both cells`;
 });
 
 // ---------------------------------------------------------------------------
@@ -1071,6 +1073,187 @@ test('the_page_says_how_wide_its_own_bands_are', () => {
       `halving the replicate spreads moved the stated median from ${before[i]}% to ${after[i]}%, not to ${(before[i] / 2).toFixed(2)}%`);
   }
   return `${summaries.length} band summaries, each computed: ${summaries.map((m) => `${m[1]}% median`).join(', ')}`;
+});
+
+// ---------------------------------------------------------------------------
+// 22. two_architectures_never_share_a_line
+//
+// These captures are x86_64 on six cores and every earlier one is arm64 on
+// eight. A line across the two draws a change that nothing measured: the two
+// machines are not the same experiment, and on a chart that difference reads as
+// the engine having got slower. Host fingerprint and filesystem type are era
+// axes for exactly that reason, and the era rule is worth nothing if the chart
+// ignores it and joins the points anyway.
+//
+// Goes red against: a chart that emits one path per series across every run
+// regardless of era, which is what this renderer did until this guard existed.
+// ---------------------------------------------------------------------------
+test('two_architectures_never_share_a_line', () => {
+  const two = clone(history);
+  const base = two.find((r) => r.family === 'storage');
+  const older = clone(base);
+  older.runId = `${base.runId}-arm`;
+  older.integrity.document = 'sha256:' + 'a'.repeat(64);
+  older.capturedAt = '2026-09-01T00:00:00.000Z';
+  older.version = '0.4.9+aaaaaaa';
+  older.commit = 'a'.repeat(40);
+  older.host = { ...older.host, arch: 'aarch64', ncpu: 8, fingerprint: '5de1f27d', cpuModel: 'aarch64 CPU' };
+  two.splice(two.indexOf(base), 0, older);
+
+  const r = renderInto(two);
+  assert(r.code === 0, `the two-era history did not render: ${r.err}`);
+  const html = r.html();
+
+  const eras = new Set([older, base].map((x) => `${x.host.fingerprint}/${x.host.fsType}`));
+  assert(eras.size === 2, 'the fixture did not produce two eras, so this guard is checking nothing');
+
+  // Find a version chart and read its paths. A path that visits both x
+  // positions is a line across the era boundary.
+  const svgStart = html.indexOf('<svg', html.indexOf('lookups per second'));
+  assert(svgStart !== -1, 'no version chart on the page to inspect');
+  const svg = html.slice(svgStart, html.indexOf('</svg>', svgStart));
+  const points = [...svg.matchAll(/<circle[^>]*class="chart-point"[^>]*\scx="([-\d.]+)"/g)].map((m) => Number(m[1]));
+  assert(new Set(points).size === 2, `the chart draws points at ${new Set(points).size} x position(s); two runs is two`);
+
+  for (const m of svg.matchAll(/<path class="chart-line"[^>]*\sd="([^"]*)"/g)) {
+    const d = m[1];
+    const segs = d.split(/(?=M)/).filter((x) => x.trim());
+    for (const seg of segs) {
+      const xs = new Set([...seg.matchAll(/[ML]([-\d.]+),/g)].map((x) => Number(x[1])));
+      assert(xs.size <= 1,
+        `a single path segment visits ${xs.size} x positions across an era boundary: "${seg.trim().slice(0, 80)}". ` +
+        'Two architectures must not share a line.');
+    }
+  }
+
+  // And the break is visible rather than merely absent.
+  const rules = [...html.matchAll(/<line class="era-rule"[^>]*data-era-break="([^"]*)"/g)].map((m) => m[1]);
+  assert(rules.length > 0, 'the line is broken and nothing on the axis says why, so it reads as missing data');
+  assert(rules.some((x) => x.includes('0.4.9') || x.includes('0.5.0')),
+    `the era rule does not name the versions it sits between: ${JSON.stringify(rules)}`);
+
+  // A single-era history draws no break.
+  const one = renderInto(history);
+  assert(!/data-era-break=/.test(one.html()), 'a history with one era drew an era break with nothing to break between');
+  return `${rules.length} era rule(s), no path segment crossing one`;
+});
+
+// ---------------------------------------------------------------------------
+// 23. the_page_says_what_is_exact_and_what_is_not_gradeable_where_the_timings_are
+//
+// This host's invariants and its count columns are exact, and its timings vary
+// by about half across one sweep. That division has to sit where a reader meets
+// the timings, not three sections below them: someone who sees a latency chart
+// and finds the floor later quotes the latency.
+//
+// Goes red against: the division written once at the top and nowhere near the
+// charts, a division written down rather than computed, and a page that reports
+// the floor without saying it is not the clock.
+// ---------------------------------------------------------------------------
+test('the_page_says_what_is_exact_and_what_is_not_gradeable_where_the_timings_are', () => {
+  const html = renderInto(history).html();
+  const callouts = [...html.matchAll(/data-hard-median="([\d.na/]+)"[^>]*data-hard-exact="(\d+)"[^>]*data-hard-varying="(\d+)"[^>]*data-hard-where="([^"]+)"/g)];
+  assert(callouts.length >= 2, `the division appears ${callouts.length} time(s); it belongs at the claim and again beside the timings`);
+
+  const wheres = callouts.map((m) => m[4]);
+  assert(wheres.includes('claim'), 'the division is not on the claim section');
+  for (const run of history) {
+    assert(wheres.includes(`history-${run.family}`),
+      `the ${run.family} charts are not preceded by the division; a reader meets the timings first`);
+  }
+
+  // Inside its own family block, and before that block's first chart.
+  const historySection = html.slice(html.indexOf('GENERATED:history:BEGIN'), html.indexOf('GENERATED:history:END'));
+  const blocks = historySection.split('<div class="family-block">').slice(1);
+  assert(blocks.length === history.length,
+    `${blocks.length} family block(s) for ${history.length} run(s), so this placement check is looking at the wrong thing`);
+  for (const block of blocks) {
+    const family = history.find((run) => block.includes(`data-hard-where="history-${run.family}"`));
+    assert(family, `a family block carries no division marker at all:\n${block.slice(0, 200)}`);
+    const at = block.indexOf(`data-hard-where="history-${family.family}"`);
+    const firstChart = block.indexOf('<figure class="chart"');
+    assert(firstChart === -1 || at < firstChart,
+      `the ${family.family} division sits after that block's first chart, so a reader meets the chart first`);
+    const otherMarkers = history.filter((r) => r.family !== family.family)
+      .filter((r) => block.includes(`data-hard-where="history-${r.family}"`));
+    assert(otherMarkers.length === 0,
+      `the ${family.family} block also carries ${otherMarkers.map((r) => r.family).join(', ')}'s division`);
+  }
+
+  // Computed, from the run.
+  for (const run of history) {
+    const vals = Object.values(run.replicate.spreadPct);
+    const varying = vals.filter((v) => v > 0).sort((a, b) => a - b);
+    const exact = vals.filter((v) => v === 0).length;
+    const mid = varying.length % 2 ? varying[(varying.length - 1) / 2] : (varying[varying.length / 2 - 1] + varying[varying.length / 2]) / 2;
+    const hit = callouts.find((m) => m[4] === `history-${run.family}`);
+    assert(Number(hit[2]) === exact, `${run.family}: the page says ${hit[2]} exact columns, the run has ${exact}`);
+    assert(Number(hit[3]) === varying.length, `${run.family}: the page says ${hit[3]} varying columns, the run has ${varying.length}`);
+    assert(Math.abs(Number(hit[1]) - mid) < 0.02, `${run.family}: the page says a ${hit[1]}% median, the run says ${mid.toFixed(2)}%`);
+  }
+
+  // Collapsed, because the generated prose wraps and a literal space in a
+  // pattern does not match a newline plus indentation.
+  const flat = html.replace(/\s+/g, ' ');
+  assert(/floor is not the clock/i.test(flat),
+    'the page reports the floor without saying whether it is the timer, which is the first thing a reader will ask');
+  assert(/no timing from this run carries a verdict chip/i.test(flat),
+    'the page never states the consequence of the floor, which is the whole point of stating it');
+  assert(/not as a ranking/i.test(flat),
+    'the page never tells a reader what these timings are not, which is how a measurement becomes a claim');
+  return `${callouts.length} placements: ${wheres.join(', ')}`;
+});
+
+// ---------------------------------------------------------------------------
+// 24. the_dispersion_trio_and_the_estimator_that_made_it_are_on_the_page
+//
+// A floor from six placements and a floor from two are different statistics,
+// and the document says which. Spread is the whole floor, drift is how much of
+// it is the sweep trending across its placements, and residual is what is left
+// once the trend is out. A floor that is mostly drift means the host warmed up;
+// one that is mostly residual means it is simply noisy, and the two want
+// different responses.
+//
+// Goes red against: a page showing spread alone, and one that shows the trio
+// without naming the estimator behind it.
+// ---------------------------------------------------------------------------
+test('the_dispersion_trio_and_the_estimator_that_made_it_are_on_the_page', () => {
+  const html = renderInto(history).html();
+
+  for (const run of history) {
+    for (const field of ['spreadPct', 'driftPct', 'residualPct']) {
+      assert(run.replicate[field] && Object.keys(run.replicate[field]).length > 0,
+        `${run.family} carries no ${field}, so this guard is checking nothing`);
+    }
+    const est = run.replicate.estimator;
+    assert(est && est.method && est.reps, `${run.family} carries no replicate estimator`);
+    assert(html.includes(est.method), `the page never names ${run.family}'s estimator, ${est.method}`);
+    assert(new RegExp(`${est.reps} placements`).test(html),
+      `the page never says ${run.family}'s floor came from ${est.reps} placements`);
+  }
+
+  // All three are in the headline table, as their own columns.
+  const capStart = html.indexOf('Headline cells for');
+  const table = html.slice(capStart, html.indexOf('</table>', capStart));
+  for (const head of ['spread', 'drift', 'residual']) {
+    assert(new RegExp(`<th scope="col">${head}</th>`).test(table), `the headline table has no ${head} column`);
+  }
+
+  // And they are read off the run, not invented: halving drift halves what the
+  // summary says, and leaves the spread alone.
+  const before = html.match(/data-drift-median="([\d.]+)"/);
+  assert(before, 'the band summary carries no drift median');
+  const halved = clone(history);
+  for (const run of halved) {
+    for (const k of Object.keys(run.replicate.driftPct)) run.replicate.driftPct[k] /= 2;
+  }
+  const after = renderInto(halved).html();
+  const got = after.match(/data-drift-median="([\d.]+)"/);
+  assert(Math.abs(Number(got[1]) - Number(before[1]) / 2) < 0.02,
+    `halving the drift moved the stated median from ${before[1]}% to ${got[1]}%, not to ${(Number(before[1]) / 2).toFixed(2)}%`);
+  assert(after.match(/data-spread-median="([\d.]+)"/)[1] === html.match(/data-spread-median="([\d.]+)"/)[1],
+    'halving the drift changed the stated spread, so the two are not separate readings');
+  return `trio and estimator on the page for ${history.length} run(s)`;
 });
 
 // ---------------------------------------------------------------------------
