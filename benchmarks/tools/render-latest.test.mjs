@@ -591,7 +591,23 @@ test('the_headline_claim_is_computed_from_the_run_not_written_into_the_page', ()
   const r = renderInto(mutated);
   assert(r.code === 0, `render failed: ${r.err}`);
   assert(/31337/.test(r.html()), "changing the run's filesystem_entries did not change the headline, so it is written into the page");
-  assert(!r.html().includes(most), `the old entry count ${most} survives a run that no longer reports it`);
+  // The step labels are exempt, and only them. A step label's whole job is to
+  // say what an invariant moved FROM, so `filesystem_entries ... moved from
+  // 22127 to 31337` is the page working, not the old figure surviving. This
+  // was invisible while the two storage runs sat on opposite architectures,
+  // because no step is drawn across an era boundary; the third run put two of
+  // them in one era and the assertion started reading a correct page as a
+  // hard-coded one. Everywhere else still counts: the claim heading, the lead,
+  // the claim figure, the invariant tables and the agreement verdicts all
+  // carried the number and all had to move with the run.
+  const stepRules = (html) => (html.match(/class="step-rule"/g) ?? []).length;
+  const withoutSteps = r.html().replace(/<li class="step-label"[^>]*>[\s\S]*?<\/li>/g, '');
+  assert(!/class="step-label"/.test(withoutSteps),
+    'a step label survived the strip, so this assertion is exempting less than it says');
+  assert(stepRules(withoutSteps) === stepRules(r.html()),
+    'the strip ate the step rules on the chart as well, so it is exempting more than it says');
+  assert(/31337/.test(withoutSteps), 'the strip took the claim with it, so there is nothing left to check');
+  assert(!withoutSteps.includes(most), `the old entry count ${most} survives a run that no longer reports it`);
 
   // The byte bound too: it is a maximum across cells, not a sentence.
   const wider = clone(history);
