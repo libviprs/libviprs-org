@@ -269,10 +269,11 @@ details.status-callout[open] > summary { margin-bottom: 0.8rem; }
 .verdict-differs { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
 .verdict-none { color: var(--text-light); }
 .verdict-first { color: var(--text-light); }
+.verdict-unknown { color: var(--text-light); }
 .verdict-pass { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
-.verdict-noise { color: var(--warn); }
-.verdict-improved { color: var(--ok); }
-.verdict-regression { color: var(--bad); }
+.verdict-noise { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.verdict-improved { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.verdict-regressed { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
 
 /* A cell that is not gateable gets this and never a .verdict chip. */
 .gate { color: var(--text-light); border-style: dashed; }

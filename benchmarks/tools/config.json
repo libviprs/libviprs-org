@@ -1,38 +1,86 @@
 {
-  "_doc": "Everything libviprs-specific about the generated benchmark page at /benchmarks/. The renderer (render-latest.mjs) holds no series id, no colour, no threshold and no editorial sentence of its own: it reads them from here. That split is the K2.3 contract rule, and it is why a second family or a third backend is a config edit rather than a renderer edit. When libviprs-bench freezes the causl dashboard stack at tools/contract/, this file is the copy the page reads and that one is the copy the charts read; the keys are the same keys.",
-
+  "_doc": "Everything libviprs-specific about the generated benchmark page at /benchmarks/. The renderer (render-latest.mjs) holds no series id, no colour, no threshold and no editorial sentence of its own: it reads them from here. That split is the K2.3 contract rule, and it is why a second family or a third backend is a config edit rather than a renderer edit. The key names follow the schema libviprs-bench#76 published (tools/contract/config.schema.json at cd65c76) wherever the two overlap, so the frozen dashboard reads this file rather than a translation of it. Two things are page-only and sit outside that schema: `families`, because this page carries two families on one axis where the dashboard carries one, and the editorial blocks (metricLabel, scenarioLabel, notMeasured), because the schema has nowhere for prose.",
   "contract": {
     "upstream": "causl-org/pages/benchmarks",
     "upstreamRev": "cd65c76",
-    "_doc": "The revision the generated-section contract came from: the GENERATED:<name>:BEGIN/END splice, the --check exit codes, and the class names the markup uses (.results-table, .num, .conf, .status-callout, .section-head, .absent, .unranked). libviprs-bench#76 freezes the files themselves; this page implements the same contract against libviprs.org's own palette, because causl's dashboard.css is written against causl brand tokens that do not exist on this site. tools/render-latest.test.mjs::every_class_the_renderer_emits_is_styled is the drift gate on that."
+    "configVersion": 1,
+    "provenance": "20260914T145707Z-809ee8014d002518ce55edaceba698ca7a8b8a79-0bc00939",
+    "_doc": "The revision the generated-section contract came from: the GENERATED:<name>:BEGIN/END splice, the --check exit codes, and the class names the markup uses (.results-table, .num, .conf, .status-callout, .section-head, .absent). libviprs-bench#76 freezes the files themselves at tools/contract/upstream/; this page implements the same contract against libviprs.org's own palette, because causl's dashboard.css is written against causl brand tokens that do not exist on this site. tools/render-latest.test.mjs::every_class_the_renderer_emits_is_styled is the drift gate on that."
   },
-
   "archive": {
     "path": ".epick/capture/archive",
     "indexFile": "index.json",
     "_doc": "Where the archived documents live in the capture workspace. The page never reads them at render time; import writes history.json and the renderer reads that. The path is here so the provenance section can say where to go and look."
   },
-
   "era": {
-    "axes": ["host.cpuModel", "host.arch", "host.ncpu", "host.fsType", "host.emulated", "series"],
-    "_doc": "Two runs belong to the same comparable era only when every one of these agrees. Upstream breaks an era on the library set alone; libviprs adds the host fingerprint and the filesystem type, because a run on a different machine or a different filesystem is a different experiment and drawing one line across the two invents a change that never happened."
+    "axes": [
+      {
+        "id": "series",
+        "from": "series",
+        "kind": "set"
+      },
+      {
+        "id": "host",
+        "from": "host.fingerprint",
+        "kind": "value"
+      },
+      {
+        "id": "filesystem",
+        "from": "host.fsType",
+        "kind": "value"
+      }
+    ],
+    "hostFingerprintFrom": [
+      "host.os",
+      "host.arch",
+      "host.cpuModel",
+      "host.ncpu",
+      "host.inContainer",
+      "host.emulated"
+    ],
+    "_doc": "Two runs belong to the same comparable era only when every axis agrees. Upstream breaks an era on the series set alone; libviprs adds the host fingerprint and the filesystem type, because a run on a different machine or a different filesystem is a different experiment and one line across the two invents a change that never happened."
   },
-
   "confidence": {
     "minTicksPerSample": 100,
     "covLowConfidence": 0.15,
     "_doc": "The trustworthy floor is minTicksPerSample x the measured timer tick, both read from the document rather than written here, so a host with a different clock moves the floor rather than the prose. covLowConfidence mirrors what the producer used; the page states the producer's value, not this one, and this is only the fallback for a document that carries none."
   },
-
   "verdict": {
-    "regressionPct": 0.10,
-    "improvedPct": 0.10,
+    "regressionPct": 0.1,
+    "improvedPct": 0.1,
     "passPct": 0.05,
-    "tieBandPct": 0.03,
-    "noiseFromReplicateSpread": true,
-    "_doc": "A delta smaller than the replicate spread measured inside the run itself is noise, not a pass and not a regression. That is not a hypothetical: the storage capture measured a median replicate spread of 3.46% with one metric at 53.3%, so a 10% band applied blind would have called a quiet host a regression. A chip is only ever drawn on a gateable cell."
+    "noisyProxy": 0.5,
+    "noise": {
+      "enabled": true,
+      "kind": "noise",
+      "spreadField": "replicateSpreadPct",
+      "onMissingSpread": "unknown",
+      "floorPct": null,
+      "_doc": "A delta smaller than the spread the run's own replicate pair measured for that very key is noise, not a pass and not a regression. A spread that was not measured is not a spread, so the page refuses to rule rather than falling back to the thresholds: the capture's median spread is 3.46% and one metric's is 53.3%, so a median used as a fallback gets the dangerous answer confidently."
+    },
+    "gate": {
+      "enabled": true,
+      "field": "gated",
+      "kind": "ungated",
+      "label": "measured, not gated",
+      "_doc": "Only the literal false counts. Nobody said and not gated are different facts, and if absent counted as ungated the page would go silent the day the field moves."
+    },
+    "noChipKinds": [
+      "ungated",
+      "first",
+      "unknown"
+    ],
+    "kindLabel": {
+      "pass": "no change",
+      "improved": "improved",
+      "regressed": "regressed",
+      "noise": "noise",
+      "ungated": "measured, not gated",
+      "first": "first run",
+      "unknown": "no ruling"
+    },
+    "_doc": "A chip is only ever drawn on a gateable cell whose kind is not in noChipKinds. Direction is read off the sample, per metric: ten of the thirty metric keys are higher-is-better, and a dashboard that compares raw numbers calls those a regression when they get faster."
   },
-
   "gateability": {
     "requires": [
       "the run's provenance is observed rather than attested",
@@ -43,27 +91,18 @@
     ],
     "_doc": "Every one of these has to hold. A cell that misses any of them is published in full, with its number, and never carries a verdict chip: it reads 'measured, not gated'. Hiding it would make an untested backend and an untrusted measurement look the same, and chipping it would make a number its own producer refuses to vouch for look like a result."
   },
-
   "families": {
     "storage": {
       "label": "One archive against a directory tree",
       "short": "storage",
       "gateable": true,
       "runner": "libviprs-storage",
-      "seriesOrder": ["pmtiles", "directory"],
-      "seriesLabel": {
-        "pmtiles": "PMTiles archive",
-        "directory": "Directory tree"
-      },
-      "seriesColor": {
-        "pmtiles": "#be6e34",
-        "directory": "#5a6b7a"
-      },
-      "seriesDash": {
-        "pmtiles": null,
-        "directory": "5 3"
-      },
-      "headlineKeys": ["generate.wall", "read_random.p50", "read_plan_order.lookups_per_s", "open.p50"],
+      "headlineKeys": [
+        "generate.wall",
+        "read_random.p50",
+        "read_plan_order.lookups_per_s",
+        "open.p50"
+      ],
       "headlineCell": "8192x8192@64+gradient",
       "invariantOrder": [
         "filesystem_entries",
@@ -94,52 +133,95 @@
         "allocated_bytes": "within"
       },
       "claimCell": "8192x8192@64+gradient",
-      "claimSeries": ["pmtiles", "directory"]
+      "claimSeries": [
+        "pmtiles",
+        "directory"
+      ],
+      "series": {
+        "order": [
+          "pmtiles",
+          "directory"
+        ],
+        "label": {
+          "pmtiles": "PMTiles archive",
+          "directory": "Directory tree"
+        },
+        "color": {
+          "pmtiles": "#be6e34",
+          "directory": "#5a6b7a"
+        },
+        "dash": {
+          "directory": "5 3"
+        },
+        "annotation": {}
+      }
     },
     "engines": {
       "label": "Monolithic against streaming against mapreduce",
       "short": "engines",
       "gateable": false,
       "runner": "libviprs-engines",
-      "seriesOrder": ["monolithic", "streaming", "mapreduce"],
-      "seriesLabel": {
-        "monolithic": "monolithic",
-        "streaming": "streaming",
-        "mapreduce": "mapreduce"
-      },
-      "seriesColor": {
-        "monolithic": "#be6e34",
-        "streaming": "#3f7d6e",
-        "mapreduce": "#7a5ea8"
-      },
-      "seriesDash": {
-        "monolithic": null,
-        "streaming": "5 3",
-        "mapreduce": "2 3"
-      },
-      "headlineKeys": ["build.wall", "build.tiles_per_s", "build.tracked_mb"],
+      "headlineKeys": [
+        "build.wall",
+        "build.tiles_per_s",
+        "build.tracked_mb"
+      ],
       "headlineCell": "20000x14000@1",
       "memoryClaimCell": "20000x14000@1",
       "suppressedMetrics": {
         "build.peak_rss_mb": "the engines sweep reads a process-wide high-water mark, so all three engines report the same figure and none of them reports its own (libviprs-bench#74). The tracked working set below is per engine and is the column that carries the memory story."
       },
-      "invariantOrder": ["tiles_produced"],
+      "invariantOrder": [
+        "tiles_produced"
+      ],
       "invariantLabel": {
         "tiles_produced": "tiles produced"
       },
       "invariantEquality": {
         "tiles_produced": "equal"
+      },
+      "series": {
+        "order": [
+          "monolithic",
+          "streaming",
+          "mapreduce"
+        ],
+        "label": {
+          "monolithic": "monolithic",
+          "streaming": "streaming",
+          "mapreduce": "mapreduce"
+        },
+        "color": {
+          "monolithic": "#be6e34",
+          "streaming": "#3f7d6e",
+          "mapreduce": "#7a5ea8"
+        },
+        "dash": {
+          "streaming": "5 3",
+          "mapreduce": "2 3"
+        },
+        "annotation": {}
       }
     }
   },
-
   "defaults": {
-    "families": ["storage", "engines"],
-    "series": ["pmtiles", "directory", "monolithic", "streaming", "mapreduce"],
-    "scales": null,
-    "_doc": "What the interactive layer starts with when it attaches. null means every scale the history carries."
+    "families": [
+      "storage",
+      "engines"
+    ],
+    "libraries": [
+      "pmtiles",
+      "directory",
+      "monolithic",
+      "streaming",
+      "mapreduce"
+    ],
+    "scales": [
+      "8192x8192@64+gradient",
+      "20000x14000@1"
+    ],
+    "_doc": "What the interactive layer starts with when it attaches. `libraries` and `scales` are the schema's names for the default filter; `families` is this page's addition, because the dashboard has no notion of more than one."
   },
-
   "metricLabel": {
     "wall": "wall time",
     "tiles_per_s": "tiles per second",
@@ -155,7 +237,6 @@
     "request_bytes_declared": "request bytes (declared)",
     "peak_rss_mb": "peak RSS"
   },
-
   "scenarioLabel": {
     "generate": "write the whole pyramid",
     "open": "open the artefact cold",
@@ -172,7 +253,6 @@
     "requests": "requests a reader would issue",
     "build": "build the pyramid"
   },
-
   "notMeasured": [
     {
       "title": "HTTP, and object storage",
@@ -195,11 +275,46 @@
       "body": "PMTiles counts the requests a reader actually issues, because the reader is the thing being measured and it knows. The directory tree has no reader to count: its index work happens in the kernel, one path resolution at a time. So its request figures are declared by a model of what an HTTP client would have to ask for, they are labelled declared everywhere they appear, and they are not a measurement of anything that ran."
     }
   ],
-
   "links": {
     "comparison": "libvips/",
     "history": "history.json",
     "bench": "https://github.com/libviprs/libviprs-bench",
     "engine": "https://github.com/libviprs/libviprs"
+  },
+  "series": {
+    "order": [
+      "pmtiles",
+      "directory"
+    ],
+    "label": {
+      "pmtiles": "PMTiles archive",
+      "directory": "Directory tree"
+    },
+    "color": {
+      "pmtiles": "#be6e34",
+      "directory": "#5a6b7a"
+    },
+    "dash": {
+      "directory": "5 3"
+    },
+    "annotation": {},
+    "_doc": "The dashboard-side series block in the schema's shape, carrying the default family. A page with more than one family needs one of these per family, so each entry under `families` repeats this shape and the renderer reads the family's copy. This one is what a consumer that knows nothing about families gets."
+  },
+  "samples": {
+    "carry": [
+      "unit",
+      "direction",
+      "confidence",
+      "cell",
+      "key",
+      "source",
+      "reps",
+      "cov",
+      "gated",
+      "gateBlockers",
+      "timerSaturated",
+      "replicateIndex"
+    ],
+    "_doc": "The fields a sample carries onto a chart point. groupSections builds a fixed-shape point and that point is the only thing computeVerdict sees, so a verdict rule that reads a field not in this list reads undefined, which looks exactly like a rule that is switched off. gated and gateBlockers are in here because the no-chip rule below is driven off them."
   }
 }
