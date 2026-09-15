@@ -365,7 +365,7 @@ gates, matching `CLI_CONTRACT.md` §6:
 > being true. The pin is the committed file `cli/rust/COUNTERPART_REV`, not the
 > `CLI_COUNTERPART_REV` repository variable, and the `continue-on-error` skip arm
 > described below is gone, so a failed `libviprs-cli` checkout now fails the job.
-> Read [Errata E1 and E2](#errata-post-freeze) before acting on the paragraph
+> Read [Errata E1, E2 and E4](#errata-post-freeze) before acting on the paragraph
 > that follows.
 
 Check out `libviprs-org` **and** `libviprs-cli` at the pinned `CLI_COUNTERPART_REV`
@@ -546,3 +546,26 @@ notices the copy has drifted from `libviprs-cli` main, runs
 catch-up as a pull request for review. `ci.yml`'s `sync` job then checks
 `libviprs-cli` out at the new pin and runs `--check`, which is what proves that
 pull request was right.
+
+### E4. The frozen copy is `ops/**.rs`, not `ops/*.rs` (2026-09-14, #72's PR)
+
+§5.1 writes the frozen set as `src/main.rs` (+ `src/ops/*.rs`), and
+`sync-cli-src.sh` was a literal `ls ops/*.rs` to match. `libviprs-cli` d51dbc5
+turned `ops/arithmetic.rs` into the directory module
+`ops/arithmetic/{mod,part_a,part_b}.rs` and the flat glob stopped seeing it.
+
+Nothing went red, because in that script the enumeration and the comparison are
+the same list: a file the glob does not name is a file the diff never asks
+about. At pin `23f85a8c` the gate printed `check ok: frozen CLI copy is in sync`
+and exited 0 while `cli/rust/ops/arithmetic/` did not exist, and
+`cli/rust/ops/mod.rs` declares `pub mod arithmetic;` and calls
+`arithmetic::commands`, so the family was not omitted on purpose.
+
+The set is now every `.rs` under `ops/` at any depth, in the copy, in `--check`,
+and in the extractor's own `glob_ops_rs`, which was flat for the same reason.
+`--check` also walks the frozen side, so a copy whose canonical file has been
+deleted is reported instead of sitting there being byte-identical to nothing,
+and the line that says the check passed says how many files it compared.
+
+Read this section, not §5.1's `ops/*.rs`, when deciding what belongs in
+`cli/rust/`.
