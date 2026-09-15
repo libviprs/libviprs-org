@@ -53,6 +53,15 @@
  *     here: not emulated, release build, no debug assertions, clean tree,
  *     publishable profile, and a run whose typical cell was quiet.
  *
+ * The entries it puts through that are the FROZEN COPY's, because that is the
+ * file the page is generated from, and the byte comparison with the pinned
+ * original comes after. Equality plus a verified original does imply a verified
+ * copy, so checking the original alone is sound as logic; it is wrong as a
+ * message, and the first version of this file proved it. Its own CI mutation
+ * adds a run no archived document supports to the copy, and it went red saying
+ * "this copy is not the pinned revision's history", which is true, about
+ * something else, and sends the reader to the wrong file.
+ *
  * A document is read out of git by object, `git show <rev>:<path>`, not out of
  * the checkout's working tree. A dirty checkout of the benchmark repository
  * cannot put anything on this page.
