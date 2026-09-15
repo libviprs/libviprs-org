@@ -1,0 +1,205 @@
+{
+  "_doc": "Everything libviprs-specific about the generated benchmark page at /benchmarks/. The renderer (render-latest.mjs) holds no series id, no colour, no threshold and no editorial sentence of its own: it reads them from here. That split is the K2.3 contract rule, and it is why a second family or a third backend is a config edit rather than a renderer edit. When libviprs-bench freezes the causl dashboard stack at tools/contract/, this file is the copy the page reads and that one is the copy the charts read; the keys are the same keys.",
+
+  "contract": {
+    "upstream": "causl-org/pages/benchmarks",
+    "upstreamRev": "cd65c76",
+    "_doc": "The revision the generated-section contract came from: the GENERATED:<name>:BEGIN/END splice, the --check exit codes, and the class names the markup uses (.results-table, .num, .conf, .status-callout, .section-head, .absent, .unranked). libviprs-bench#76 freezes the files themselves; this page implements the same contract against libviprs.org's own palette, because causl's dashboard.css is written against causl brand tokens that do not exist on this site. tools/render-latest.test.mjs::every_class_the_renderer_emits_is_styled is the drift gate on that."
+  },
+
+  "archive": {
+    "path": ".epick/capture/archive",
+    "indexFile": "index.json",
+    "_doc": "Where the archived documents live in the capture workspace. The page never reads them at render time; import writes history.json and the renderer reads that. The path is here so the provenance section can say where to go and look."
+  },
+
+  "era": {
+    "axes": ["host.cpuModel", "host.arch", "host.ncpu", "host.fsType", "host.emulated", "series"],
+    "_doc": "Two runs belong to the same comparable era only when every one of these agrees. Upstream breaks an era on the library set alone; libviprs adds the host fingerprint and the filesystem type, because a run on a different machine or a different filesystem is a different experiment and drawing one line across the two invents a change that never happened."
+  },
+
+  "confidence": {
+    "minTicksPerSample": 100,
+    "covLowConfidence": 0.15,
+    "_doc": "The trustworthy floor is minTicksPerSample x the measured timer tick, both read from the document rather than written here, so a host with a different clock moves the floor rather than the prose. covLowConfidence mirrors what the producer used; the page states the producer's value, not this one, and this is only the fallback for a document that carries none."
+  },
+
+  "verdict": {
+    "regressionPct": 0.10,
+    "improvedPct": 0.10,
+    "passPct": 0.05,
+    "tieBandPct": 0.03,
+    "noiseFromReplicateSpread": true,
+    "_doc": "A delta smaller than the replicate spread measured inside the run itself is noise, not a pass and not a regression. That is not a hypothetical: the storage capture measured a median replicate spread of 3.46% with one metric at 53.3%, so a 10% band applied blind would have called a quiet host a regression. A chip is only ever drawn on a gateable cell."
+  },
+
+  "gateability": {
+    "requires": [
+      "the run's provenance is observed rather than attested",
+      "the family declares itself gateable",
+      "the cell reached its minimum repetitions",
+      "the cell's timer did not saturate",
+      "the cell's own confidence is high"
+    ],
+    "_doc": "Every one of these has to hold. A cell that misses any of them is published in full, with its number, and never carries a verdict chip: it reads 'measured, not gated'. Hiding it would make an untested backend and an untrusted measurement look the same, and chipping it would make a number its own producer refuses to vouch for look like a result."
+  },
+
+  "families": {
+    "storage": {
+      "label": "One archive against a directory tree",
+      "short": "storage",
+      "gateable": true,
+      "runner": "libviprs-storage",
+      "seriesOrder": ["pmtiles", "directory"],
+      "seriesLabel": {
+        "pmtiles": "PMTiles archive",
+        "directory": "Directory tree"
+      },
+      "seriesColor": {
+        "pmtiles": "#be6e34",
+        "directory": "#5a6b7a"
+      },
+      "seriesDash": {
+        "pmtiles": null,
+        "directory": "5 3"
+      },
+      "headlineKeys": ["generate.wall", "read_random.p50", "read_plan_order.lookups_per_s", "open.p50"],
+      "headlineCell": "8192x8192@64+gradient",
+      "invariantOrder": [
+        "filesystem_entries",
+        "directories",
+        "output_bytes",
+        "tiles_produced",
+        "allocated_bytes",
+        "artefact_digest"
+      ],
+      "invariantLabel": {
+        "filesystem_entries": "filesystem entries",
+        "directories": "directories",
+        "output_bytes": "output bytes",
+        "allocated_bytes": "allocated bytes",
+        "tiles_produced": "tiles produced",
+        "artefact_digest": "artefact digest",
+        "root_entries": "root directory entries",
+        "leaves": "leaf directories",
+        "requests": "requests",
+        "request_bytes": "request bytes"
+      },
+      "invariantEquality": {
+        "tiles_produced": "equal",
+        "output_bytes": "within",
+        "artefact_digest": "differs-by-construction",
+        "filesystem_entries": "ratio",
+        "directories": "ratio",
+        "allocated_bytes": "within"
+      },
+      "claimCell": "8192x8192@64+gradient",
+      "claimSeries": ["pmtiles", "directory"]
+    },
+    "engines": {
+      "label": "Monolithic against streaming against mapreduce",
+      "short": "engines",
+      "gateable": false,
+      "runner": "libviprs-engines",
+      "seriesOrder": ["monolithic", "streaming", "mapreduce"],
+      "seriesLabel": {
+        "monolithic": "monolithic",
+        "streaming": "streaming",
+        "mapreduce": "mapreduce"
+      },
+      "seriesColor": {
+        "monolithic": "#be6e34",
+        "streaming": "#3f7d6e",
+        "mapreduce": "#7a5ea8"
+      },
+      "seriesDash": {
+        "monolithic": null,
+        "streaming": "5 3",
+        "mapreduce": "2 3"
+      },
+      "headlineKeys": ["build.wall", "build.tiles_per_s", "build.tracked_mb"],
+      "headlineCell": "20000x14000@1",
+      "memoryClaimCell": "20000x14000@1",
+      "suppressedMetrics": {
+        "build.peak_rss_mb": "the engines sweep reads a process-wide high-water mark, so all three engines report the same figure and none of them reports its own (libviprs-bench#74). The tracked working set below is per engine and is the column that carries the memory story."
+      },
+      "invariantOrder": ["tiles_produced"],
+      "invariantLabel": {
+        "tiles_produced": "tiles produced"
+      },
+      "invariantEquality": {
+        "tiles_produced": "equal"
+      }
+    }
+  },
+
+  "defaults": {
+    "families": ["storage", "engines"],
+    "series": ["pmtiles", "directory", "monolithic", "streaming", "mapreduce"],
+    "scales": null,
+    "_doc": "What the interactive layer starts with when it attaches. null means every scale the history carries."
+  },
+
+  "metricLabel": {
+    "wall": "wall time",
+    "tiles_per_s": "tiles per second",
+    "tracked_mb": "tracked working set",
+    "p50": "median latency",
+    "p99": "99th percentile latency",
+    "max": "slowest sample",
+    "lookups_per_s": "lookups per second",
+    "ns_per_entry": "per root entry",
+    "requests": "requests",
+    "requests_declared": "requests (declared)",
+    "request_bytes": "request bytes",
+    "request_bytes_declared": "request bytes (declared)",
+    "peak_rss_mb": "peak RSS"
+  },
+
+  "scenarioLabel": {
+    "generate": "write the whole pyramid",
+    "open": "open the artefact cold",
+    "decode_root": "decode the root directory",
+    "first_lookup": "the first tile out of a freshly opened artefact",
+    "read_sequential": "walk every tile in storage order",
+    "read_tileid_order": "walk every tile in tile-id order",
+    "read_plan_order": "walk the tiles a viewport plan asks for",
+    "read_random": "hit random tiles",
+    "read_concurrent@1": "concurrent reads, 1 thread",
+    "read_concurrent@2": "concurrent reads, 2 threads",
+    "read_concurrent@4": "concurrent reads, 4 threads",
+    "read_concurrent@8": "concurrent reads, 8 threads",
+    "requests": "requests a reader would issue",
+    "build": "build the pyramid"
+  },
+
+  "notMeasured": [
+    {
+      "title": "HTTP, and object storage",
+      "body": "Every read on this page is a local file read. PMTiles is designed to be range-requested off a static host or a bucket, which is where a single addressable archive pays for itself hardest, and none of that is measured here. The request counts below are the closest thing on the page, and they are a count rather than a timing."
+    },
+    {
+      "title": "A cold page cache",
+      "body": "Cold means a cold reader: a fresh process opening an artefact it has not opened. The kernel's page cache is whatever the preceding work left it, which is why the run records the page-cache state as warm-unknown rather than claiming to have dropped it. A genuinely cold cache is a different measurement and would need the host to cooperate."
+    },
+    {
+      "title": "macOS, Windows, or any filesystem but this one",
+      "body": "One host, one filesystem, one architecture. The directory backend in particular is a measurement of how a specific filesystem handles tens of thousands of small files, and that is exactly the number that moves most between filesystems. The era rule above is what stops a run from a different machine being drawn on the same line as this one."
+    },
+    {
+      "title": "Other codecs",
+      "body": "One encoder, at one setting, for every cell. Tile bytes drive both the output totals and the read work, so a different codec moves both, and nothing here says by how much."
+    },
+    {
+      "title": "The directory backend's request counts",
+      "body": "PMTiles counts the requests a reader actually issues, because the reader is the thing being measured and it knows. The directory tree has no reader to count: its index work happens in the kernel, one path resolution at a time. So its request figures are declared by a model of what an HTTP client would have to ask for, they are labelled declared everywhere they appear, and they are not a measurement of anything that ran."
+    }
+  ],
+
+  "links": {
+    "comparison": "libvips/",
+    "history": "history.json",
+    "bench": "https://github.com/libviprs/libviprs-bench",
+    "engine": "https://github.com/libviprs/libviprs"
+  }
+}
