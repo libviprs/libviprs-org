@@ -108,7 +108,30 @@ jobs:
           repository: libviprs/libviprs-cli
           path: libviprs-cli
           ref: ${{ vars.CLI_COUNTERPART_REV || steps.pin.outputs.rev }}
-          token: ${{ secrets.SYNC_CLI_TOKEN || github.token }}
+          # Explicit rather than left to the default, because this step reads
+          # across repositories and one line naming the credential is worth it.
+          #
+          # It used to say `secrets.SYNC_CLI_TOKEN || github.token`, and that
+          # secret has never existed (#72). This repository has exactly one
+          # secret, GITEA_SYNC_TOKEN, for the Gitea mirror, and no organization
+          # secret reaches it at all, so the expression always resolved to
+          # github.token. libviprs-cli is public, so github.token checks it out
+          # and nothing ever went wrong to notice. That is the same shape as the
+          # CLI_COUNTERPART_REV repository variable #63 fixed: a name that reads
+          # as configuration that nobody set. The only difference is that the
+          # variable's unset value was actively wrong and this one's happened to
+          # be right, which bought it a name in the file and no other effect.
+          #
+          # If libviprs-cli ever goes private, this is the line the credential
+          # goes on, and it has to be a plain reference to a secret that exists
+          # rather than a `||` fallback. A fallback here degrades in silence:
+          # the checkout succeeds against a public repo and fails against a
+          # private one, and only the second case tells you the secret is
+          # missing. cli/tools/sync-pin.test.js now fails on any secret or
+          # variable reference in .github/workflows/ that is not declared in
+          # cli/tools/workflow-inputs.json, and on any optional one that does
+          # not say in the log which route the run took.
+          token: ${{ github.token }}
 
       - name: Assert frozen CLI copy is in sync with the pinned revision
         run: libviprs-org/cli/tools/sync-cli-src.sh --check
