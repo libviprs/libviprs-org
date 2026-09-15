@@ -313,17 +313,45 @@ test('--check passes on the repository as it stands', () => {
   assert.match(out, /the history is the pinned one and the page matches it/);
 });
 
-test('--check fails when the frozen history is not the pinned one', () => {
-  // Red against a --check that only re-renders. A history edited here and not
-  // over there is the exact state this whole change exists to make impossible.
+/** A copy of the committed history and page, in a temp directory. */
+function copyOfTheSite() {
   const dir = mkdtempSync(join(tmpdir(), 'org-'));
   const history = join(dir, 'history.json');
   const page = join(dir, 'index.html');
   cpSync(HISTORY_PATH, history);
   cpSync(join(here, '..', 'index.html'), page);
+  return { dir, history, page };
+}
+
+test('--check refuses a run in the frozen copy that no archived document supports', () => {
+  // Red against a --check that verifies the pinned original and only compares
+  // the copy. Equality plus a verified original does imply a verified copy, so
+  // that version refuses this too, but on the wrong sentence: it says the copy
+  // differs, which sends the reader to the wrong file. This is the state the
+  // page was actually in, and the message has to name it.
+  const { history, page } = copyOfTheSite();
   const edited = JSON.parse(readFileSync(history, 'utf8'));
   edited.push({ ...edited[0], runId: 'invented-by-hand' });
   writeFileSync(history, JSON.stringify(edited));
+  assert.throws(
+    () => runIngest(['--bench', BENCH_DIR, '--check', '--history', history, '--page', page]),
+    (e) => /no archived document at .* carries this run id/.test(String(e.stderr)),
+  );
+});
+
+test('--check refuses a frozen copy that verifies but is not the pinned one', () => {
+  // The other half, and the one the byte comparison is for. Pretty-printing the
+  // file changes nothing about the runs: every entry is still archived and still
+  // verifies, so every check above it passes and only the bytes disagree.
+  //
+  // Reformatting rather than dropping an entry, deliberately. Dropping one is the
+  // obvious way to write this and it is a fixed point whenever the history holds
+  // a single run, because what is left is empty and gets refused by the
+  // empty-history rule instead. I wrote it that way first and it went red for
+  // that reason.
+  const { history, page } = copyOfTheSite();
+  const edited = JSON.parse(readFileSync(history, 'utf8'));
+  writeFileSync(history, JSON.stringify(edited, null, 2));
   assert.throws(
     () => runIngest(['--bench', BENCH_DIR, '--check', '--history', history, '--page', page]),
     (e) => /is not the pinned revision/.test(String(e.stderr)),
