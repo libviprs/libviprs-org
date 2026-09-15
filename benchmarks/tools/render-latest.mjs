@@ -813,7 +813,7 @@ ${rows}
 
     const say = (list) => list.map((id) => esc(fam.series.label[id] ?? id)).join(' and ');
     const signed = (d) => `${d >= 0 ? '+' : ''}${(d * 100).toFixed(1)}%`;
-    concurrencyBlock = `    <h3>What the thread count costs in memory</h3>
+    concurrencyBlock = `    <h3 data-classified-at="${esc(largest)}"${series.map((id) => ` data-delta-${esc(id)}="${Number.isFinite(atLargest.get(id)) ? (atLargest.get(id) * 100).toFixed(1) : 'n/a'}"`).join('')}>What the thread count costs in memory</h3>
     <p>Every row is the same image built twice, once on ${lowC} thread${lowC === 1 ? '' : 's'} and once on
       ${highC}, with the peak resident set of each build beside the other. Read the bottom row: at the small end
       every engine is dominated by fixed setup, and a percentage there is mostly about the setup.
@@ -841,7 +841,7 @@ ${rows}
     </div>`;
   }
 
-  const recovered = run.counts.recovered > 0 ? `    <div class="status-callout">
+  const recovered = run.counts.recovered > 0 ? `    <div class="status-callout" data-recovered="${count(run.counts.recovered)}" data-measured="${count(run.counts.measured)}" data-from-samples="${count(run.counts.fromSamples)}">
       <p><strong>${count(run.counts.recovered)} of this run's rows arrived filed as replicates of a cell they are not.</strong>
         The run declares <code class="mono">${esc(run.replicateCell)}</code> as the cell it measured twice, and a
         replicate is the same cell measured twice. These rows name different cells, at
@@ -876,7 +876,7 @@ ${rows}
       against ${num(lightWall)} ms${wallGap === null ? '' : `, ${pct(wallGap, 1)} apart`}. The tracked working set
       underneath it is starker still: ${num(trackedOf(heaviest.id))} MB against ${num(trackedOf(lightest.id))} MB.</p>
 
-    <div class="status-callout">
+    <div class="status-callout" data-identical-groups="${count(identicalGroups)}" data-engine-groups="${count(rssGroups.length)}">
       <p><strong>These are ${identicalGroups === 0 ? 'three separate measurements' : 'not all separate measurements'}.</strong>
         ${identicalGroups} of ${rssGroups.length} ${rssGroups.length === 1 ? 'group' : 'groups'} in this run report
         the same peak resident set for every engine${identicalGroups === 0

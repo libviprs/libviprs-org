@@ -211,7 +211,7 @@
       against 1093 ms, 2.9% apart. The tracked working set
       underneath it is starker still: 288.4 MB against 27.47 MB.</p>
 
-    <div class="status-callout">
+    <div class="status-callout" data-identical-groups="0" data-engine-groups="16">
       <p><strong>These are three separate measurements.</strong>
         0 of 16 groups in this run report
         the same peak resident set for every engine, which is what a sweep that measures each engine in its own child looks like. A sweep that reads one process-wide high-water mark reports the same number three times, and this one does not.</p>
@@ -221,7 +221,7 @@
         missing is anything that could grade them.</p>
     </div>
 
-    <div class="status-callout">
+    <div class="status-callout" data-recovered="144" data-measured="288" data-from-samples="144">
       <p><strong>144 of this run's rows arrived filed as replicates of a cell they are not.</strong>
         The run declares <code class="mono">512x360@256+c1</code> as the cell it measured twice, and a
         replicate is the same cell measured twice. These rows name different cells, at
@@ -335,7 +335,7 @@
       </table>
     </div>
 
-    <h3>What the thread count costs in memory</h3>
+    <h3 data-classified-at="12000x8400@256" data-delta-monolithic="0.1" data-delta-streaming="-0.0" data-delta-mapreduce="4.6">What the thread count costs in memory</h3>
     <p>Every row is the same image built twice, once on 1 thread and once on
       8, with the peak resident set of each build beside the other. Read the bottom row: at the small end
       every engine is dominated by fixed setup, and a percentage there is mostly about the setup.
