@@ -434,6 +434,21 @@ function spreadFor(run, series, key, cell = null) {
 
 const bandPct = (run, series, key) => spreadFor(run, series, key);
 
+/** How far apart the run's own replicate pair came out, across every key it
+ *  covers. This is the single most important number on the timing half of the
+ *  page and it is nowhere near constant between families: the storage pair
+ *  disagreed by a median of 37% on this host and the engines pair by 0.3%,
+ *  minutes apart on the same machine. A page that draws a band that wide
+ *  without saying that the width is typical is presenting the timings as
+ *  firmer than they are. */
+function spreadSummary(run) {
+  const vals = Object.values(run.spreadPct ?? {}).filter(Number.isFinite).sort((a, b) => a - b);
+  if (vals.length === 0) return null;
+  const mid = vals.length % 2 ? vals[(vals.length - 1) / 2] : (vals[vals.length / 2 - 1] + vals[vals.length / 2]) / 2;
+  const worstKey = Object.entries(run.spreadPct).reduce((a, b) => (b[1] > a[1] ? b : a));
+  return { n: vals.length, median: mid / 100, max: vals[vals.length - 1] / 100, worstKey: worstKey[0] };
+}
+
 const timerFloorUs = (run) => {
   const tick = run.measurement?.timerTickNs;
   const ticks = run.measurement?.minTicksPerSample ?? config.confidence.minTicksPerSample;
@@ -1166,6 +1181,14 @@ ${steps.map((st) => `      <li class="step-label" data-invariant-step="${esc(`${
     </ul>`;
 
     const spreadCell = run.samples.find((s) => s.spreadCell)?.spreadCell ?? run.replicateCell;
+    const spread = spreadSummary(run);
+    const spreadLine = spread === null ? '' : `<p data-spread-median="${(spread.median * 100).toFixed(2)}" data-spread-max="${(spread.max * 100).toFixed(2)}" data-spread-keys="${count(spread.n)}">
+        <strong>How wide those bands are is itself a result.</strong> Across the ${count(spread.n)} keys the pair
+        covers it disagreed with itself by a median of ${pct(spread.median, 1)}, and by ${pct(spread.max, 1)} at
+        its worst, on <code class="mono">${esc(spread.worstKey)}</code>. Two measurements of identical code on one
+        host, minutes apart. Read every timing on this page against that: a change smaller than the band is not a
+        change this run could have seen, and a band this wide is why nothing here is graded even where the
+        producer has a threshold to grade it against.</p>`;
     return `    <div class="family-block">
       <h3 class="family-title">${esc(fam.label)}</h3>
       <p>${list.length === 1
@@ -1177,6 +1200,7 @@ ${steps.map((st) => `      <li class="step-label" data-invariant-step="${esc(`${
           : ''}.
         ${count(run.counts.gated)} of ${count(run.counts.measured)} cells in the latest run are gateable; the other
         ${count(run.counts.ungated)} are published with their numbers and no chip.</p>
+      ${spreadLine}
       <div class="table-wrap">
         <table class="results-table">
           <caption>Headline cells for <code class="mono">${esc(headlineCell)}</code>, latest run.</caption>
