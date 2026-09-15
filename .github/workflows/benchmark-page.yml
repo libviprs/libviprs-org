@@ -1,0 +1,63 @@
+name: benchmark-page
+
+# /benchmarks/ is generated from benchmarks/history.json and checked in. That is
+# the whole point: static HTML shows up in a diff, renders with JavaScript off,
+# and cannot 404 the way a panel that fetched its numbers from another
+# repository's URL did. The cost of checking generated output in is that it can
+# drift from the thing it was generated from, and drift on a benchmark page is a
+# published figure that no run supports. So: --check re-renders and compares
+# without writing, and exits non-zero when the page no longer matches.
+#
+# Its own file rather than a job in ci.yml, and deliberately so. Adding a *job*
+# to ci.yml reddens the Hook Mirror guard in libviprs-tests/tools/install-hooks.sh
+# unless that job is mirrored or deferred there in the same wave; a whole new
+# workflow file is exempt. site-links.yml is the precedent and this follows it.
+# Nothing here duplicates a gate ci.yml or site-links.yml already runs, so the
+# three do not race.
+
+on:
+  # Every branch, for the same reason ci.yml and site-links.yml take every
+  # branch: a push to a PR branch has to produce a signal, and `pull_request`
+  # does not fire while a PR is conflicted with its base.
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  page:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # First, because a stale page is the failure this job exists for and the
+      # message says so in one line. The guards below are richer but slower to
+      # read.
+      - name: The page still matches the history it was generated from
+        run: node benchmarks/tools/render-latest.mjs --check
+
+      - name: The renderer's guards
+        run: node benchmarks/tools/render-latest.test.mjs
+
+      # A gate that cannot fail is not a gate. This mutates the page the way a
+      # hand edit would and asserts --check goes red, so a --check that quietly
+      # started exiting 0 on everything is caught here rather than six months
+      # later. It runs on a copy: nothing in the working tree is touched.
+      - name: --check can actually fail
+        run: |
+          set -eu
+          tmp="$(mktemp -d)"
+          cp benchmarks/index.html "$tmp/index.html"
+          sed -i 's/22127/22128/' "$tmp/index.html"
+          if node benchmarks/tools/render-latest.mjs --page "$tmp/index.html" --check; then
+            echo "::error::--check passed on a page with a hand-edited generated figure, so it is not gating anything"
+            exit 1
+          fi
+          echo "--check is red on a hand-edited page, as it should be"
