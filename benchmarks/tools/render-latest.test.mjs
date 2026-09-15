@@ -110,6 +110,28 @@ const latestOf = (family) =>
     .sort((a, b) => String(a.capturedAt).localeCompare(String(b.capturedAt)))
     .at(-1);
 
+/** The entry inside a cloned history that the page would draw for a family.
+ *
+ *  `find` picks the first, which is the same bug `latestOf` exists to fix
+ *  wearing a different hat: a guard that mutates a run and asserts the page
+ *  changed will mutate a run the page never draws, and then report that the
+ *  figure is written into the page rather than computed from the run. Several
+ *  of them did exactly that the moment a family had two runs. */
+const drawnIn = (h, family) =>
+  h
+    .filter((r) => r.family === family)
+    .sort((a, b) => String(a.capturedAt).localeCompare(String(b.capturedAt)))
+    .at(-1);
+
+/** A history of exactly the runs the page draws, one per family.
+ *
+ *  The fixtures below that build a second run for a family and count points on
+ *  the axis need to know how many were there to start with. Splicing into the
+ *  committed history was the same thing only while every family had exactly one
+ *  run; with two storage runs committed, a fixture that adds a third gets a
+ *  three-point axis and every count in it is off by one. */
+const drawnOnly = () => clone([storageRun, enginesRun]);
+
 const storageRun = latestOf('storage');
 const enginesRun = latestOf('engines');
 assert(storageRun && enginesRun, 'the committed history is missing a family, so most of this suite is checking nothing');
@@ -301,7 +323,7 @@ test('a_replicate_of_a_cell_it_is_not_is_refused', () => {
 
   // Put one back and require a refusal that names the cell.
   const mutated = clone(history);
-  const run = mutated.find((r) => r.family === 'engines');
+  const run = drawnIn(mutated, 'engines');
   const declared = run.replicate.cell;
   const impostor = clone(run.replicates[0]);
   impostor.cell = 'not-the-replicate-cell@256+c9';
@@ -432,7 +454,7 @@ test('no_invariant_is_charted', () => {
 // without naming the commit.
 // ---------------------------------------------------------------------------
 test('an_invariant_step_renders_as_a_rule_carrying_the_commit_that_moved_it', () => {
-  const two = clone(history);
+  const two = drawnOnly();
   const base = two.find((r) => r.family === 'storage');
   const next = clone(base);
   next.runId = `${base.runId}-b`;
@@ -562,7 +584,7 @@ test('the_headline_claim_is_computed_from_the_run_not_written_into_the_page', ()
   assert(base.html().includes(most), `the page does not state the entry count (${most}), so there is no claim to check`);
 
   const mutated = clone(history);
-  const run = mutated.find((r) => r.family === 'storage');
+  const run = drawnIn(mutated, 'storage');
   for (const inv of run.invariants) {
     if (inv.name === 'filesystem_entries' && inv.library === 'directory') inv.value = 31337;
   }
@@ -573,7 +595,7 @@ test('the_headline_claim_is_computed_from_the_run_not_written_into_the_page', ()
 
   // The byte bound too: it is a maximum across cells, not a sentence.
   const wider = clone(history);
-  const wrun = wider.find((r2) => r2.family === 'storage');
+  const wrun = drawnIn(wider, 'storage');
   for (const inv of wrun.invariants) {
     if (inv.name === 'output_bytes' && inv.library === 'pmtiles') inv.value = Math.round(inv.value * 1.05);
   }
@@ -715,7 +737,7 @@ test('the_memory_column_is_per_engine_and_the_page_counts_what_proves_it', () =>
   // says something else, so make one group identical and require the page to
   // notice. This is the shape of "we fixed the watermark" going stale.
   const rigged = clone(history);
-  const rrun = rigged.find((r) => r.family === 'engines');
+  const rrun = drawnIn(rigged, 'engines');
   const victim = fam.memoryClaimCell;
   const target = rrun.samples.find((s) => s.cell === victim && s.key === fam.memoryKey).median;
   for (const s of [...rrun.samples, ...(rrun.replicates ?? [])]) {
@@ -771,7 +793,7 @@ test('a_metric_that_got_faster_is_not_a_regression_and_a_delta_inside_the_spread
   const fam = config.families.storage;
   const cell = fam.headlineCell;
 
-  const two = clone(history);
+  const two = drawnOnly();
   const base = two.find((r) => r.family === 'storage');
   const next = clone(base);
   next.runId = `${base.runId}-b`;
@@ -951,7 +973,11 @@ test('two_cells_with_the_same_tile_count_stay_two_cells', () => {
   const html = renderInto(history).html();
   let checked = 0;
 
-  for (const run of history) {
+  // The runs the page draws. An older run's cells are not on the page, and on a
+  // six-core host they cannot be: the x86_64 engines sweep declines every T=8
+  // rung, so asking the page to name the arm64 run's c8 cells asks it to name
+  // measurements that do not exist in the run it drew.
+  for (const run of [storageRun, enginesRun]) {
     const byScale = new Map();
     for (const s of shownSamples(run)) {
       if (!byScale.has(s.scale)) byScale.set(s.scale, new Set());
@@ -1026,7 +1052,7 @@ test('the_thread_count_effect_is_classified_at_the_largest_image', () => {
 
   // A big move at the SMALLEST image must not move an engine's classification.
   const smallOnly = clone(history);
-  const srun = smallOnly.find((r) => r.family === 'engines');
+  const srun = drawnIn(smallOnly, 'engines');
   for (const s of [...srun.samples, ...(srun.replicates ?? [])]) {
     if (s.cell === `${smallest}+c${highC}` && s.key === fam.memoryKey) s.median *= 1.5;
   }
@@ -1039,7 +1065,7 @@ test('the_thread_count_effect_is_classified_at_the_largest_image', () => {
 
   // A big move at the LARGEST image must move it.
   const bigOnly = clone(history);
-  const brun = bigOnly.find((r) => r.family === 'engines');
+  const brun = drawnIn(bigOnly, 'engines');
   const flatId = fam.series.order.find((id) => Math.abs(deltaAttr(asIs, id)) < 1);
   assert(flatId, 'no engine is flat in this capture, so there is nothing to flip');
   for (const s of [...brun.samples, ...(brun.replicates ?? [])]) {
@@ -1073,14 +1099,21 @@ test('the_thread_count_effect_is_classified_at_the_largest_image', () => {
 test('the_page_says_how_wide_its_own_bands_are', () => {
   const html = renderInto(history).html();
   const summaries = [...html.matchAll(/data-spread-median="([\d.]+)"[^>]*data-spread-max="([\d.]+)"[^>]*data-spread-keys="(\d+)"/g)];
-  assert(summaries.length === history.length,
-    `the page carries ${summaries.length} band summaries for ${history.length} runs`);
+  // One summary per family block, not one per run: the band belongs to the
+  // family's latest run and the block draws it once however many runs are on
+  // the axis.
+  const families = new Set(history.map((r) => r.family)).size;
+  assert(summaries.length === families,
+    `the page carries ${summaries.length} band summaries for ${families} families`);
 
   const medianOf = (vals) => {
     const v = [...vals].sort((a, b) => a - b);
     return v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2;
   };
-  for (const run of history) {
+  // The runs whose bands the page draws, one per family. An older run on the
+  // same axis contributes a point and not a summary, so looking for a summary
+  // per history entry asks the page for something it never claimed.
+  for (const run of [storageRun, enginesRun]) {
     const vals = Object.values(run.replicate.spreadPct).filter(Number.isFinite);
     const want = { median: medianOf(vals).toFixed(2), max: Math.max(...vals).toFixed(2), n: String(vals.length) };
     const hit = summaries.find((m) => m[3] === want.n && m[1] === want.median);
@@ -1120,7 +1153,7 @@ test('the_page_says_how_wide_its_own_bands_are', () => {
 // regardless of era, which is what this renderer did until this guard existed.
 // ---------------------------------------------------------------------------
 test('two_architectures_never_share_a_line', () => {
-  const two = clone(history);
+  const two = drawnOnly();
   const base = two.find((r) => r.family === 'storage');
   const older = clone(base);
   older.runId = `${base.runId}-arm`;
@@ -1163,8 +1196,17 @@ test('two_architectures_never_share_a_line', () => {
   assert(rules.some((x) => x.includes('0.4.9') || x.includes('0.5.0')),
     `the era rule does not name the versions it sits between: ${JSON.stringify(rules)}`);
 
-  // A single-era history draws no break.
-  const one = renderInto(history);
+  // A single-era history draws no break. Constructed rather than assumed: this
+  // rendered the committed history and took it on trust that it was one era,
+  // which stopped being true the moment both families carried an arm64 run and
+  // an x86_64 one. A negative control that depends on what happens to be
+  // committed is a control that goes off for the wrong reason.
+  const singleEra = drawnOnly();
+  assert(
+    new Set(singleEra.map((r) => `${r.family}/${r.host.fingerprint}`)).size === singleEra.length,
+    'the single-era fixture has two runs of one family in it, so it is not single-era',
+  );
+  const one = renderInto(singleEra);
   assert(!/data-era-break=/.test(one.html()), 'a history with one era drew an era break with nothing to break between');
   return `${rules.length} era rule(s), no path segment crossing one`;
 });
@@ -1196,8 +1238,11 @@ test('the_page_says_what_is_exact_and_what_is_not_gradeable_where_the_timings_ar
   // Inside its own family block, and before that block's first chart.
   const historySection = html.slice(html.indexOf('GENERATED:history:BEGIN'), html.indexOf('GENERATED:history:END'));
   const blocks = historySection.split('<div class="family-block">').slice(1);
-  assert(blocks.length === history.length,
-    `${blocks.length} family block(s) for ${history.length} run(s), so this placement check is looking at the wrong thing`);
+  // One block per family, not per run. These were the same number until the
+  // history held two runs of one family.
+  const familyCount = new Set(history.map((r) => r.family)).size;
+  assert(blocks.length === familyCount,
+    `${blocks.length} family block(s) for ${familyCount} families, so this placement check is looking at the wrong thing`);
   for (const block of blocks) {
     const family = history.find((run) => block.includes(`data-hard-where="history-${run.family}"`));
     assert(family, `a family block carries no division marker at all:\n${block.slice(0, 200)}`);
@@ -1211,8 +1256,8 @@ test('the_page_says_what_is_exact_and_what_is_not_gradeable_where_the_timings_ar
       `the ${family.family} block also carries ${otherMarkers.map((r) => r.family).join(', ')}'s division`);
   }
 
-  // Computed, from the run.
-  for (const run of history) {
+  // Computed, from the run the block is about, which is the family's latest.
+  for (const run of [storageRun, enginesRun]) {
     const vals = Object.values(run.replicate.spreadPct);
     const varying = vals.filter((v) => v > 0).sort((a, b) => a - b);
     const exact = vals.filter((v) => v === 0).length;
@@ -1257,7 +1302,12 @@ test('the_page_says_what_is_exact_and_what_is_not_gradeable_where_the_timings_ar
 test('the_dispersion_trio_and_the_estimator_that_made_it_are_on_the_page', () => {
   const html = renderInto(history).html();
 
-  for (const run of history) {
+  // The runs the page draws the trio FOR, which is the latest of each family,
+  // not every run in the history. An older run predating the drift/residual
+  // estimator contributes a point to the axis and a spread band, and the page
+  // never claims a trio for it. Requiring one of every entry turned a history
+  // that had grown into a suite that refused to check anything.
+  for (const run of [storageRun, enginesRun]) {
     for (const field of ['spreadPct', 'driftPct', 'residualPct']) {
       assert(run.replicate[field] && Object.keys(run.replicate[field]).length > 0,
         `${run.family} carries no ${field}, so this guard is checking nothing`);
@@ -1296,16 +1346,25 @@ test('the_dispersion_trio_and_the_estimator_that_made_it_are_on_the_page', () =>
   const before = html.match(/data-drift-median="([\d.]+)"/);
   assert(before, 'the band summary carries no drift median');
   const halved = clone(history);
+  // Where there is one to halve. A run captured before the drift/residual
+  // estimator existed carries only `spreadPct`, and `Object.keys(undefined)`
+  // throws rather than failing an assertion, so this read as the guard crashing
+  // rather than as the history having grown.
+  let halvedRuns = 0;
   for (const run of halved) {
+    if (!run.replicate.driftPct) continue;
     for (const k of Object.keys(run.replicate.driftPct)) run.replicate.driftPct[k] /= 2;
+    halvedRuns += 1;
   }
+  assert(halvedRuns > 0, 'no run in the history carries a drift to halve, so the check below is inert');
   const after = renderInto(halved).html();
   const got = after.match(/data-drift-median="([\d.]+)"/);
   assert(Math.abs(Number(got[1]) - Number(before[1]) / 2) < 0.02,
     `halving the drift moved the stated median from ${before[1]}% to ${got[1]}%, not to ${(Number(before[1]) / 2).toFixed(2)}%`);
   assert(after.match(/data-spread-median="([\d.]+)"/)[1] === html.match(/data-spread-median="([\d.]+)"/)[1],
     'halving the drift changed the stated spread, so the two are not separate readings');
-  return `trio and estimator on the page for ${history.length} run(s)`;
+  return `trio and estimator on the page for the ${[storageRun, enginesRun].length} drawn run(s), ` +
+    `drift halved on ${halvedRuns} of ${history.length}`;
 });
 
 // ---------------------------------------------------------------------------
