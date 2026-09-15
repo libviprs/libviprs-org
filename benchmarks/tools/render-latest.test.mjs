@@ -196,7 +196,15 @@ test('no_invariant_is_charted', () => {
   assert(invariantNames.size > 0, 'the history carries no invariants, so this test is checking nothing');
   assert(charted.size > 0, 'the page charts nothing at all, so this test is checking nothing');
 
-  const overlap = [...charted].filter((k) => [...invariantNames].some((n) => k.endsWith(`.${n}`) || k === n));
+  // A charted key is `<family>:<series>:<metric key>`, and the metric key is
+  // the part an invariant name would collide with. Splitting on the wrong
+  // separator is how this check passes on a page that charts output_bytes,
+  // which is exactly the mutation it is here to catch.
+  const metricOf = (k) => String(k).split(':').pop();
+  const overlap = [...charted].filter((k) => {
+    const m = metricOf(k);
+    return [...invariantNames].some((n) => m === n || m.endsWith(`.${n}`));
+  });
   assert(overlap.length === 0, `${overlap.length} invariant(s) are charted: ${JSON.stringify(overlap)}`);
 
   // And they are in a table, with a verdict, rather than merely absent.
@@ -233,8 +241,15 @@ test('an_invariant_step_renders_as_a_rule_carrying_the_commit_that_moved_it', ()
   assert(r.code === 0, `the two-run history did not render: ${r.err}`);
   const html = r.html();
 
-  const rules = [...html.matchAll(/<[^>]*data-invariant-step="([^"]*)"[^>]*>/g)].map((m) => m[1]);
-  assert(rules.length > 0, 'an invariant moved between two runs and the page drew no step rule for it');
+  // The rule on the version axis and the label under it are two different
+  // things and both are required: a label on its own says an invariant moved
+  // without showing a reader where on the axis, and a rule on its own does not
+  // say which commit did it.
+  const lines = [...html.matchAll(/<line[^>]*class="step-rule"[^>]*data-invariant-step="([^"]*)"[^>]*>/g)].map((m) => m[1]);
+  const labels = [...html.matchAll(/<li[^>]*class="step-label"[^>]*data-invariant-step="([^"]*)"[^>]*>/g)].map((m) => m[1]);
+  assert(lines.length > 0, 'an invariant moved between two runs and no vertical rule was drawn on the version axis for it');
+  assert(labels.length > 0, 'an invariant moved between two runs and nothing under the charts says which one or which commit');
+  const rules = [...lines, ...labels];
   assert(
     rules.some((r2) => /filesystem_entries/.test(r2)),
     `the step rules do not name the invariant that moved: ${JSON.stringify(rules)}`);
@@ -246,7 +261,7 @@ test('an_invariant_step_renders_as_a_rule_carrying_the_commit_that_moved_it', ()
   const one = renderInto(history);
   const noRules = [...one.html().matchAll(/data-invariant-step="/g)];
   assert(noRules.length === 0, `the single-run history drew ${noRules.length} step rule(s) with nothing to step between`);
-  return `${rules.length} step rule(s) on a moved invariant, 0 on a history with one run`;
+  return `${lines.length} rule(s) and ${labels.length} label(s) on a moved invariant, 0 on a history with one run`;
 });
 
 // ---------------------------------------------------------------------------
