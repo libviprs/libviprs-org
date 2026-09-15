@@ -227,6 +227,67 @@ test('a run whose typical cell was not quiet is refused on the cause', async () 
   assert.ok(refusals.some((r) => /machineLoad\.quiet: false/.test(r)), refusals.join('\n'));
 });
 
+/** The pinned document with a starting-load block bolted on, plus every cell loud. */
+function withStartingLoad(load, { cores = 6, quiet, loud = true } = {}) {
+  return (d) => {
+    const copy = structuredClone(d);
+    copy.startingLoad =
+      load === null
+        ? null
+        : {
+            cores,
+            loadAvg1m: load,
+            contentionPerCore: load / cores,
+            quiet: quiet ?? load / cores < 1,
+          };
+    if (loud) {
+      for (const cell of copy.cells) {
+        if (cell.outcome === 'ok') cell.machineLoad = { cores, loadAvg1m: 6.3, contentionPerCore: 1.05, quiet: false };
+      }
+    }
+    return copy;
+  };
+}
+
+test('a run that loaded the machine itself, from a quiet start, is not refused for it', async () => {
+  // The sweep is allowed to use the CPU it was given. Every cell here reads
+  // above one runnable thread per core and the machine was quiet before any of
+  // it started, so nothing about the load may refuse this run.
+  //
+  // Red against the majority-of-noisy-cells rule this replaces, which refuses
+  // exactly this document (libviprs-bench #100).
+  const { refusals } = await verify(fixtureBench({ document: withStartingLoad(2.17) }));
+  assert.ok(
+    !refusals.some((r) => /machineLoad\.quiet|startingLoad/.test(r)),
+    `no load refusal expected, got:\n${refusals.join('\n')}`,
+  );
+});
+
+test('a run measured on a machine that was already busy is refused', async () => {
+  // Red against a reader that carries `startingLoad` through to the page and
+  // never gates on it.
+  const { refusals } = await verify(
+    fixtureBench({ document: withStartingLoad(9.4, { loud: false }) }),
+  );
+  assert.ok(
+    refusals.some((r) => /before this sweep started/.test(r)),
+    refusals.join('\n'),
+  );
+});
+
+test('a starting load that is present and unfilled is refused, not read as absent', async () => {
+  // serde writes an unfilled block as an explicit null, so present-and-null is a
+  // runner that skipped its own first act. Red against `?? null`, which folds it
+  // into "this run predates the field" and sends it down the legacy path.
+  const { refusals } = await verify(
+    fixtureBench({ document: withStartingLoad(null, { loud: false }) }),
+  );
+  assert.ok(
+    refusals.some((r) => /left it unfilled/.test(r)),
+    refusals.join('\n'),
+  );
+});
+
 test('a debug build is refused', async () => {
   const { refusals } = await verify(
     fixtureBench({

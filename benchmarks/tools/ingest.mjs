@@ -376,21 +376,65 @@ export async function verifyOrigin({ benchDir, rev, history: given }) {
         );
       }
     }
-    // On the cause and not the consequence. `machineLoad.quiet` is what the
-    // runner observed while it measured the cell; a count of low-confidence
-    // cells is downstream of it, and picking a cut-off there means inventing a
-    // number.
+    // On the cause and not the consequence, and the cause moved (libviprs-bench
+    // #100). Counting cells that recorded `machineLoad.quiet: false` was
+    // measuring the sweep as much as the machine: a one-minute load average has
+    // a one-minute memory and a sweep spends every second of it working, so the
+    // busier the family the louder it reads. Back to back on one six-core box,
+    // `engines` flagged 108 of 558 cells and `storage` flagged 0 of 539, and the
+    // difference is how many threads each family asks for.
+    //
+    // `startingLoad` is sampled by the runner before it measures anything, so
+    // none of that load is ours. Same line as before, one runnable thread per
+    // core; it just moved to a reading where it means what it says.
+    //
+    // Both rules live here because the archive keeps documents forever and this
+    // file re-verifies the whole published history on every ingest. A document
+    // with no `startingLoad` predates the field and keeps the rule it was
+    // published under. `in` rather than `?? null`: serde writes an unfilled
+    // block as an explicit null, so a key that is present and null is a runner
+    // that skipped its own first act, which is a refusal rather than a document
+    // from 2026-09-14.
     const cells = Array.isArray(document.cells) ? document.cells : [];
-    const withLoad = cells.filter(
-      (c) => c.outcome === 'ok' && typeof c.machineLoad?.quiet === 'boolean',
-    );
-    const noisy = withLoad.filter((c) => c.machineLoad.quiet === false);
-    if (withLoad.length > 0 && noisy.length > withLoad.length / 2) {
-      refusals.push(
-        `${where}: ${noisy.length} of ${withLoad.length} measured cells record ` +
-          '`machineLoad.quiet: false`, so the typical cell of this run was measured while other ' +
-          'work was on the CPU',
+    if (!Object.hasOwn(document, 'startingLoad')) {
+      const withLoad = cells.filter(
+        (c) => c.outcome === 'ok' && typeof c.machineLoad?.quiet === 'boolean',
       );
+      const noisy = withLoad.filter((c) => c.machineLoad.quiet === false);
+      if (withLoad.length > 0 && noisy.length > withLoad.length / 2) {
+        refusals.push(
+          `${where}: ${noisy.length} of ${withLoad.length} measured cells record ` +
+            '`machineLoad.quiet: false`, so the typical cell of this run was measured while ' +
+            'other work was on the CPU. This document carries no `startingLoad`, so it ' +
+            'predates the rule that reads one',
+        );
+      }
+    } else {
+      const starting = document.startingLoad;
+      const contention = starting?.contentionPerCore;
+      if (starting === null || typeof starting !== 'object') {
+        refusals.push(
+          `${where}: \`startingLoad\` is ${JSON.stringify(starting ?? null)}, which is a runner ` +
+            'that knows about the field and left it unfilled, not a run that predates it',
+        );
+      } else if (!Number.isFinite(contention)) {
+        refusals.push(
+          `${where}: \`startingLoad.contentionPerCore\` is ` +
+            `${JSON.stringify(contention ?? null)}, so the machine was looked at and could not ` +
+            'be read; an empty reading is a refusal',
+        );
+      } else if (starting.quiet !== contention < 1) {
+        refusals.push(
+          `${where}: \`startingLoad\` says \`quiet: ${JSON.stringify(starting.quiet)}\` and ` +
+            `carries \`contentionPerCore: ${contention}\`, which do not agree`,
+        );
+      } else if (contention >= 1) {
+        refusals.push(
+          `${where}: \`startingLoad\` records ${starting.loadAvg1m} on ${starting.cores} ` +
+            `core(s), ${contention.toFixed(2)} runnable per core, before this sweep started; ` +
+            'none of that load is the sweep\'s own',
+        );
+      }
     }
     if (cells.filter((c) => c.outcome === 'ok').length === 0) {
       refusals.push(`${where}: the archived document has no \`ok\` cell; an empty reading is a refusal`);
