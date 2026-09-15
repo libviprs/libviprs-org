@@ -263,12 +263,37 @@ fn read_source_into(path: &std::path::Path, out: &mut Vec<(PathBuf, String)>) {
     }
 }
 
+/// Every `.rs` under `ops/`, at any depth, sorted.
+///
+/// Recursive, and not the flat `read_dir` it used to be, for the reason written
+/// out on `collect_rel_files` in `cli/tools/sync-cli-src.sh`: libviprs-cli
+/// d51dbc5 turned `ops/arithmetic.rs` into the directory module
+/// `ops/arithmetic/{mod,part_a,part_b}.rs`, and a flat walk stops at the
+/// directory. Those three files carry no markers today, so nothing moves in the
+/// manifest, but the frozen copy carries them now and a flat extractor would
+/// drop the first `@doc-snippet` anyone writes in one without saying a word.
+///
+/// A missing `ops/` is an empty list, and an `ops/` that is there and cannot be
+/// read is a panic. `if let Ok(rd)` made those the same answer, and the manifest
+/// that comes out of the second one is a smaller site with no complaint
+/// attached. The §4 baseline would catch losing every op family this way; it
+/// would not catch losing one.
 fn glob_ops_rs(ops_dir: &std::path::Path) -> Vec<PathBuf> {
     let mut out: Vec<PathBuf> = Vec::new();
-    if let Ok(rd) = fs::read_dir(ops_dir) {
-        for entry in rd.flatten() {
-            let p = entry.path();
-            if p.extension().and_then(|e| e.to_str()) == Some("rs") {
+    if !ops_dir.exists() {
+        return out;
+    }
+    let mut stack: Vec<PathBuf> = vec![ops_dir.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let rd = fs::read_dir(&dir)
+            .unwrap_or_else(|e| panic!("cannot read {}: {e}", dir.display()));
+        for entry in rd {
+            let p = entry
+                .unwrap_or_else(|e| panic!("cannot read an entry of {}: {e}", dir.display()))
+                .path();
+            if p.is_dir() {
+                stack.push(p);
+            } else if p.extension().and_then(|e| e.to_str()) == Some("rs") {
                 out.push(p);
             }
         }
