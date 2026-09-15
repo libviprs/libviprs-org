@@ -39,6 +39,27 @@
   ],
 
   "secrets": {
+    "BENCH_RELEASE_TOKEN": {
+      "kind": "required",
+      "set": false,
+      "why": [
+        "benchmark-release.yml pushes the regenerated benchmark page to `release` and",
+        "opens the merge back into `main`. A branch pushed with GITHUB_TOKEN does not",
+        "start a workflow run, so the pull request would carry none of main's seven",
+        "required contexts and there would be nothing to merge on. The checks are the",
+        "whole point of that pull request, so the workflow reads this plainly and its",
+        "first step refuses when it is missing, rather than falling back to",
+        "github.token and opening an unmergeable pull request.",
+        "",
+        "It is NOT set today: the repository's only secret is GITEA_SYNC_TOKEN. So",
+        "benchmark-release.yml has never been able to run, and the first person to",
+        "merge to `release` would have found out from a red first step. That is",
+        "libviprs-org#72 one more time, which is exactly what this file exists to",
+        "surface; the difference is that here the workflow refuses instead of quietly",
+        "taking the other route. Creating the PAT is an owner action: fine-grained,",
+        "scoped to this repository, Contents and Pull requests read/write."
+      ]
+    },
     "CLI_RESYNC_TOKEN": {
       "kind": "optional-announced",
       "set": false,
