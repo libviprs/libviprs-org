@@ -19,6 +19,7 @@
  *   10. the_not_measured_list_comes_from_config
  *   11. every_class_the_renderer_emits_is_styled
  *   12. a_suppressed_metric_is_named_with_the_reason_it_is_suppressed
+ *   13. a_metric_that_got_faster_is_not_a_regression_and_a_delta_inside_the_spread_is_noise
  *
  * Plain Node, no dependency and no build step (libviprs-org#62).
  *
@@ -483,6 +484,114 @@ test('a_suppressed_metric_is_named_with_the_reason_it_is_suppressed', () => {
   // 1808.6 is the shared watermark; it must not appear as a per-engine figure.
   assert(!/1808\.6/.test(section), 'the shared process-wide RSS watermark is published as a per-engine number');
   return `${Object.keys(suppressed).length} suppressed metric(s), each named with its reason`;
+});
+
+// ---------------------------------------------------------------------------
+// 13. a_metric_that_got_faster_is_not_a_regression_and_a_delta_inside_the_spread_is_noise
+//
+// Ten of the thirty metric keys in the storage family are higher-is-better, so
+// a rule that compares raw numbers calls those a regression on the day they get
+// faster. libviprs-bench#76 flags that the frozen dashboard at cd65c76 has no
+// notion of direction at all; the page reads it off the sample, per metric, and
+// this is the guard on that.
+//
+// The other half is the order the rules fire in. Noise comes before the
+// thresholds, off the spread the run's own replicate pair measured for that
+// very key. And a key with no measured spread gets no ruling rather than
+// falling through to a threshold, because the capture's spreads run from 0.4%
+// to 53.3% and any single fallback gets the dangerous answer confidently.
+//
+// Goes red against: a rule that subtracts and compares without reading
+// direction, one that applies the 10% band before the replicate spread, and one
+// that treats an unmeasured spread as a spread of zero.
+// ---------------------------------------------------------------------------
+test('a_metric_that_got_faster_is_not_a_regression_and_a_delta_inside_the_spread_is_noise', () => {
+  const fam = config.families.storage;
+  const cell = fam.headlineCell;
+
+  const two = JSON.parse(JSON.stringify(history));
+  const base = two.find((r) => r.family === 'storage');
+  const next = JSON.parse(JSON.stringify(base));
+  next.runId = base.runId.replace(/-0bc00939$/, '-0bc0093a');
+  next.documentDigest = 'sha256:' + 'd'.repeat(64);
+  next.capturedAt = '2026-09-21T09:00:00.000Z';
+  next.library = { ...base.library, version: '0.5.1', commit: '1111111111111111111111111111111111111111' };
+
+  const at = (run, series, key) => (run.samples ?? []).find(
+    (x) => x.series === series && x.key === key && x.cell === cell && (x.replicateIndex ?? 0) === 0);
+
+  // Make the four cells under test gateable in both runs, so the rule is what
+  // decides the chip rather than the gate. gated implies high confidence
+  // everywhere the importer writes it, so the fixture keeps that true.
+  const gateable = [['pmtiles', 'read_plan_order.lookups_per_s'], ['directory', 'read_plan_order.lookups_per_s'],
+    ['pmtiles', 'open.p50'], ['pmtiles', 'read_random.p50']];
+  for (const run of [base, next]) {
+    for (const [series, key] of gateable) {
+      const s = at(run, series, key);
+      assert(s, `the fixture needs ${series} ${key} at ${cell} and the history has no such sample`);
+      s.gated = true; s.gateBlockers = []; s.confidence = 'high'; s.timerSaturated = false;
+      s.lowConfidenceReasons = [];
+    }
+  }
+
+  const spreadOf = (series, key) => next.replicate.spreadPct[`${series}.${key}`];
+  assert(Number.isFinite(spreadOf('pmtiles', 'open.p50')), 'the fixture needs a measured spread for pmtiles open.p50');
+
+  // higher-is-better, and the number went UP by 20%: improved, not regressed.
+  at(next, 'pmtiles', 'read_plan_order.lookups_per_s').median *= 1.20;
+  // higher-is-better, and the number went DOWN by 20%: regressed.
+  at(next, 'directory', 'read_plan_order.lookups_per_s').median *= 0.80;
+  // lower-is-better, moved by 1%, inside the ~2% spread: noise.
+  at(next, 'pmtiles', 'open.p50').median *= 1.01;
+  // lower-is-better, moved 20%, but nothing measured a spread for it: no ruling.
+  at(next, 'pmtiles', 'read_random.p50').median *= 1.20;
+  delete next.replicate.spreadPct['pmtiles.read_random.p50'];
+
+  two.splice(two.indexOf(base) + 1, 0, next);
+  const r = renderInto(two);
+  assert(r.code === 0, `the two-run history did not render: ${r.err}`);
+  const html = r.html();
+
+  // Scoped to the headline table, not the whole page: the full-results block
+  // further down carries the same key and the same series label, and a search
+  // over every <tr> would be reading whichever happened to come first.
+  const capStart = html.indexOf('Headline cells for');
+  assert(capStart !== -1, 'the page has no headline table to read chips out of');
+  const headlineTable = html.slice(capStart, html.indexOf('</table>', capStart));
+
+  const rowFor = (series, key) => {
+    const label = fam.series.label[series];
+    const rows = headlineTable.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || [];
+    const hits = rows.filter((row) => row.includes(`>${key}<`) && row.includes(`>${label}</td>`));
+    assert(hits.length <= 1, `${hits.length} headline rows match ${series} ${key}, so this read is ambiguous`);
+    return hits[0];
+  };
+
+  const chipOf = (series, key) => {
+    const row = rowFor(series, key);
+    assert(row, `no rendered row for ${series} ${key}`);
+    const m = row.match(/<span class="(verdict verdict-[a-z]+|gate)"[^>]*>([^<]*)<\/span>\s*<\/td>\s*<\/tr>/);
+    assert(m, `the row for ${series} ${key} carries no chip at all:\n${row}`);
+    return { cls: m[1], text: m[2] };
+  };
+
+  const improved = chipOf('pmtiles', 'read_plan_order.lookups_per_s');
+  assert(improved.cls === 'verdict verdict-improved',
+    `a higher-is-better metric that went up 20% rendered as "${improved.text}" (${improved.cls}), not improved`);
+
+  const regressed = chipOf('directory', 'read_plan_order.lookups_per_s');
+  assert(regressed.cls === 'verdict verdict-regressed',
+    `a higher-is-better metric that went down 20% rendered as "${regressed.text}" (${regressed.cls}), not regressed`);
+
+  const noise = chipOf('pmtiles', 'open.p50');
+  assert(noise.cls === 'verdict verdict-noise',
+    `a 1% move inside the ${spreadOf('pmtiles', 'open.p50').toFixed(2)}% replicate spread rendered as "${noise.text}" (${noise.cls}), not noise`);
+
+  const unknown = chipOf('pmtiles', 'read_random.p50');
+  assert(unknown.cls === 'gate',
+    `a 20% move with no measured spread rendered as "${unknown.text}" (${unknown.cls}); with nothing to tell a change from noise there is no ruling to draw`);
+
+  return 'direction read per metric, noise before the thresholds, no ruling without a spread';
 });
 
 // ---------------------------------------------------------------------------

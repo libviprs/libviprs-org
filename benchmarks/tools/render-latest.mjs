@@ -178,11 +178,15 @@ const latest = (family) => {
  *  agrees. A run on another machine, or another filesystem, starts a new era
  *  rather than continuing the line, because drawing one line across the two
  *  invents a change that never happened. */
+const dig = (obj, path) => String(path).split('.').reduce((o, k) => (o === undefined || o === null ? o : o[k]), obj);
+
 function eraKey(run) {
   return config.era.axes.map((axis) => {
-    const [head, tail] = axis.split('.');
-    const v = tail ? run[head]?.[tail] : run[head];
-    return `${axis}=${Array.isArray(v) ? v.join('+') : String(v)}`;
+    const v = axis.from === 'host.fingerprint'
+      ? config.era.hostFingerprintFrom.map((f) => `${f}=${String(dig(run, f))}`).join(',')
+      : dig(run, axis.from);
+    const flat = Array.isArray(v) ? [...v].sort().join('+') : String(v);
+    return `${axis.id}=${flat}`;
   }).join('|');
 }
 
@@ -201,6 +205,69 @@ const timerFloorUs = (run) => {
   const ticks = run.measurement?.minTicksPerSample ?? config.confidence.minTicksPerSample;
   return Number.isFinite(tick) ? (tick * ticks) / 1000 : null;
 };
+
+// ---------------------------------------------------------------------------
+// verdicts
+// ---------------------------------------------------------------------------
+
+const V = config.verdict;
+const kindLabel = (kind) => V.kindLabel?.[kind] ?? kind;
+
+/** The ruling for one (family, series, key, cell), read off the two most recent
+ *  runs of that family.
+ *
+ *  Direction is taken from the sample, per metric, and not assumed. Ten of the
+ *  thirty metric keys in the storage family are higher-is-better, and a rule
+ *  that compares raw numbers calls those a regression on the day they get
+ *  faster. That is the failure this function exists to not commit.
+ *
+ *  Noise comes before the thresholds: a delta smaller than the spread the run's
+ *  own replicate pair measured for that very key is not a result. And a spread
+ *  that was not measured is not a spread, so the ruling is withheld rather than
+ *  falling back to a threshold or to some other key's spread. */
+function rule(familyId, runs, series, key, cell) {
+  const cur = runs[runs.length - 1];
+  const find = (run) => displayed(run).find((s) => s.series === series && s.key === key && s.cell === cell);
+  const b = find(cur);
+  if (!b) return { kind: 'unknown', why: 'no cell in the latest run' };
+  if (V.gate.enabled && b[V.gate.field] === false) return { kind: V.gate.kind, why: b.gateBlockers.join('; ') };
+  if (runs.length < 2) return { kind: 'first', why: 'nothing archived before this run' };
+
+  const prev = runs[runs.length - 2];
+  if (eraKey(prev) !== eraKey(cur)) return { kind: 'unknown', why: 'the previous run is in a different era' };
+  const a = find(prev);
+  if (!a) return { kind: 'unknown', why: 'the previous run has no cell to compare against' };
+  if (!(a.median > 0)) return { kind: 'unknown', why: 'the previous run measured zero, so a relative change has no meaning' };
+
+  const rel = (b.median - a.median) / a.median;
+  const better = b.direction === 'higher-is-better' ? rel : -rel;
+
+  if (V.noise.enabled) {
+    const spread = bandPct(cur, series, key);
+    if (spread === null) {
+      if (V.noise.onMissingSpread === 'unknown') {
+        return { kind: 'unknown', why: 'no replicate spread was measured for this key, so there is nothing to tell a change from noise', rel };
+      }
+    } else if (Math.abs(rel) <= Math.max(spread, V.noise.floorPct ?? 0)) {
+      return { kind: V.noise.kind, why: `inside the ${pct(spread, 2)} spread this run's own replicate pair measured`, rel };
+    }
+  }
+
+  if (better >= V.improvedPct) return { kind: 'improved', why: `${pct(Math.abs(rel), 1)} better`, rel };
+  if (-better >= V.regressionPct) return { kind: 'regressed', why: `${pct(Math.abs(rel), 1)} worse`, rel };
+  if (Math.abs(rel) <= V.passPct) return { kind: 'pass', why: `within ${pct(V.passPct, 0)}`, rel };
+  return { kind: 'unknown', why: 'moved by more than the pass band and less than the regression band', rel };
+}
+
+/** A chip, or not one. `noChipKinds` is config: a kind in that list renders as a
+ *  dashed gate marker and never as a verdict, because a neutral-looking chip on
+ *  a number nobody can rule on still reads as a ruling. */
+function chipFor(v) {
+  const label = esc(kindLabel(v.kind));
+  const title = v.why ? ` title="${esc(prose(v.why))}"` : '';
+  if (V.noChipKinds.includes(v.kind)) return `<span class="gate"${title}>${label}</span>`;
+  return `<span class="verdict verdict-${esc(v.kind)}"${title}>${label}</span>`;
+}
 
 // ---------------------------------------------------------------------------
 // 1. the claim
@@ -257,7 +324,7 @@ function claimSection() {
   const fam = config.families.storage;
   const idx = invariantIndex(run);
   const order = fam.invariantOrder;
-  const seriesOrder = fam.seriesOrder.filter((s) => [...idx.values()].some((m) => m.has(s)));
+  const seriesOrder = fam.series.order.filter((s) => [...idx.values()].some((m) => m.has(s)));
 
   // The headline, computed. The entry count comes from the cell config names;
   // the byte bound is the worst relative gap across every cell, not this one.
@@ -293,7 +360,7 @@ function claimSection() {
         if (name.endsWith('_bytes')) return `<td class="num">${bytes(Number(v))}</td>`;
         return `<td class="num">${count(Number(v))}</td>`;
       }).join('');
-      return `        <tr><th scope="row"><span class="swatch" style="background:${esc(fam.seriesColor[s] ?? '#888')}"></span>${esc(fam.seriesLabel[s] ?? s)}</th>${tds}</tr>`;
+      return `        <tr><th scope="row"><span class="swatch" style="background:${esc(fam.series.color[s] ?? '#888')}"></span>${esc(fam.series.label[s] ?? s)}</th>${tds}</tr>`;
     }).join('\n');
 
     const verdicts = order.map((name) => {
@@ -316,14 +383,14 @@ ${body}
     </div>
 
     <p class="lead">This is the result the PMTiles work was for, and it is an exact one. Both backends were handed
-      the same tiles and asked to store them. ${esc(fam.seriesLabel[fewestSeries] ?? fewestSeries)} finished with
+      the same tiles and asked to store them. ${esc(fam.series.label[fewestSeries] ?? fewestSeries)} finished with
       ${count(fewest)} filesystem ${fewest === 1 ? 'entry' : 'entries'};
-      ${esc(fam.seriesLabel[mostSeries] ?? mostSeries)} finished with ${count(most)} of them. Every tile is in both, and
+      ${esc(fam.series.label[mostSeries] ?? mostSeries)} finished with ${count(most)} of them. Every tile is in both, and
       across all ${cells.length} cells the two byte totals never differ by more than ${pct(worstByteGap)}.</p>
 
     <div class="claim-figures">
-      <div class="claim-figure"><div class="claim-number">${count(fewest)}</div><div class="claim-label">filesystem ${fewest === 1 ? 'entry' : 'entries'}, ${esc(fam.seriesLabel[fewestSeries] ?? fewestSeries)}, <code class="mono">${esc(fam.claimCell)}</code></div></div>
-      <div class="claim-figure"><div class="claim-number">${count(most)}</div><div class="claim-label">filesystem ${most === 1 ? 'entry' : 'entries'}, ${esc(fam.seriesLabel[mostSeries] ?? mostSeries)}, the same cell</div></div>
+      <div class="claim-figure"><div class="claim-number">${count(fewest)}</div><div class="claim-label">filesystem ${fewest === 1 ? 'entry' : 'entries'}, ${esc(fam.series.label[fewestSeries] ?? fewestSeries)}, <code class="mono">${esc(fam.claimCell)}</code></div></div>
+      <div class="claim-figure"><div class="claim-number">${count(most)}</div><div class="claim-label">filesystem ${most === 1 ? 'entry' : 'entries'}, ${esc(fam.series.label[mostSeries] ?? mostSeries)}, the same cell</div></div>
       <div class="claim-figure"><div class="claim-number">${pct(worstByteGap)}</div><div class="claim-label">the widest the byte totals ever get apart, at <code class="mono">${esc(worstCell ?? 'n/a')}</code></div></div>
     </div>
 
@@ -360,7 +427,7 @@ function enginesSection() {
   if (!run) return '<p>No engines run in the history, so there is nothing to compare.</p>';
 
   const fam = config.families.engines;
-  const series = fam.seriesOrder;
+  const series = fam.series.order;
   const cells = [...new Set(displayed(run).map((s) => s.cell))];
   const scaleOf = new Map(displayed(run).map((s) => [s.cell, s.scale]));
   cells.sort((a, b) => (scaleOf.get(a) - scaleOf.get(b)) || a.localeCompare(b));
@@ -395,7 +462,7 @@ function enginesSection() {
     <div class="table-wrap">
       <table class="results-table">
         <thead>
-          <tr><th scope="col">cell</th>${series.map((sx) => `<th scope="col"><span class="swatch" style="background:${esc(fam.seriesColor[sx] ?? '#888')}"></span>${esc(fam.seriesLabel[sx] ?? sx)}</th>`).join('')}<th scope="col">gate</th></tr>
+          <tr><th scope="col">cell</th>${series.map((sx) => `<th scope="col"><span class="swatch" style="background:${esc(fam.series.color[sx] ?? '#888')}"></span>${esc(fam.series.label[sx] ?? sx)}</th>`).join('')}<th scope="col">gate</th></tr>
         </thead>
         <tbody>
 ${rows}
@@ -413,7 +480,7 @@ ${rows}
   const heaviest = mem.reduce((a, b) => (a.s.median >= b.s.median ? a : b), mem[0]);
   const lightest = mem.reduce((a, b) => (a.s.median <= b.s.median ? a : b), mem[0]);
   const tiedWith = mem.filter((x) => x.series !== lightest.series && x.s.median === lightest.s.median)
-    .map((x) => fam.seriesLabel[x.series] ?? x.series);
+    .map((x) => fam.series.label[x.series] ?? x.series);
   const mp = scaleOf.get(claimCell);
   const wallOf = (id) => at.get(`${id}/${claimCell}/build.wall`)?.median;
   const heavyWall = wallOf(heaviest.series);
@@ -448,8 +515,8 @@ ${rows}
 
     <p class="lead">All three build the same tiles from the same source and produce the same tile count. Where they
       part company is how much of the image they are holding while they do it, and the tracked working set is the
-      column that says so: at ${num(mp)} MP the ${esc(fam.seriesLabel[heaviest.series] ?? heaviest.series)} engine
-      is holding ${num(heaviest.s.median)} MB and ${esc(fam.seriesLabel[lightest.series] ?? lightest.series)} is
+      column that says so: at ${num(mp)} MP the ${esc(fam.series.label[heaviest.series] ?? heaviest.series)} engine
+      is holding ${num(heaviest.s.median)} MB and ${esc(fam.series.label[lightest.series] ?? lightest.series)} is
       holding ${num(lightest.s.median)} MB${tiedWith.length ? ` (and so ${tiedWith.length === 1 ? 'is' : 'are'} ${esc(tiedWith.join(' and '))}, to the byte)` : ''}. That is a factor of
       ${num(heaviest.s.median / (lightest.s.median || 1))}, for wall times of ${num(heavyWall)} ms against
       ${num(lightWall)} ms${wallGap === null ? '' : `, ${pct(wallGap, 1)} apart`}. Read the memory column, not the
@@ -525,11 +592,11 @@ function chartSvg({ title, family, run, key, unit, xOf, yOf, xLabel, yLabel, log
     ...niceTicks(xlo, xhi, logX).map((v) => `<text class="chart-tick" x="${sx(v).toFixed(1)}" y="${H - PAD.b + 15}" text-anchor="middle">${esc(num(v))}</text>`),
   ].join('\n      ');
 
-  const seriesPaths = fam.seriesOrder.map((id) => {
+  const seriesPaths = fam.series.order.map((id) => {
     const own = rows.filter((s) => s.series === id).sort((a, b) => xOf(a) - xOf(b));
     if (own.length === 0) return '';
-    const colour = fam.seriesColor[id] ?? '#888';
-    const dash = fam.seriesDash[id];
+    const colour = fam.series.color[id] ?? '#888';
+    const dash = fam.series.dash[id];
     const d = own.map((s, i) => `${i === 0 ? 'M' : 'L'}${sx(xOf(s)).toFixed(1)},${sy(yOf(s)).toFixed(1)}`).join(' ');
 
     // The band is the replicate spread this run measured for this very key, or
@@ -539,15 +606,15 @@ function chartSvg({ title, family, run, key, unit, xOf, yOf, xLabel, yLabel, log
     const band = spread === null ? '' :
       `<path class="chart-band" fill="${esc(colour)}" d="${own.map((s, i) => `${i === 0 ? 'M' : 'L'}${sx(xOf(s)).toFixed(1)},${sy(yOf(s) * (1 + spread)).toFixed(1)}`).join(' ')} ${own.slice().reverse().map((s) => `L${sx(xOf(s)).toFixed(1)},${sy(yOf(s) * (1 - spread)).toFixed(1)}`).join(' ')} Z"/>`;
 
-    const dots = own.map((s) => `<circle class="chart-point" cx="${sx(xOf(s)).toFixed(1)}" cy="${sy(yOf(s)).toFixed(1)}" r="3" fill="${esc(colour)}"><title>${esc(fam.seriesLabel[id] ?? id)} ${esc(s.cell)}: ${esc(num(yOf(s)))} ${esc(unit)}</title></circle>`).join('');
+    const dots = own.map((s) => `<circle class="chart-point" cx="${sx(xOf(s)).toFixed(1)}" cy="${sy(yOf(s)).toFixed(1)}" r="3" fill="${esc(colour)}"><title>${esc(fam.series.label[id] ?? id)} ${esc(s.cell)}: ${esc(num(yOf(s)))} ${esc(unit)}</title></circle>`).join('');
 
     return `${band}<path class="chart-line" data-series-key="${esc(`${family}:${id}:${key}`)}" d="${d}" stroke="${esc(colour)}"${dash ? ` stroke-dasharray="${esc(dash)}"` : ''}/>${dots}`;
   }).join('\n      ');
 
   const stepRules = steps.map((st) => `<line class="step-rule" data-invariant-step="${esc(`${st.name} ${st.series} ${st.cell}`)}" x1="${sx(st.x).toFixed(1)}" y1="${PAD.t}" x2="${sx(st.x).toFixed(1)}" y2="${H - PAD.b}"/>`).join('\n      ');
 
-  const legend = fam.seriesOrder.filter((id) => rows.some((s) => s.series === id)).map((id) =>
-    `<li class="legend-item"><span class="legend-swatch" style="background:${esc(fam.seriesColor[id] ?? '#888')}"></span><span class="legend-label">${esc(fam.seriesLabel[id] ?? id)}</span></li>`).join('');
+  const legend = fam.series.order.filter((id) => rows.some((s) => s.series === id)).map((id) =>
+    `<li class="legend-item"><span class="legend-swatch" style="background:${esc(fam.series.color[id] ?? '#888')}"></span><span class="legend-label">${esc(fam.series.label[id] ?? id)}</span></li>`).join('');
 
   return `      <figure class="chart">
         <figcaption class="chart-title">${esc(title)}</figcaption>
@@ -610,7 +677,7 @@ function fullResults(familyId) {
   const fam = config.families[familyId];
   const all = [...(run.samples ?? [])].sort((a, b) =>
     a.cell.localeCompare(b.cell) || a.key.localeCompare(b.key) ||
-    fam.seriesOrder.indexOf(a.series) - fam.seriesOrder.indexOf(b.series) ||
+    fam.series.order.indexOf(a.series) - fam.series.order.indexOf(b.series) ||
     (a.replicateIndex ?? 0) - (b.replicateIndex ?? 0));
 
   const rows = all.map((s) => {
@@ -619,7 +686,7 @@ function fullResults(familyId) {
     return `        <tr${low ? ' class="row-low"' : ''}${why ? ` title="${esc(prose(why))}"` : ''}>` +
       `<th scope="row"><code class="mono">${esc(s.cell)}</code></th>` +
       `<td><code class="mono">${esc(s.key)}</code></td>` +
-      `<td><span class="swatch" style="background:${esc(fam.seriesColor[s.series] ?? '#888')}"></span>${esc(fam.seriesLabel[s.series] ?? s.series)}</td>` +
+      `<td><span class="swatch" style="background:${esc(fam.series.color[s.series] ?? '#888')}"></span>${esc(fam.series.label[s.series] ?? s.series)}</td>` +
       `<td class="num">${num(s.median)} <span class="unit">${esc(s.unit)}</span></td>` +
       `<td class="num">${Array.isArray(s.ci95) ? `${num(s.ci95[0])}&hairsp;to&hairsp;${num(s.ci95[1])}` : '<span class="absent">none</span>'}</td>` +
       `<td class="num">${s.cov === null ? '<span class="absent">none</span>' : pct(s.cov, 1)}</td>` +
@@ -632,7 +699,7 @@ function fullResults(familyId) {
   const skipped = (run.skipped ?? []).map((s) =>
     `        <tr class="row-absent"><th scope="row"><code class="mono">${esc(s.cell)}</code></th>` +
     `<td><code class="mono">${esc(s.key)}</code></td>` +
-    `<td>${esc(fam.seriesLabel[s.series] ?? s.series)}</td>` +
+    `<td>${esc(fam.series.label[s.series] ?? s.series)}</td>` +
     `<td class="absent" colspan="7"><strong>${esc(s.outcome)}</strong>: ${prose(s.reason ?? 'no reason recorded')}</td></tr>`).join('\n');
 
   const c = run.cellCounts ?? {};
@@ -689,17 +756,13 @@ function historySection() {
     const rows = fam.headlineKeys.map((key) => {
       const own = displayed(run).filter((s) => s.key === key && s.cell === fam.headlineCell);
       if (own.length === 0) return '';
-      return fam.seriesOrder.filter((id) => own.some((s) => s.series === id)).map((id) => {
+      return fam.series.order.filter((id) => own.some((s) => s.series === id)).map((id) => {
         const s = own.find((x) => x.series === id);
         const spread = bandPct(run, id, key);
-        const chip = s.gated
-          ? (runs.length < 2
-            ? '<span class="verdict verdict-first">first run</span>'
-            : '<span class="verdict verdict-pass">no change</span>')
-          : '<span class="gate">measured, not gated</span>';
+        const chip = chipFor(rule(familyId, runs, id, key, fam.headlineCell));
         return `        <tr${s.confidence === 'high' ? '' : ' class="row-low"'} title="${esc(prose(s.gateBlockers.join('; ') || s.lowConfidenceReasons.join('; ')))}">` +
           `<th scope="row"><code class="mono">${esc(key)}</code></th>` +
-          `<td><span class="swatch" style="background:${esc(fam.seriesColor[id] ?? '#888')}"></span>${esc(fam.seriesLabel[id] ?? id)}</td>` +
+          `<td><span class="swatch" style="background:${esc(fam.series.color[id] ?? '#888')}"></span>${esc(fam.series.label[id] ?? id)}</td>` +
           `<td class="num">${num(s.median)} <span class="unit">${esc(s.unit)}</span></td>` +
           `<td class="num">${spread === null ? '<span class="absent">no replicate</span>' : `&plusmn;${pct(spread, 2)}`}</td>` +
           `<td class="num">${s.reps}</td>` +
