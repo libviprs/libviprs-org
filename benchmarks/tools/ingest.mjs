@@ -48,10 +48,14 @@
  *     the archive index's row;
  *   * the facts the entry restates must equal the document's: profile, commit,
  *     harness commit, emulation verdict, build profile, architecture;
- *   * the document must still pass the rules that let it be published at all,
- *     read from the pinned revision's importer config rather than restated
- *     here: not emulated, release build, no debug assertions, clean tree,
- *     publishable profile, and a run whose typical cell was quiet.
+ *   * the document must still pass the rules that let it be published at all:
+ *     not emulated, release build with assertions off, a clean tree on both
+ *     sides, a publishable profile, at least one measured cell, and a run whose
+ *     typical cell was quiet. Two of those come out of the pinned revision's own
+ *     importer config, the profiles and the families, because the producer keeps
+ *     them there. The rest are written out in this file, because over there they
+ *     are code rather than config. That is a second copy and it can drift, and
+ *     saying so is better than a sentence claiming all of it is read.
  *
  * The entries it puts through that are the FROZEN COPY's, because that is the
  * file the page is generated from, and the byte comparison with the pinned
@@ -406,18 +410,30 @@ function render(pagePath, historyPath, check) {
   execFileSync(process.execPath, args, { stdio: 'inherit' });
 }
 
-export function readPin(pinPath = PIN_PATH) {
-  if (!existsSync(pinPath)) {
-    throw new Error(`no pin at ${pinPath}; this site reads its history from a named libviprs-bench revision`);
-  }
-  const rev = readFileSync(pinPath, 'utf8').trim();
+/** A full commit sha, or an error naming what was given instead.
+ *
+ *  Separate from `readPin` because `--rev` writes a pin without ever reading
+ *  one, and the first version validated only on the read. `--sync --rev main`
+ *  was accepted and left `BENCH_REV` holding `main`, which the next `--check`
+ *  refuses, and for that one run the page was published from a moving ref. That
+ *  is the single thing this file's header argues against for forty lines, so the
+ *  check belongs at every door and not just the one I happened to write first.
+ */
+export function assertFullSha(rev, where) {
   if (!/^[0-9a-f]{40}$/.test(rev)) {
     throw new Error(
-      `${pinPath} holds ${JSON.stringify(rev)}, which is not a full 40-character commit sha. ` +
+      `${where} is ${JSON.stringify(rev)}, which is not a full 40-character commit sha. ` +
         'A short sha or a branch name is a pin that can move, which is the thing a pin is for.',
     );
   }
   return rev;
+}
+
+export function readPin(pinPath = PIN_PATH) {
+  if (!existsSync(pinPath)) {
+    throw new Error(`no pin at ${pinPath}; this site reads its history from a named libviprs-bench revision`);
+  }
+  return assertFullSha(readFileSync(pinPath, 'utf8').trim(), pinPath);
 }
 
 async function main(argv) {
@@ -448,11 +464,11 @@ async function main(argv) {
   const historyPath = resolve(flag('history') ?? HISTORY_PATH);
   const pagePath = resolve(flag('page') ?? join(here, '..', 'index.html'));
   const sync = has('sync');
-  const rev = flag('rev') ?? readPin(pinPath);
   if (flag('rev') && !sync) {
     console.error('--rev moves the pin, so it only makes sense with --sync');
     return EXIT.USAGE;
   }
+  const rev = flag('rev') ? assertFullSha(flag('rev'), '--rev') : readPin(pinPath);
 
   console.log(`libviprs-bench ${rev}`);
   // On `--check` the entries verified are the ones the page is generated from,
