@@ -30,15 +30,7 @@
         "kind": "value"
       }
     ],
-    "hostFingerprintFrom": [
-      "host.os",
-      "host.arch",
-      "host.cpuModel",
-      "host.ncpu",
-      "host.inContainer",
-      "host.emulated"
-    ],
-    "_doc": "Two runs belong to the same comparable era only when every axis agrees. Upstream breaks an era on the series set alone; libviprs adds the host fingerprint and the filesystem type, because a run on a different machine or a different filesystem is a different experiment and one line across the two invents a change that never happened."
+    "_doc": "Two runs belong to the same comparable era only when every axis agrees. Upstream breaks an era on the series set alone; libviprs adds the host fingerprint and the filesystem type, because a run on a different machine or a different filesystem is a different experiment and one line across the two invents a change that never happened. The producer emits host.fingerprint itself now, so this reads it rather than rebuilding it from a field list and hoping the two agree."
   },
   "confidence": {
     "minTicksPerSample": 100,
@@ -162,23 +154,30 @@
       "gateable": false,
       "runner": "libviprs-engines",
       "headlineKeys": [
-        "build.wall",
-        "build.tiles_per_s",
-        "build.tracked_mb"
+        "pyramid.wall",
+        "pyramid.tiles_per_second",
+        "pyramid.peak_rss_mb",
+        "pyramid.tracked_memory_mb"
       ],
-      "headlineCell": "20000x14000@1",
-      "memoryClaimCell": "20000x14000@1",
-      "suppressedMetrics": {
-        "build.peak_rss_mb": "the engines sweep reads a process-wide high-water mark, so all three engines report the same figure and none of them reports its own (libviprs-bench#74). The tracked working set below is per engine and is the column that carries the memory story."
-      },
+      "headlineCell": "12000x8400@256+c1",
+      "memoryClaimCell": "12000x8400@256+c1",
       "invariantOrder": [
+        "output_bytes",
+        "filesystem_entries",
+        "directories",
         "tiles_produced"
       ],
       "invariantLabel": {
+        "output_bytes": "output bytes",
+        "filesystem_entries": "filesystem entries",
+        "directories": "directories",
         "tiles_produced": "tiles produced"
       },
       "invariantEquality": {
-        "tiles_produced": "equal"
+        "tiles_produced": "equal",
+        "output_bytes": "equal",
+        "filesystem_entries": "equal",
+        "directories": "equal"
       },
       "series": {
         "order": [
@@ -200,8 +199,51 @@
           "streaming": "5 3",
           "mapreduce": "2 3"
         },
-        "annotation": {}
-      }
+        "annotation": {
+          "monolithic": "holds the whole image, so the thread count changes nothing about what is resident",
+          "streaming": "works a strip at a time, so its working set is bounded by the strip rather than by the thread count",
+          "mapreduce": "keeps several strips in flight, which is what buys the parallelism and what it pays for in resident memory"
+        },
+        "_annotationDoc": "Why each engine behaves the way the table shows. The numbers are generated; these sentences are not, and they are here rather than in the renderer because they are claims about the design rather than readings off the run. A generated sentence that attaches one mechanism to two engines that do not share it is worse than no sentence."
+      },
+      "memoryKey": "pyramid.peak_rss_mb",
+      "trackedKey": "pyramid.tracked_memory_mb",
+      "wallKey": "pyramid.wall",
+      "flatThresholdPct": 0.02,
+      "_flatThresholdDoc": "How far a peak resident set may move between the lowest and the highest thread count and still be called flat. 2% is above the replicate spread this run measured for peak RSS on every engine, so a series called flat is flat by more than the noise the run itself can see.",
+      "tableKeys": [
+        {
+          "key": "pyramid.wall",
+          "label": "Wall time",
+          "sense": "lower"
+        },
+        {
+          "key": "pyramid.peak_rss_mb",
+          "label": "Peak resident set",
+          "sense": "lower"
+        },
+        {
+          "key": "pyramid.tracked_memory_mb",
+          "label": "Tracked working set",
+          "sense": "lower"
+        },
+        {
+          "key": "pyramid.tiles_per_second",
+          "label": "Throughput",
+          "sense": "higher"
+        }
+      ],
+      "chartKeys": [
+        {
+          "key": "pyramid.peak_rss_mb",
+          "label": "Peak resident set"
+        },
+        {
+          "key": "pyramid.tracked_memory_mb",
+          "label": "Tracked working set"
+        }
+      ],
+      "_doc": "Peak RSS used to be suppressed here, because the sweep read one process-wide high-water mark and reported it for all three engines (libviprs-bench#74). It measures each engine in its own child now, so peak RSS is per engine and it is the headline rather than a hole. The page checks that rather than trusting it: it counts the groups whose engines all report the same figure and puts the count on the page."
     }
   },
   "defaults": {
@@ -218,7 +260,7 @@
     ],
     "scales": [
       "8192x8192@64+gradient",
-      "20000x14000@1"
+      "12000x8400@256+c1"
     ],
     "_doc": "What the interactive layer starts with when it attaches. `libraries` and `scales` are the schema's names for the default filter; `families` is this page's addition, because the dashboard has no notion of more than one."
   },
@@ -235,7 +277,11 @@
     "requests_declared": "requests (declared)",
     "request_bytes": "request bytes",
     "request_bytes_declared": "request bytes (declared)",
-    "peak_rss_mb": "peak RSS"
+    "peak_rss_mb": "peak resident set",
+    "tiles_per_second": "tiles per second",
+    "tracked_memory_mb": "tracked working set",
+    "resource_cost": "resource cost",
+    "tiles_per_second_per_mb": "tiles per second per MB"
   },
   "scenarioLabel": {
     "generate": "write the whole pyramid",
@@ -251,7 +297,7 @@
     "read_concurrent@4": "concurrent reads, 4 threads",
     "read_concurrent@8": "concurrent reads, 8 threads",
     "requests": "requests a reader would issue",
-    "build": "build the pyramid"
+    "pyramid": "build the whole pyramid"
   },
   "notMeasured": [
     {
@@ -273,6 +319,10 @@
     {
       "title": "The directory backend's request counts",
       "body": "PMTiles counts the requests a reader actually issues, because the reader is the thing being measured and it knows. The directory tree has no reader to count: its index work happens in the kernel, one path resolution at a time. So its request figures are declared by a model of what an HTTP client would have to ask for, they are labelled declared everywhere they appear, and they are not a measurement of anything that ran."
+    },
+    {
+      "title": "More than two thread counts",
+      "body": "The engines sweep builds each image at one thread and at eight, and nothing in between. That is enough to say whether an engine trades memory for threads at all, and not enough to say what the curve looks like or where it stops paying."
     }
   ],
   "links": {
