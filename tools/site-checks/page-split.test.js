@@ -440,10 +440,16 @@ test('the_libviprs_page_publishes_no_number_that_is_not_generated', () => {
   const history = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
   assert(Array.isArray(history) && history.length > 0, 'benchmarks/history.json holds no runs');
   for (const run of history) {
-    assert(run.runId && run.documentDigest,
-      'a run in benchmarks/history.json has no runId or no documentDigest, so it is not archived by digest');
+    // The importer carries the producer's own integrity block through, so the
+    // document digest lives at integrity.document; the flat spelling is what a
+    // history written before that block was carried has. Reading only one of
+    // the two is the shape mismatch that cost this lane a round.
+    const digest = (run.integrity && run.integrity.document) || run.documentDigest;
+    assert(run.runId && digest,
+      'a run in benchmarks/history.json has no runId, and no digest at integrity.document or documentDigest, ' +
+        'so it is not archived by digest');
     assert(html.includes(run.runId), 'the page renders run ' + run.runId + ' without naming it');
-    assert(html.includes(run.documentDigest),
+    assert(html.includes(digest),
       'the page renders run ' + run.runId + ' without naming the document digest it came from');
   }
 
