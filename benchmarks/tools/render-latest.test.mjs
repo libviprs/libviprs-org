@@ -27,6 +27,7 @@
  *   18. the_two_causes_of_low_confidence_are_told_apart
  *   19. two_cells_with_the_same_tile_count_stay_two_cells
  *   20. the_thread_count_effect_is_classified_at_the_largest_image
+ *   21. the_page_says_how_wide_its_own_bands_are
  *
  * Every count in here is read off benchmarks/history.json rather than written
  * down, because the last capture's figures outlived the capture by one round
@@ -1020,6 +1021,56 @@ test('the_thread_count_effect_is_classified_at_the_largest_image', () => {
   assert(risingClause[1].includes(fam.series.label[flatId] ?? flatId),
     `the page says "${risingClause[1].trim()}" rises, and ${flatId} is the engine that jumped 50%`);
   return `classified at ${largest}, deltas ${fam.series.order.map((id) => `${id} ${deltaAttr(asIs, id)}%`).join(', ')}`;
+});
+
+// ---------------------------------------------------------------------------
+// 21. the_page_says_how_wide_its_own_bands_are
+//
+// A band is only useful next to a sense of how wide it usually is. On this host
+// the storage replicate pair disagreed with itself by a median of 37% and by
+// 192% at its worst, while the engines pair, minutes later on the same machine,
+// came out at 0.33% median. Two measurements of identical code. A page that
+// draws a 37% band without saying that 37% is the norm here is presenting the
+// timings as firmer than they are, which is the one thing this page must not
+// do.
+//
+// Goes red against: a page that draws bands without summarising them, and
+// against a summary written down rather than computed.
+// ---------------------------------------------------------------------------
+test('the_page_says_how_wide_its_own_bands_are', () => {
+  const html = renderInto(history).html();
+  const summaries = [...html.matchAll(/data-spread-median="([\d.]+)"[^>]*data-spread-max="([\d.]+)"[^>]*data-spread-keys="(\d+)"/g)];
+  assert(summaries.length === history.length,
+    `the page carries ${summaries.length} band summaries for ${history.length} runs`);
+
+  const medianOf = (vals) => {
+    const v = [...vals].sort((a, b) => a - b);
+    return v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2;
+  };
+  for (const run of history) {
+    const vals = Object.values(run.replicate.spreadPct).filter(Number.isFinite);
+    const want = { median: medianOf(vals).toFixed(2), max: Math.max(...vals).toFixed(2), n: String(vals.length) };
+    const hit = summaries.find((m) => m[3] === want.n && m[1] === want.median);
+    assert(hit, `no band summary on the page matches ${run.family}: ${want.n} keys, median ${want.median}%. ` +
+      `The page carries: ${summaries.map((m) => `${m[3]} keys median ${m[1]}%`).join('; ')}`);
+    assert(hit[2] === want.max, `${run.family}'s worst spread reads ${hit[2]}%, the run says ${want.max}%`);
+  }
+
+  // Computed, not written: halving the spreads has to halve what the page says.
+  const halved = clone(history);
+  for (const run of halved) {
+    for (const k of Object.keys(run.replicate.spreadPct)) run.replicate.spreadPct[k] /= 2;
+    for (const s of [...run.samples, ...(run.replicates ?? [])]) {
+      if (Number.isFinite(s.replicateSpreadPct)) s.replicateSpreadPct /= 2;
+    }
+  }
+  const after = [...renderInto(halved).html().matchAll(/data-spread-median="([\d.]+)"/g)].map((m) => Number(m[1]));
+  const before = summaries.map((m) => Number(m[1]));
+  for (let i = 0; i < before.length; i++) {
+    assert(Math.abs(after[i] - before[i] / 2) < 0.02,
+      `halving the replicate spreads moved the stated median from ${before[i]}% to ${after[i]}%, not to ${(before[i] / 2).toFixed(2)}%`);
+  }
+  return `${summaries.length} band summaries, each computed: ${summaries.map((m) => `${m[1]}% median`).join(', ')}`;
 });
 
 // ---------------------------------------------------------------------------
