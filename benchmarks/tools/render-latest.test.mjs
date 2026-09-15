@@ -1193,8 +1193,14 @@ test('the_page_says_what_is_exact_and_what_is_not_gradeable_where_the_timings_ar
   }
 
   // Collapsed, because the generated prose wraps and a literal space in a
-  // pattern does not match a newline plus indentation.
-  const flat = html.replace(/\s+/g, ' ');
+  // pattern does not match a newline plus indentation. And with `hidden`
+  // elements dropped first: text a browser does not paint is not on the page,
+  // and `<p hidden>` is the cheapest way to pass a substring check while saying
+  // nothing to a reader.
+  const visible = html.replace(/<(\w+)[^>]*\bhidden\b[^>]*>[\s\S]*?<\/\1>/g, ' ');
+  const flat = visible.replace(/\s+/g, ' ');
+  assert(flat.length > html.length * 0.5,
+    'more than half the page is inside a hidden element, so this check is reading almost nothing');
   assert(/floor is not the clock/i.test(flat),
     'the page reports the floor without saying whether it is the timer, which is the first thing a reader will ask');
   assert(/no timing from this run carries a verdict chip/i.test(flat),
@@ -1230,6 +1236,21 @@ test('the_dispersion_trio_and_the_estimator_that_made_it_are_on_the_page', () =>
     assert(html.includes(est.method), `the page never names ${run.family}'s estimator, ${est.method}`);
     assert(new RegExp(`${est.reps} placements`).test(html),
       `the page never says ${run.family}'s floor came from ${est.reps} placements`);
+
+    // And it is named where the floor is stated, not only in the method section
+    // three screens down. A floor from six placements and a floor from two are
+    // different statistics, so the reader who is looking at the floor is the
+    // one who needs to know which.
+    const marker = `data-spread-median="${(() => {
+      const v = Object.values(run.replicate.spreadPct).filter(Number.isFinite).map(Math.abs).sort((a, b) => a - b);
+      const mid = v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2;
+      return mid.toFixed(2);
+    })()}"`;
+    const at = html.indexOf(marker);
+    assert(at !== -1, `no band summary on the page for ${run.family}`);
+    const para = html.slice(at, html.indexOf('</p>', at));
+    assert(para.includes(est.method),
+      `${run.family}'s band summary states the floor without naming the estimator behind it. It says:\n${para.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 300)}`);
   }
 
   // All three are in the headline table, as their own columns.
