@@ -235,7 +235,7 @@ function enginesEntry(exportPath, attestationPath) {
 
   const suppressed = new Set(Object.keys(config.families.engines.suppressedMetrics ?? {}));
   const blockers = [
-    'the family is not gateable: one measurement per cell, no repetitions, so there is no dispersion to read a verdict off',
+    'the family is not gateable: one measurement per cell, no repetitions, so there is no dispersion for a pass or a regression to be read off',
     'the run\'s provenance is attested rather than observed',
   ];
 
