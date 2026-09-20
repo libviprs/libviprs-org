@@ -45,11 +45,16 @@ colour as a pass in most runners, so read the artefact rather than the verdict.
 
 **The trap.** A fixture whose value sits on the identity element of the operation under
 test cannot fail, and it looks exactly like a fixture that passes. EPIC F measured this
-across six archives: `leaves-z0z7` scored **0 discriminating cells out of 21845** and was
-the only golden with leaves, so the one test everybody trusted could not have caught a
-wrong answer. The matrix and the properties no fixture could reach are in
-`libviprs/.epicF/oracle/discrimination/`. Before trusting a fixture, work out which cells
-the mistake would move and check that a probe lands on one.
+across six archives and 134 reader mutations each: `leaves-z0z7` is blind to **60 of
+those 134**, meaning not one of its 21912 probes moves, and it was the only one of the
+three original goldens with leaves, so the one test everybody trusted could not have
+caught a wrong answer. Before trusting a fixture, work out which cells the mistake would
+move and check that a probe lands on one.
+
+The matrix that says this, and the three extra goldens computed to fill the gaps, came out
+of the EPIC F campaign scratch rather than a repository, so there is nothing to link here
+and a future epic wanting the same answer has to recompute it. That is the argument for
+landing the next one somewhere committed.
 
 The second half of the same trap: an oracle that compares against our own reader is not an
 oracle. If the reader and the writer share a tile id function, they agree on a wrong answer
@@ -104,20 +109,24 @@ pinned revision by run id.
 - **`rsync -a` gives a stale build.** Preserved mtimes make restored source older than the
   build output, the rebuild is skipped, and the "correct" measurement is the mutation's.
   Build into a virgin artifacts directory.
-- **Know the noise floor.** On the current measurement host p99 noise runs to 74.5%, so a
-  difference smaller than that is not a result. A run whose typical cell was not quiet is
-  not publishable and `ingest.mjs` refuses it.
+- **Know the noise floor, and know it is per metric.** It is not one number. On the
+  published storage runs the replicate control (one cell measured at six placements
+  through the sweep) moves `pmtiles.read_concurrent@4.p50` by 139% and
+  `pmtiles.read_random.max` by 89%, so a difference smaller than that metric's own band is
+  not a result. `p99` and `max` are ungateable on this suite for exactly that reason. A run
+  whose typical cell was not quiet is not publishable and `ingest.mjs` refuses it.
 - **A fix sized to its own benchmark moves the cliff rather than removing it.** EPIC F's leaf
   cache was tuned until the case that exposed the bug passed, and the constant it landed on
   bound at 25% of the budget declared in the same PR, so the new bound never bound at all.
   Measured: 16 leaves 0.38us, 17 leaves 7.37us. Test one case past the new value, and check
   the constant against every bound it interacts with.
 
-**Publish the honest number.** PMTiles is slower to generate at 256px tiles in three of four
-cells and only wins at 64px, and a cold first read costs 11us to 92us against a tree's flat
-3us to 8us. The site says all of that, in columns rather than prose, next to the win that
-actually carries the epic. A benchmark page that only shows the wins is marketing, and
-nobody trusts the next number on it.
+**Publish the honest number.** PMTiles is slower to generate than a directory tree in every
+one of the six published cells, by 15% to 68%, and a cold open costs 90us to 904us against a
+tree's 6us to 14us. What it wins is the steady-state read, and it wins it on every cell:
+random, plan-order and tile-id-order lookups are all faster, which is the win that actually
+carries the epic. The site says all of that, in columns rather than prose. A benchmark page
+that only shows the wins is marketing, and nobody trusts the next number on it.
 
 ---
 
@@ -151,8 +160,10 @@ years.
 **Where.** This repository. Two surfaces, and both are required:
 
 - **the feature write-up**, the page that says what the thing is and when to reach for it;
-- **the CLI reference** at [`/cli/`](https://libviprs.org/cli/), which indexes every flag and
-  subcommand and links each one to the test in libviprs-tests that proves it.
+- **the CLI reference** at [`/cli/`](https://libviprs.org/cli/), which indexes every command
+  and flag, and links a flag to the test in libviprs-tests that proves it wherever the
+  command carries a `@doc-test` marker. Today that is `pyramid` and its 32 flags, so a new
+  feature's command is where the next ones come from.
 
 **The CLI reference is generated, not written.** Annotate the command in `libviprs-cli` with
 `@doc-snippet` and `@doc-test` markers, the frozen copy under `cli/rust/` re-syncs at
@@ -160,9 +171,13 @@ years.
 `snippets.generated.json` and fails on drift. The contract is
 [`cli/SCHEMA_V2.md`](cli/SCHEMA_V2.md).
 
-**Done when** the six required checks on `main` are green: `sync`, `extract`, `test-flags`,
-`gen-op-sections`, `bench-drift` and `msrv`. Four of those are the SCHEMA_V2 docs-generator
-gates and two are not, which is worth keeping straight.
+**Done when** the seven required checks on `main` are green: `sync`, `extract`, `test-flags`,
+`gen-op-sections`, `bench-drift`, `msrv` and `links`. The first three are SCHEMA_V2 §5's
+gates and `gen-op-sections` gates its §3.2 build step, while `bench-drift`, `msrv` and
+`links` have nothing to do with the docs generator, which is worth keeping straight.
+`links` is the one that catches a relative path pointing at nothing, and it sits in its own
+workflow file rather than in `ci.yml` because adding a job to `ci.yml` reddens the
+hook-mirror guard in libviprs-tests.
 
 **The trap.** Hand-editing a generated region. Everything between a `GENERATED:<name>:BEGIN`
 marker and its `:END` is rewritten, so an edit there survives until the next regeneration and
