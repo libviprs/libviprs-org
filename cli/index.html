@@ -348,7 +348,7 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
   <dl class="flags">
     <dt><code>--resume</code></dt>
     <dd>
-      <p>Resume an interrupted run. Reads the checkpoint file (<code>.libviprs-job.json</code>) at the output root and skips tiles that were already written. The run completes from the last safe checkpoint. Cannot be combined with <code>--overwrite</code> or <code>--verify</code>.</p>
+      <p>Resume an interrupted run. Reads the checkpoint file (<code>.libviprs-job.json</code>) at the output root and skips tiles that were already written. The run completes from the last safe checkpoint. Cannot be combined with <code>--overwrite</code> or <code>--verify</code>. Needs <a href="#flag-storage" style="color:var(--primary);"><code>--storage directory</code></a>: a PMTiles archive writes no checkpoint, so under the default <code>--storage pmtiles</code> there is nothing to resume from and the run regenerates every tile.</p>
     </dd>
 
     <dt><code>--overwrite</code></dt>
@@ -358,7 +358,7 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
 
     <dt><code>--verify</code></dt>
     <dd>
-      <p>Re-read every tile produced by a previous run and verify its checksum against the checkpoint. Exits with a non-zero status if any tile is missing or corrupt. Does not write new tiles. Requires checksums to have been emitted during the original run (<code>--manifest-emit-checksums</code>).</p>
+      <p>Re-read every tile produced by a previous run and verify its checksum against the checkpoint. Exits with a non-zero status if any tile is missing or corrupt. Does not write new tiles. Requires checksums to have been emitted during the original run (<code>--manifest-emit-checksums</code>). Under the default <a href="#flag-storage" style="color:var(--primary);"><code>--storage pmtiles</code></a> it checks the archive rather than a tree: the container has to validate, then every coordinate in the plan has to resolve to a tile that is not stored empty. That is <a href="#pmtiles-verify" style="color:var(--primary);"><code>viprs pmtiles verify</code></a> plus the plan, so it catches an archive that holds together and is short. It establishes presence and cardinality, not content: unlike the directory verify it does not re-render from the source.</p>
     </dd>
   </dl>
 
@@ -635,7 +635,7 @@ fn main() -> Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
   <!-- ---- pmtiles ---- -->
   <h2 id="pmtiles">pmtiles</h2>
   <p>Look inside a <code>.pmtiles</code> archive. <code>viprs pyramid</code> writes one of these by default, so this group is how you inspect, read, check and unpack a pyramid without standing up a server or reaching for a second tool.</p>
-  <p>A PMTiles v3 archive is a single file: a fixed 127-byte header, a compressed root directory that the spec keeps inside the first 16384 bytes, any leaf directories, the JSON metadata, and the tile blobs. Tiles are addressed by <code>z/x/y</code> through that index, so pulling one tile is a couple of ranged reads rather than a directory walk, and it costs the same whether the archive is on local disk or behind an HTTP range request. The format is specified by <a href="https://github.com/protomaps/PMTiles/blob/main/spec/v3/spec.md" target="_blank" rel="noopener">the PMTiles v3 specification</a>; libviprs writes and reads it directly, with no C dependency and no external tool in the loop.</p>
+  <p>A PMTiles v3 archive is a single file: a fixed 127-byte header, a compressed root directory that the spec keeps inside the first 16384 bytes, any leaf directories, the JSON metadata, and the tile blobs. Tiles are addressed by <code>z/x/y</code> through that index, so pulling one tile is a couple of ranged reads rather than a directory walk. <code>viprs</code> reads archives off local disk. The library reader underneath takes any caller-provided byte-range backend, so a consumer that already has an HTTP stack points it at an object in a bucket and gets the same two reads. The format is specified by <a href="https://github.com/protomaps/PMTiles/blob/main/spec/v3/spec.md" target="_blank" rel="noopener">the PMTiles v3 specification</a>; libviprs writes and reads it directly, with no C dependency and no external tool in the loop.</p>
 
   <div class="cmd-base-setup">
     <button type="button" class="cmd-base-setup-toggle" aria-expanded="false">Show Rust equivalent</button>
