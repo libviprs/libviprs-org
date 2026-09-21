@@ -35,9 +35,10 @@ underneath it, which is where the interesting failures live. libviprs-tests exis
 own repository precisely so fixture weight and test-only dependencies never ship to
 consumers, so putting the fixtures in the library crate defeats the arrangement.
 
-**The pins.** `COUNTERPART_REV` and `CLI_COUNTERPART_REV` say which `libviprs` and
-`libviprs-cli` revisions the suite is written against. Specs land first, then one PR
-carries the product change together with the pin bump. Never pin an unmerged head.
+**The pins.** `libviprs-tests/COUNTERPART_REV` and `libviprs-tests/CLI_COUNTERPART_REV`
+say which `libviprs` and `libviprs-cli` revisions the suite is written against. Specs
+land first, then one PR carries the product change together with the pin bump. Never pin
+an unmerged head.
 
 **Done when** the new suite fails against the code as it was before the feature and passes
 after, and the run is a real run rather than a skip. A host-capability skip is the same
@@ -45,16 +46,32 @@ colour as a pass in most runners, so read the artefact rather than the verdict.
 
 **The trap.** A fixture whose value sits on the identity element of the operation under
 test cannot fail, and it looks exactly like a fixture that passes. EPIC F measured this
-across six archives and 134 reader mutations each: `leaves-z0z7` is blind to **60 of
-those 134**, meaning not one of its 21912 probes moves, and it was the only one of the
-three original goldens with leaves, so the one test everybody trusted could not have
-caught a wrong answer. Before trusting a fixture, work out which cells the mistake would
-move and check that a probe lands on one.
+across six archives and 134 reader mutations each: `leaves-z0z7` is blind on **60 of
+those 134**, and it was the only one of the three original goldens with leaf directories,
+so on all sixty the only fixture that reached the leaf path at all agreed with a broken
+implementation.
 
-The matrix that says this, and the three extra goldens computed to fill the gaps, came out
-of the EPIC F campaign scratch rather than a repository, so there is nothing to link here
-and a future epic wanting the same answer has to recompute it. That is the argument for
-landing the next one somewhere committed.
+Eight of those sixty go through the tile grid, and they are the clearest. `leaves-z0z7`
+holds 21845 tiles between two distinct payloads, so permuting tile ids moves nothing:
+every one of its 21912 probes comes back identical under five separate Hilbert mutations,
+while `distinct-z0z7` over the same zoom range, carrying 19843 distinct payloads, moves
+17000 or more of its 21912 on each of the five. The other fifty-two are header mutations,
+probed by the same 131 header accessors in every one of the six fixtures, so the tile grid
+has nothing to say about them either way and 21912 is not the number to quote for them.
+
+Before trusting a fixture, work out which cells the mistake would move, check that a probe
+lands on one, and check the probe can tell that cell from the ones around it.
+
+The matrix that says this came out of the EPIC F campaign scratch rather than a repository,
+so there is nothing to link to and a future epic wanting the same answer has to recompute
+it. That is the argument for landing the next one somewhere committed. Two of the three
+extra goldens computed to fill the gaps did land, so nobody has to rebuild those:
+[`distinct-z0z7.pmtiles`](https://github.com/libviprs/libviprs-tests/blob/main/tests/fixtures/pmtiles/distinct-z0z7.pmtiles)
+and
+[`header-mvt-z2z4.pmtiles`](https://github.com/libviprs/libviprs-tests/blob/main/tests/fixtures/pmtiles/header-mvt-z2z4.pmtiles)
+are committed in libviprs-tests, and `distinct-z0z7` is in
+[the core crate's fixtures](https://github.com/libviprs/libviprs/blob/main/tests/fixtures/pmtiles/distinct-z0z7.pmtiles)
+as well. Only `budget-z0z9` is in no repository.
 
 The second half of the same trap: an oracle that compares against our own reader is not an
 oracle. If the reader and the writer share a tile id function, they agree on a wrong answer
@@ -113,20 +130,45 @@ pinned revision by run id.
   published storage runs the replicate control (one cell measured at six placements
   through the sweep) moves `pmtiles.read_concurrent@4.p50` by 139% and
   `pmtiles.read_random.max` by 89%, so a difference smaller than that metric's own band is
-  not a result. `p99` and `max` are ungateable on this suite for exactly that reason. A run
-  whose typical cell was not quiet is not publishable and `ingest.mjs` refuses it.
+  not a result. `p99` and `max` are ungateable on this suite for exactly that reason. What
+  a band this wide still leaves is a direction that repeats: a sub-band gap in every cell of
+  a sweep says more than any one of those cells does, and that is the whole footing the
+  generate comparison below stands on. Publishing has its own bar, and it moved:
+  `ingest.mjs` refuses a run whose machine was already busy, reading
+  `startingLoad.contentionPerCore` sampled before the sweep starts and requiring it under
+  one runnable thread per core. The older rule, a majority of cells recording
+  `machineLoad.quiet: false`, survives only for documents published before that field
+  existed, because a sweep's own threads were landing in the load average it read.
 - **A fix sized to its own benchmark moves the cliff rather than removing it.** EPIC F's leaf
   cache was tuned until the case that exposed the bug passed, and the constant it landed on
   bound at 25% of the budget declared in the same PR, so the new bound never bound at all.
   Measured: 16 leaves 0.38us, 17 leaves 7.37us. Test one case past the new value, and check
   the constant against every bound it interacts with.
 
-**Publish the honest number.** PMTiles is slower to generate than a directory tree in every
-one of the six published cells, by 15% to 68%, and a cold open costs 90us to 904us against a
-tree's 6us to 14us. What it wins is the steady-state read, and it wins it on every cell:
-random, plan-order and tile-id-order lookups are all faster, which is the win that actually
-carries the epic. The site says all of that, in columns rather than prose. A benchmark page
-that only shows the wins is marketing, and nobody trusts the next number on it.
+**Publish the honest number.** On the published storage run PMTiles is slower to generate
+than a directory tree in all six cells, by 14.7% to 68.2%, and a cold open costs 90us to
+904us against a tree's 6us to 14us. The cold open is the one that needs no hedging: nine to
+eighty times the tree's number, miles past anything the replicate control moves. The
+generate gap points the same way six times out of six, but only three of those cells clear
+both replicate bands, so what the run carries there is the direction and not a figure per
+cell.
+
+What it wins is the steady-state read. Random lookups are faster in all six cells on both
+p50 and throughput. Plan-order and tile-id-order lookups are faster in four of the six,
+cutting p50 by 49% to 91%. The other two are the 256-pixel-tile cells, where every read
+metric lands inside the replicate band, and inside it PMTiles sits fractionally behind on
+two of them: plan-order p50 at `8192x8192@256+gradient` is 22.47us against 21.36us, and
+tile-id-order throughput at `2048x2048@256+gradient` is 55933 lookups/s against 56235.
+Those two are not losses. They are the run failing to tell the two sides apart, which is
+what the page means when it says no timing on it carries a verdict chip.
+
+And there are two tables, not one.
+[`/benchmarks/libvips/`](https://libviprs.org/benchmarks/libvips/) draws a different sweep
+over different canvases out of `pmtiles_results.json`, and it disagrees where the two
+overlap: there PMTiles generates **faster** at `8192x8192@64`, 1034ms against 1183ms, and
+loses random-read p50 at `8192x8192@256`, 6.54us against 5.29us. So cite the run, never
+"the benchmarks". A benchmark page that only shows the wins is marketing, and nobody
+trusts the next number on it.
 
 ---
 
@@ -161,14 +203,22 @@ years.
 
 - **the feature write-up**, the page that says what the thing is and when to reach for it;
 - **the CLI reference** at [`/cli/`](https://libviprs.org/cli/), which indexes every command
-  and flag, and links a flag to the test in libviprs-tests that proves it wherever the
-  command carries a `@doc-test` marker. Today that is `pyramid` and its 32 flags, so a new
-  feature's command is where the next ones come from.
+  and flag, and links a flag to the test that proves it. The link is a pairing, not a
+  marker on its own: a `@doc-test` attaches to the next `@doc-flag` annotation, so a
+  `@doc-test` with no flag behind it links nothing. Today that is `pyramid` and its 32
+  flags, every one of them carrying a test, so a new feature's command is where the next
+  ones come from. Thirty-one of the 32 point into libviprs-tests and `--storage` points at
+  `tests/cli_e2e.rs` in libviprs-cli, which `SCHEMA_V2.md` §2.4 allows for by making
+  `TestRef.repo` tri-state over libviprs-tests, libviprs-cli and libviprs, each with its
+  own base URL. The `@doc-test` markers in the ten op files under `cli/rust/ops/` are the
+  other shape: they all name core tests with `repo=libviprs` and sit beside `@doc-snippet`
+  code rather than a flag, so nothing in the flag index comes from them.
 
 **The CLI reference is generated, not written.** Annotate the command in `libviprs-cli` with
 `@doc-snippet` and `@doc-test` markers, the frozen copy under `cli/rust/` re-syncs at
-`COUNTERPART_REV` (`cli-resync.yml` opens that as a PR), and the `extract` gate regenerates
-`snippets.generated.json` and fails on drift. The contract is
+`libviprs-org/cli/rust/COUNTERPART_REV` (a different file in a different repository from
+libviprs-tests' root pin above; `cli-resync.yml` opens the bump as a PR), and the
+`extract` gate regenerates `snippets.generated.json` and fails on drift. The contract is
 [`cli/SCHEMA_V2.md`](cli/SCHEMA_V2.md).
 
 **Done when** the seven required checks on `main` are green: `sync`, `extract`, `test-flags`,
