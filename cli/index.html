@@ -358,7 +358,7 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
 
     <dt><code>--verify</code></dt>
     <dd>
-      <p>Re-read every tile produced by a previous run and verify its checksum against the checkpoint. Exits with a non-zero status if any tile is missing or corrupt. Does not write new tiles. Requires checksums to have been emitted during the original run (<code>--manifest-emit-checksums</code>). Needs <a href="#flag-storage" style="color:var(--primary);"><code>--storage directory</code></a> as well: under the default there is no tree to walk, and the run stops with <code>Verify mode requires an on-disk sink</code>. To check an archive instead, reach for <a href="#pmtiles-verify" style="color:var(--primary);"><code>viprs pmtiles verify</code></a>, which checks the container.</p>
+      <p>Re-read every tile produced by a previous run and verify its checksum against the checkpoint. Exits with a non-zero status if any tile is missing or corrupt. Does not write new tiles. Requires checksums to have been emitted during the original run (<code>--manifest-emit-checksums</code>). Under the default <a href="#flag-storage" style="color:var(--primary);"><code>--storage pmtiles</code></a> it checks the archive rather than a tree: the container has to validate, then every coordinate in the plan has to resolve to a tile that is not stored empty. That is <a href="#pmtiles-verify" style="color:var(--primary);"><code>viprs pmtiles verify</code></a> plus the plan, so it catches an archive that holds together and is short. It establishes presence and cardinality, not content: unlike the directory verify it does not re-render from the source.</p>
     </dd>
   </dl>
 
