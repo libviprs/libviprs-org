@@ -174,7 +174,7 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
 
 <section>
   <p class="man-section">Description</p>
-  <p><strong>viprs</strong> converts large raster images and multi-page PDF documents &mdash; high-resolution scans, gigapixel photographs, aerial and satellite imagery, historical maps, and digitised archives &mdash; into multi-resolution tile pyramids suitable for Deep Zoom viewers, slippy-map UIs, and GIS applications. It supports three tile layouts (DeepZoom, XYZ, Google Maps), three image formats (PNG, JPEG, raw), and three engine modes (monolithic, streaming, parallel MapReduce) to balance throughput and memory usage for images of any size.</p>
+  <p><strong>viprs</strong> converts large raster images and multi-page PDF documents &mdash; high-resolution scans, gigapixel photographs, aerial and satellite imagery, historical maps, and digitised archives &mdash; into multi-resolution tile pyramids suitable for Deep Zoom viewers, slippy-map UIs, and GIS applications. It supports three tile layouts (DeepZoom, XYZ, Google Maps), four image formats (PNG, lossless WebP, JPEG, raw), and three engine modes (monolithic, streaming, parallel MapReduce) to balance throughput and memory usage for images of any size.</p>
   <p>The XYZ and Deep Zoom tile pyramids it emits are served directly to and rendered by <a href="https://maplibre.org/">MapLibre GL</a> &mdash; the open-source WebGL map and tile engine &mdash; so a gigapixel source can be panned and zoomed at interactive speed in the browser.</p>
 </section>
 
@@ -248,7 +248,7 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
     <dt><code>--format &lt;TYPE&gt;</code></dt>
     <dd>
       <p>Tile image encoding. PNG preserves quality for line art and text; JPEG saves disk for photographs; raw is useful when a downstream pipeline handles encoding. <span class="default-val">Default: png</span></p>
-      <p>Values: <code>png</code> (lossless), <code>jpeg</code> (lossy, smaller), <code>raw</code> (unencoded pixels, fastest).</p>
+      <p>Values: <code>png</code> (lossless), <code>webp</code> (lossless), <code>jpeg</code> (lossy, smaller), <code>raw</code> (unencoded pixels, fastest). <code>webp</code> has no quality setting: the encoder behind it writes lossless WebP and nothing else, so <code>--quality</code> stays <code>jpeg</code>-only and has no effect here.</p>
     </dd>
 
     <dt><code>--quality &lt;1-100&gt;</code></dt>

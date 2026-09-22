@@ -308,6 +308,7 @@
       "type": "enum",
       "options": [
         "png",
+        "webp",
         "jpeg",
         "raw"
       ],
@@ -389,7 +390,7 @@
       ],
       "cli": "--storage {v}",
       "special": "sink-override",
-      "fragment": "// --storage picks the sink backend; see resolveSinkOverride.\n// Default: PmTilesSink, one .pmtiles archive.\n// With --storage directory → FsSink, the loose tile tree.",
+      "fragment": "// --storage picks the sink backend; see resolveSinkOverride.\n// Default: PmTilesSink, one .pmtiles archive.\n// With --storage directory \u2192 FsSink, the loose tile tree.",
       "imports_when_active": [
         "FsSink"
       ],
@@ -407,7 +408,7 @@
       "type": "str",
       "cli": "--sink {v}",
       "special": "sink-override",
-      "fragment": "// Custom sink — see resolveSinkOverride for s3:// and packfile:// dispatch.\n// Default: FsSink. With --sink s3://bucket/prefix → ObjectStoreSink.\n// With --sink packfile://path.tar(.gz|.zip) → PackfileSink.",
+      "fragment": "// Custom sink \u2014 see resolveSinkOverride for s3:// and packfile:// dispatch.\n// Default: FsSink. With --sink s3://bucket/prefix \u2192 ObjectStoreSink.\n// With --sink packfile://path.tar(.gz|.zip) \u2192 PackfileSink.",
       "imports_when_active": [],
       "test": {
         "file": "phase3_packfile.rs",
