@@ -30,7 +30,7 @@ const JSON_PATH = path.join(__dirname, '..', '..', 'js', 'snippets.generated.jso
 
 const ENUM_VARIANT = {
   'deep-zoom': 'DeepZoom', 'xyz': 'Xyz', 'google': 'Google',
-  'png': 'Png', 'jpeg': 'Jpeg', 'raw': 'Raw',
+  'png': 'Png', 'webp': 'Webp', 'jpeg': 'Jpeg', 'raw': 'Raw',
   'blake3': 'Blake3', 'sha256': 'Sha256',
   'fail-fast': 'FailFast', 'retry-then-fail': 'RetryThenFail', 'retry-then-skip': 'RetryThenSkip',
   'error': 'ERROR', 'warn': 'WARN', 'info': 'INFO', 'debug': 'DEBUG', 'trace': 'TRACE',

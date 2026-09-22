@@ -210,6 +210,7 @@
     'xyz': 'Xyz',
     'google': 'Google',
     'png': 'Png',
+    'webp': 'Webp',
     'jpeg': 'Jpeg',          // overridden when quality is known (see variantFor)
     'raw': 'Raw',
     'blake3': 'Blake3',

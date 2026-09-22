@@ -11648,7 +11648,8 @@
           "possible_values": [
             "png",
             "jpeg",
-            "raw"
+            "raw",
+            "webp"
           ],
           "help": "Tile image format"
         },
