@@ -383,6 +383,7 @@
       <li><strong>Image decoding</strong> — JPEG, PNG, TIFF via the <code>image</code> crate</li>
       <li><strong>Tile pyramid generation</strong> — multi-threaded engine with backpressure, configurable <a href="cli/#flag-tile-size" style="color:var(--primary);">tile size</a> and <a href="cli/#flag-overlap" style="color:var(--primary);">overlap</a>; optional <strong>streaming mode</strong> processes images in horizontal strips for bounded peak memory</li>
       <li><strong>True source-side PDF streaming</strong> — <code>PdfiumStripSource</code> renders one strip of a vector PDF at a time via PDFium's clipped matrix path, including correct <code>/Rotate</code> handling, so multi-gigapixel pages stay inside the configured memory budget</li>
+      <li><strong>libvips-exact PDF page sizing</strong> &mdash; a page at a DPI comes out at the size libvips gives (Letter at 300 dpi is 2550&times;3300), with <a href="#pdf-page-sizing" style="color:var(--primary);"><code>PageSizing::LegacyTruncated</code></a> to keep the 0.5.x sizes</li>
       <li><strong>Memory-budget policy</strong> — <code>StreamingConfig.budget_policy</code> selects <code>BudgetPolicy::Error</code> (fail loudly when a strip cannot fit) or <code>BudgetPolicy::AutoAdjust</code> (raise the budget to the smallest workable strip); the engine also pre-flights <a href="cli/#flag-memory-budget" style="color:var(--primary);">the budget</a> against canvas geometry before any work starts and returns a typed <code>BudgetExceeded</code> error</li>
       <li><strong>PMTiles v3 storage (default)</strong> puts the whole pyramid in one <code>.pmtiles</code> archive via <code>PmTilesSink</code>, indexed by <code>z/x/y</code> so a viewer fetches one tile with a ranged read; <code>pmtiles::Reader</code> reads it back over any byte-range source, and <a href="cli/#pmtiles" style="color:var(--primary);"><code>--storage directory</code></a> still writes the classic tree</li>
       <li><strong>Layout formats</strong> — <a href="cli/#flag-layout" style="color:var(--primary);">DeepZoom</a> (<code>.dzi</code> + directory tree), XYZ (<code>z/x/y</code>), and Google Maps (<code>z/y/x</code>, power-of-2 grids)</li>
@@ -554,6 +555,88 @@
 
     <p>The caller sets a <a href="cli/#flag-memory-budget" style="color:var(--primary);">memory budget</a>; the engine maximises strip height within that budget to balance memory and throughput. When the budget is large enough for the full canvas, the monolithic engine is used automatically — no code changes needed.</p>
     <p>For vector PDFs, <code>PdfiumStripSource</code> renders one strip at a time directly from the PDF using PDFium's clipped matrix path (with full <code>/Rotate</code> support), so the full page bitmap is never materialised. <code>BudgetPolicy::Error</code> fails loudly if the chosen budget cannot fit the smallest workable strip; <code>BudgetPolicy::AutoAdjust</code> raises the budget and continues. The engine also pre-flights the budget against canvas geometry before allocating, surfacing a typed <code>BudgetExceeded</code> error rather than running until OOM.</p>
+  </section>
+
+  <section id="pdf-page-sizing">
+    <h2>PDF Page Sizing</h2>
+    <p>A PDF page is measured in points (1/72 inch), so rendering it at a DPI means turning points into whole pixels. libviprs now does that the way <a href="https://www.libvips.org/" style="color:var(--primary);">libvips</a> <code>pdfload</code> does: per axis, <code>rint(points * (dpi / 72.0))</code>, computed in <code>f64</code> and rounded to nearest with ties to even. pdfium then stretches the page into a bitmap of exactly that size, which is the same call libvips makes, so nothing is padded or cropped. US Letter at 300 dpi is 2550&times;3300, and a pyramid built from a PDF now lines up pixel for pixel with the libvips one.</p>
+    <p>The old rule (0.5.x) multiplied the page by <code>dpi as f32 / 72.0</code> and cut off the decimals. When the product landed a hair under a whole number it lost a pixel, and then pdfium's aspect-fit rounded a second time and pulled the other axis down with it. Rasters came out 0 to 2 px smaller than libvips, so Letter at 300 dpi was 2549&times;3299. The planner, the cached render and the streaming source all use the one rule now, so they agree with each other as well.</p>
+
+    <h3>PageSizing</h3>
+    <p><code>PageSizing</code> names the rule. It is <code>#[non_exhaustive]</code>, so a <code>match</code> on it needs a wildcard arm.</p>
+    <table>
+      <thead><tr><th>Variant</th><th>Size</th></tr></thead>
+      <tbody>
+        <tr><td><code>Exact</code> (default)</td><td>The libvips size, <code>rint(points * (dpi / 72.0))</code> per axis, ties to even.</td></tr>
+        <tr><td><code>LegacyTruncated</code></td><td>The 0.5.x size: truncation plus pdfium's second rounding. Keep it only if you have pyramids on disk at those sizes.</td></tr>
+      </tbody>
+    </table>
+    <p><code>PageSizing::pixel_dims(width_pts, height_pts, dpi)</code> is the one function every site calls, so you can ask for a page's raster size without rendering it. The points are the page size pdfium reports after the page box and <code>/Rotate</code> are applied. Results saturate at <code>u32::MAX</code>.</p>
+    <div class="code-wrap">
+      <pre><code><span class="kw">use</span> <span class="mod">libviprs</span>::<span class="ty">PageSizing</span>;
+
+<span class="cm">// US Letter at 300 dpi.</span>
+<span class="fn">assert_eq!</span>(<span class="ty">PageSizing</span>::<span class="ty">Exact</span>.<span class="fn">pixel_dims</span>(<span class="num">612.0</span>, <span class="num">792.0</span>, <span class="num">300</span>), (<span class="num">2550</span>, <span class="num">3300</span>));
+<span class="fn">assert_eq!</span>(<span class="ty">PageSizing</span>::<span class="fn">default</span>(), <span class="ty">PageSizing</span>::<span class="ty">Exact</span>);</code></pre>
+    </div>
+
+    <h3>Functions and the strip source</h3>
+    <p>The existing names keep working and run at <code>Exact</code>. Each one has a <code>_with</code> twin that takes the policy:</p>
+    <table>
+      <thead><tr><th>Exact (default)</th><th>Explicit policy</th></tr></thead>
+      <tbody>
+        <tr><td><code>render_page_pdfium(path, page, dpi)</code></td><td><code>render_page_pdfium_with(path, page, dpi, sizing)</code></td></tr>
+        <tr><td><code>render_page_pdfium_budgeted(path, page, max_dpi, max_pixels)</code></td><td><code>render_page_pdfium_budgeted_with(path, page, max_dpi, max_pixels, sizing)</code></td></tr>
+        <tr><td><code>extract_page_image_dpi(path, page, dpi)</code></td><td><code>extract_page_image_dpi_with(path, page, dpi, sizing)</code></td></tr>
+      </tbody>
+    </table>
+    <p>For streaming, <code>PdfiumStripSource::builder(..)</code> takes <code>.mode()</code>, <code>.sizing()</code> and <code>.budget()</code>, then <code>.build()</code>. <code>PdfiumStripSource::sizing()</code> reads the choice back, and <code>width()</code> and <code>height()</code> report the new sizes. Strips are scaled per axis, so a streamed strip is the same pixels as the matching rows of a cached render.</p>
+    <div class="code-wrap">
+      <pre><code><span class="kw">use</span> <span class="mod">libviprs</span>::{<span class="ty">PageSizing</span>, <span class="ty">PdfiumStripSource</span>, <span class="fn">render_page_pdfium_with</span>};
+
+<span class="cm">// Same pixels as 0.5.x, for pyramids already on disk.</span>
+<span class="kw">let</span> raster = <span class="fn">render_page_pdfium_with</span>(path, <span class="num">1</span>, <span class="num">300</span>, <span class="ty">PageSizing</span>::<span class="ty">LegacyTruncated</span>)?;
+
+<span class="kw">let</span> src = <span class="ty">PdfiumStripSource</span>::<span class="fn">builder</span>(path, <span class="num">1</span>, <span class="num">300</span>)
+    .<span class="fn">mode</span>(<span class="mod">libviprs</span>::<span class="ty">PdfiumRenderMode</span>::<span class="ty">Streaming</span>)
+    .<span class="fn">sizing</span>(<span class="ty">PageSizing</span>::<span class="ty">LegacyTruncated</span>)
+    .<span class="fn">build</span>()?;</code></pre>
+    </div>
+    <p>The pixel budget is checked on the new size, so a page that only fit because of the truncation can now come back as <code>RenderBudgetExceeded</code>, and <code>render_page_pdfium_budgeted</code> steps the DPI down until the rounded size fits. UserUnit is still ignored, as in pdfium, libvips and pdftoppm, and a fractional DPI still rounds to a whole one. The <a href="https://github.com/libviprs/libviprs/blob/pdfium_latest/MIGRATION.md" style="color:var(--primary);">migration guide</a> has the recipe for each old constructor.</p>
+
+    <h3>From the CLI</h3>
+    <p><code>viprs pyramid</code> and <code>viprs plan</code> take <a href="cli/#pyramid" style="color:var(--primary);"><code>--page-sizing &lt;exact|legacy-truncated&gt;</code></a>, defaulting to <code>exact</code>. It also applies to <code>--match-page-size</code>.</p>
+<pre><code>viprs pyramid document.pdf out/ <span class="sh-flag">--dpi</span> 300                                  <span class="cm"># 2550x3300 for Letter</span>
+viprs pyramid document.pdf out/ <span class="sh-flag">--dpi</span> 300 <span class="sh-flag">--page-sizing</span> legacy-truncated   <span class="cm"># 2549x3299, the 0.5.x size</span></code></pre>
+
+    <h3>Migrating from 0.5.x</h3>
+    <p>Nothing fails to compile, but the numbers change: Letter at 300 dpi goes from 2549&times;3299 to 2550&times;3300, Tabloid from 3299&times;5098 to 3300&times;5100, A3 from 3507&times;4959 to 3508&times;4961, A1 from 7015&times;9932 to 7016&times;9933, and ARCH D from 7199&times;10799 to 7200&times;10800. You only need to act if you have output on disk at the old sizes and will add to it or re-render part of it; anything that reads a finished tree or archive keeps working, because those describe their own size. A plan you computed yourself in <code>f64</code> already matches the new size, so use <code>PageSizing::Exact.pixel_dims</code> to plan with. To keep the old sizes, pass <code>PageSizing::LegacyTruncated</code> (or <code>--page-sizing legacy-truncated</code>). Those will not match libvips, so use them only for continuity with existing output.</p>
+
+    <h3>Sizes at 72, 150 and 300 dpi</h3>
+    <p>What <code>PageSizing::Exact</code> gives for the standard sheets, in pixels. I computed these with the rule above (page points widened from <code>f32</code> as pdfium reports them) and checked them against the libvips <code>pdfload</code> reference set the tests use (135 renders, all matching). Points are shown rounded to three decimals.</p>
+    <table>
+      <thead><tr><th>Sheet</th><th>Points</th><th>72 dpi</th><th>150 dpi</th><th>300 dpi</th></tr></thead>
+      <tbody>
+        <tr><td>A0</td><td>2383.94&times;3370.39</td><td>2384&times;3370</td><td>4967&times;7022</td><td>9933&times;14043</td></tr>
+        <tr><td>A1</td><td>1683.78&times;2383.94</td><td>1684&times;2384</td><td>3508&times;4967</td><td>7016&times;9933</td></tr>
+        <tr><td>A2</td><td>1190.55&times;1683.78</td><td>1191&times;1684</td><td>2480&times;3508</td><td>4961&times;7016</td></tr>
+        <tr><td>A3</td><td>841.89&times;1190.55</td><td>842&times;1191</td><td>1754&times;2480</td><td>3508&times;4961</td></tr>
+        <tr><td>A4</td><td>595.276&times;841.89</td><td>595&times;842</td><td>1240&times;1754</td><td>2480&times;3508</td></tr>
+        <tr><td>Letter</td><td>612&times;792</td><td>612&times;792</td><td>1275&times;1650</td><td>2550&times;3300</td></tr>
+        <tr><td>Legal</td><td>612&times;1008</td><td>612&times;1008</td><td>1275&times;2100</td><td>2550&times;4200</td></tr>
+        <tr><td>Tabloid</td><td>792&times;1224</td><td>792&times;1224</td><td>1650&times;2550</td><td>3300&times;5100</td></tr>
+        <tr><td>ARCH A</td><td>648&times;864</td><td>648&times;864</td><td>1350&times;1800</td><td>2700&times;3600</td></tr>
+        <tr><td>ARCH B</td><td>864&times;1296</td><td>864&times;1296</td><td>1800&times;2700</td><td>3600&times;5400</td></tr>
+        <tr><td>ARCH C</td><td>1296&times;1728</td><td>1296&times;1728</td><td>2700&times;3600</td><td>5400&times;7200</td></tr>
+        <tr><td>ARCH D</td><td>1728&times;2592</td><td>1728&times;2592</td><td>3600&times;5400</td><td>7200&times;10800</td></tr>
+        <tr><td>ARCH E</td><td>2592&times;3456</td><td>2592&times;3456</td><td>5400&times;7200</td><td>10800&times;14400</td></tr>
+        <tr><td>ARCH E1</td><td>2160&times;3024</td><td>2160&times;3024</td><td>4500&times;6300</td><td>9000&times;12600</td></tr>
+        <tr><td>ANSI C</td><td>1224&times;1584</td><td>1224&times;1584</td><td>2550&times;3300</td><td>5100&times;6600</td></tr>
+        <tr><td>ANSI D</td><td>1584&times;2448</td><td>1584&times;2448</td><td>3300&times;5100</td><td>6600&times;10200</td></tr>
+        <tr><td>ANSI E</td><td>2448&times;3168</td><td>2448&times;3168</td><td>5100&times;6600</td><td>10200&times;13200</td></tr>
+      </tbody>
+    </table>
+    <p>ANSI A is Letter and ANSI B is Tabloid (11&times;17 in). ARCH A to E are 9&times;12 up to 36&times;48 in, and ARCH E1 is 30&times;42 in.</p>
   </section>
 
   <section>
