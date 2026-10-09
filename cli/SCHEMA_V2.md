@@ -333,6 +333,11 @@ committed `cli/js/snippets.generated.json` projected into the pyramid command.
   sink, skip-blank, tile-size, trace-level, verify`
 * **9 slots present** with the same ids as `slot_order`.
 
+`page-sizing` (libviprs#1199) is not in that list on purpose. It is a new pyramid flag, so
+it joins the `@doc-flag` set, `pyramid.command.json` and the baseline in one step, at the
+pin bump that brings in the libviprs-cli commit that adds it. Adding it to the embed before
+the frozen copy has the annotation would fail the extract-snippets gate in both directions.
+
 These are encoded as a `PYRAMID_BASELINE` constant in `extract-snippets`, and this
 same constant doubles as the **PYRAMID fallback** of §1.4 (so an un-annotated
 pyramid source still yields the frozen `slot_order`/`imports_base`).
