@@ -454,6 +454,11 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
       <p>Resolution for PDF rendering and page-size scaling. Higher DPI produces more pixels (and more tiles). 72 matches libvips' default; use 150&ndash;300 for print-quality documents. <span class="default-val">Default: 72</span></p>
     </dd>
 
+    <dt><code>--page-sizing &lt;exact|legacy-truncated&gt;</code></dt>
+    <dd>
+      <p>How a PDF page's pixel size comes out of <code>--dpi</code>. <code>exact</code> gives the size libvips gives: <code>rint(pts &times; dpi / 72)</code>, rounded to nearest with ties to even, so Letter at 300 dpi is 2550&times;3300 and A3 is 3508&times;4961. <code>legacy-truncated</code> keeps the sizes of libviprs 0.5.x, which came out 0 to 2 pixels smaller for some pages (Letter at 300 dpi rendered as 2549&times;3299). It also applies to <code>--match-page-size</code> and to <code>plan</code>. <span class="default-val">Default: exact</span></p>
+    </dd>
+
     <dt><code>--page &lt;N&gt;</code></dt>
     <dd>
       <p>PDF page to extract (1-based). <span class="default-val">Default: 1</span></p>
@@ -625,6 +630,9 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
 
     <dt><code>--dpi</code>, <code>--page</code></dt>
     <dd><p>Used when the input is a PDF to resolve page dimensions to pixels.</p></dd>
+
+    <dt><code>--page-sizing</code></dt>
+    <dd><p>Same as in <code>pyramid</code>. <code>exact</code> (the default) resolves a PDF page to the libvips size, <code>legacy-truncated</code> to the 0.5.x size. <code>plan</code> reads the page size from the PDF itself, so it needs no PDFium.</p></dd>
   </dl>
 
   <!-- ---- test-image ---- -->
