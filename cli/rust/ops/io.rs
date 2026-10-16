@@ -56,7 +56,7 @@ use clap::{Arg, ArgMatches, Command, value_parser};
 use libviprs::Interpretation;
 use libviprs::PixelFormat;
 use libviprs::Raster;
-use libviprs::source::{DecodeLimits, decode_file_with_limits};
+use libviprs::source::DecodeLimits;
 
 /// Long name of the `--max-width` decode-limit flag.
 pub const MAX_WIDTH: &str = "max-width";
@@ -189,7 +189,7 @@ pub fn inputs_and_out(m: &ArgMatches, id: &str) -> Result<(Vec<PathBuf>, PathBuf
         .map(PathBuf::from)
         .collect();
     if vals.len() < 2 {
-        bail!(
+        usage_bail!(
             "the {id} argument needs at least two values (one or more inputs \
              followed by the output path), got {}",
             vals.len()
@@ -202,16 +202,22 @@ pub fn inputs_and_out(m: &ArgMatches, id: &str) -> Result<(Vec<PathBuf>, PathBuf
 /// Decode an image file under the supplied per-decode limits.
 ///
 /// Native `.v`, PNG, JPEG, TIFF and the other formats the core decoder
-/// understands all route through [`decode_file_with_limits`]; the limits are
-/// pushed down before any pixel buffer is allocated.
+/// understands all route through
+/// [`decode_file_with_limits`](libviprs::source::decode_file_with_limits), and
+/// SVG through the core's renderer; the limits are pushed down before any
+/// pixel buffer is allocated.
 ///
 /// # Errors
 ///
 /// Propagates the core decode error (missing file, unsupported format, a limit
-/// exceeded) as an [`anyhow::Error`] carrying the input path for context.
+/// exceeded) as an [`anyhow::Error`] carrying the input path for context, or a
+/// [`MissingFeature`](crate::features::MissingFeature) when this build left the
+/// format's decoder out.
 pub fn load(path: &Path, limits: &DecodeLimits) -> Result<Raster> {
-    decode_file_with_limits(path, *limits)
-        .with_context(|| format!("failed to load image {}", path.display()))
+    // Through the shared input path, so an SVG is routed to its renderer and a
+    // codec this build left out is refused naming its feature, exactly as the
+    // built-in commands do (libviprs-cli#64).
+    crate::input::decode_path(path, *limits)
 }
 
 /// Encode a raster to `path`, choosing the sink by extension and applying the
@@ -244,7 +250,7 @@ pub fn save(raster: &Raster, path: &Path) -> Result<()> {
         .map(|e| e.to_string_lossy().to_ascii_lowercase())
         .unwrap_or_default();
     match ext.as_str() {
-        "jpg" | "jpeg" => bail!(
+        "jpg" | "jpeg" => usage_bail!(
             ".jpg/.jpeg is banned as a differential output sink (lossy encoding). \
              Use .png for integer rasters, or .v for float / multiband / Fourier rasters."
         ),
@@ -294,16 +300,45 @@ pub fn save(raster: &Raster, path: &Path) -> Result<()> {
                 .with_context(|| format!("failed to write {}", path.display()))?;
             Ok(())
         }
-        "" => bail!(
+        // Every other container the core can write goes through its own
+        // extension table (`Raster::save_stripped`), so the suffix picks the
+        // same encoder here that it picks in the library (libviprs-cli#65).
+        // The four palette/lossless raster containers get the integer cast
+        // first, like `.png`; the other four carry float as it is.
+        "webp" | "gif" | "jxl" | "jp2" | "j2k" | "jpt" | "j2c" | "jpc" => {
+            let prepared = to_integer_encodable(raster)?;
+            save_through_core(prepared.as_ref(), path, &ext)
+        }
+        "fits" | "fit" | "fts" | "hdr" | "csv" | "mat" => save_through_core(raster, path, &ext),
+        "" => usage_bail!(
             "output path {} has no extension; use .png / .tif / .ppm (integer) or .v \
              (float / multiband / Fourier)",
             path.display()
         ),
-        other => bail!(
-            "unsupported output extension .{other}; differential sinks are .png / .tif / .ppm \
-             (integer) and .v (float / multiband / Fourier)"
+        other => usage_bail!(
+            "unsupported output extension .{other}; viprs writes .png / .tif / .ppm / .pgm / \
+             .pnm / .v / .webp / .gif / .jxl / .jp2 / .fits / .hdr / .csv / .mat, and .jpg \
+             through jpegsave"
         ),
     }
+}
+
+/// Write `raster` through the core's extension table, naming the cargo
+/// feature when this build left out the encoder the suffix asks for.
+fn save_through_core(raster: &Raster, path: &Path, ext: &str) -> Result<()> {
+    let gated = match ext {
+        "jxl" => Some(("jxl", "JPEG XL", cfg!(feature = "jxl"))),
+        "jp2" | "j2k" | "jpt" | "j2c" | "jpc" => {
+            Some(("jp2k", "JPEG 2000", cfg!(feature = "jp2k")))
+        }
+        _ => None,
+    };
+    if let Some((feature, format, false)) = gated {
+        return Err(crate::features::MissingEncoder { feature, format }.into());
+    }
+    raster
+        .save_stripped(path)
+        .with_context(|| format!("failed to save {}", path.display()))
 }
 
 /// The integer bit depth an interpretation saves to on vips's integer sinks
@@ -416,7 +451,7 @@ fn cast_float_to_integer_round_even(raster: &Raster) -> Result<Raster> {
 /// a **float** raster (PNM is integer-only; a caller wanting cast-on-save uses
 /// `.png`), a **Fourier** raster (non-displayable), and any band count other
 /// than 1 or 3 (PNM has no 2-band or alpha/RGBA form, and no multiband form).
-fn encode_pnm(raster: &Raster) -> Result<Vec<u8>> {
+pub(crate) fn encode_pnm(raster: &Raster) -> Result<Vec<u8>> {
     let fmt = raster.format();
     if fmt.is_float() {
         bail!(
@@ -521,7 +556,7 @@ fn needs_srgb_conversion(interp: Interpretation) -> bool {
 /// Float / non-displayable rasters the caller would rather keep losslessly
 /// belong in a `.v` sink; this path is only reached once an integer sink was
 /// explicitly requested.
-fn to_integer_encodable(raster: &Raster) -> Result<std::borrow::Cow<'_, Raster>> {
+pub(crate) fn to_integer_encodable(raster: &Raster) -> Result<std::borrow::Cow<'_, Raster>> {
     use std::borrow::Cow;
     if needs_srgb_conversion(raster.interpretation()) {
         // Interpretation-aware conversion (#36): a Fourier / complex raster is

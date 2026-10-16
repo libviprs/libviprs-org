@@ -1,0 +1,11 @@
+# The top-level libviprs-cli/src files that define CLI flags or carry @doc-
+# markers. Read by sync-cli-src.sh and by extract-snippets, so the two cannot
+# disagree. ops/**/*.rs is picked up separately, at any depth.
+#
+# A new module that defines a flag has to be added here: sync-cli-src.sh fails
+# if a src file with #[arg(...)], #[command(...)] or an @doc- marker is missing.
+main.rs
+pipeline.rs
+verify.rs
+features.rs
+pdf_geo_plan.rs

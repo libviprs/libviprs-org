@@ -216,6 +216,25 @@
       },
       "fragment": "// PDF rendering DPI: {v} (used with --render and --match-page-size)"
     },
+    "page-sizing": {
+      "kind": "append",
+      "slot": "load-source",
+      "default": "exact",
+      "type": "enum",
+      "options": [
+        "exact",
+        "legacy-truncated"
+      ],
+      "cli": "--page-sizing {v}",
+      "imports_when_active": [],
+      "test": {
+        "file": "pdfium_page_size_exact.rs",
+        "fn": "every_render_route_reports_the_libvips_size",
+        "line": 297,
+        "repo": "libviprs"
+      },
+      "fragment": "// PDF page sizing: {v} (exact is the libvips size, legacy-truncated keeps the 0.5.x size; used with --render)"
+    },
     "render": {
       "kind": "override",
       "slot": "load-source",

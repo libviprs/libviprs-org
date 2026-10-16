@@ -24,6 +24,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CANONICAL_SRC="$SCRIPT_DIR/../../../libviprs-cli/src"
 FROZEN_DIR="$SCRIPT_DIR/../rust"
+SOURCE_LIST="$SCRIPT_DIR/cli-source-files.txt"
 
 CHECK=0
 if [[ "${1:-}" == "--check" ]]; then
@@ -39,8 +40,8 @@ if [[ ! -f "$CANONICAL_SRC/main.rs" ]]; then
   exit 1
 fi
 
-# The set of canonical files that make up the frozen doc copy: main.rs plus
-# every .rs under ops/, AT ANY DEPTH. Relative paths under src/ -> under rust/.
+# The set of canonical files that make up the frozen doc copy: the files named in
+# cli-source-files.txt plus every .rs under ops/, AT ANY DEPTH. Relative paths under src/ -> under rust/.
 #
 # SCHEMA_V2 §5.1 writes that set as `src/ops/*.rs` and this function used to be
 # a literal `ls ops/*.rs`, which is a flat glob. libviprs-cli d51dbc5 turned
@@ -61,10 +62,34 @@ fi
 collect_rel_files() {
   (
     cd "$CANONICAL_SRC"
-    printf '%s\n' main.rs
+    # The top-level files come from cli/tools/cli-source-files.txt, which
+    # extract-snippets reads too, so the sync and the generator cannot disagree
+    # about where flags live (libviprs-org#94: pipeline.rs held the pyramid flags
+    # and neither script knew).
+    grep -v '^[[:space:]]*\(#\|$\)' "$SOURCE_LIST"
     if [[ -d ops ]]; then
       find ops -type f -name '*.rs' | LC_ALL=C sort
     fi
+  )
+}
+
+# The guard for the list above. A file the list does not name is a file nobody
+# compares and nobody reads, so a flag or a doc marker landing in one is the
+# same quiet failure as the flat ops glob. Fail instead: any canonical .rs that
+# is not in the set but carries an @doc- marker or a clap #[arg(]/#[command(]
+# attribute has to be added to cli-source-files.txt (or, if it really is not a
+# CLI surface, have the attribute moved out of it).
+unlisted_flag_files() {
+  (
+    cd "$CANONICAL_SRC"
+    local listed
+    listed="$(collect_rel_files)"
+    find . -type f -name '*.rs' | sed 's|^\./||' | LC_ALL=C sort | while IFS= read -r rel; do
+      printf '%s\n' "$listed" | grep -Fxq -- "$rel" && continue
+      if grep -Eq '@doc-|#\[(arg|command)\(' "$rel"; then
+        printf '%s\n' "$rel"
+      fi
+    done
   )
 }
 
@@ -80,6 +105,16 @@ collect_rel_files() {
 collect_frozen_files() {
   ( cd "$FROZEN_DIR" && find . -type f -name '*.rs' | sed 's|^\./||' | LC_ALL=C sort )
 }
+
+# Run before anything is compared or written, in both modes.
+unlisted="$(unlisted_flag_files)"
+if [[ -n "$unlisted" ]]; then
+  while IFS= read -r rel; do
+    echo "error: $CANONICAL_SRC/$rel defines clap flags or @doc- markers but is not in $SOURCE_LIST" >&2
+  done <<< "$unlisted"
+  echo "       add it to cli/tools/cli-source-files.txt so the sync and the snippet extractor read it." >&2
+  exit 1
+fi
 
 if [[ "$CHECK" -eq 1 ]]; then
   # Diff-only drift guard: every frozen copy must be byte-identical to the
