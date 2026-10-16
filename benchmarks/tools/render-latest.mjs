@@ -4,7 +4,7 @@
  * Render history.json into /benchmarks/index.html as static HTML.
  *
  *   node benchmarks/tools/render-latest.mjs [--history <path>] [--page <path>]
- *                                           [--config <path>] [--check]
+ *                                           [--config <path>] [--charts <dir>] [--check]
  *
  * Rewrites everything between each pair of
  *
@@ -62,7 +62,7 @@
  * version axis carrying the commit that moved it.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -76,7 +76,7 @@ const flag = (n) => {
 };
 const has = (n) => argv.includes(`--${n}`);
 
-const KNOWN = new Set(['history', 'page', 'config', 'check', 'help']);
+const KNOWN = new Set(['history', 'page', 'config', 'charts', 'check', 'help']);
 const unknown = argv.filter((a) => a.startsWith('--')).map((a) => a.slice(2)).filter((a) => !KNOWN.has(a));
 if (unknown.length) {
   console.error(`unknown flag(s): ${unknown.map((u) => `--${u}`).join(', ')}`);
@@ -84,13 +84,15 @@ if (unknown.length) {
   process.exit(EXIT.USAGE);
 }
 if (has('help')) {
-  console.error('usage: node benchmarks/tools/render-latest.mjs [--history <path>] [--page <path>] [--config <path>] [--check]');
+  console.error('usage: node benchmarks/tools/render-latest.mjs [--history <path>] [--page <path>] [--config <path>] [--charts <dir>] [--check]');
   process.exit(EXIT.USAGE);
 }
 
 const historyPath = resolve(flag('history') ?? join(here, '..', 'history.json'));
 const pagePath = resolve(flag('page') ?? join(here, '..', 'index.html'));
 const configPath = resolve(flag('config') ?? join(here, 'config.json'));
+// The rendered chart files and their manifest, written by ingest.mjs (#91).
+const chartsDir = resolve(flag('charts') ?? join(dirname(pagePath), 'charts'));
 
 const refuse = (why) => { console.error(`refused: ${why}`); process.exit(EXIT.REFUSED); };
 
@@ -1401,6 +1403,78 @@ ${blocks}
 }
 
 // ---------------------------------------------------------------------------
+// 3b. the charts drawn at ingest (#91)
+// ---------------------------------------------------------------------------
+
+/** The width and height an SVG declares, so the <img> reserves its box before
+ *  the file arrives and the page does not jump. Read from the file rather than
+ *  assumed, so a renderer that changes its canvas does not need this touched. */
+function svgSize(file) {
+  const head = readFileSync(join(chartsDir, file), 'utf8').slice(0, 600);
+  const w = /\swidth="(\d+(?:\.\d+)?)"/.exec(head);
+  const h = /\sheight="(\d+(?:\.\d+)?)"/.exec(head);
+  if (!w || !h) refuse(`charts/${file} declares no width and height on its root element`);
+  return { w: w[1], h: h[1] };
+}
+
+function chartsSection() {
+  const manifestPath = join(chartsDir, 'manifest.json');
+  if (!existsSync(manifestPath)) {
+    refuse(`there is no ${manifestPath}. The charts are drawn by ingest.mjs --sync from the pinned revision's renderer, ` +
+      'and a page with a charts section and no charts is a section that looks fine and shows nothing.');
+  }
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  for (const key of ['renderer', 'rev', 'family', 'runId', 'charts', 'held']) {
+    if (manifest[key] === undefined) refuse(`${manifestPath} has no "${key}"`);
+  }
+  if (!Array.isArray(manifest.charts) || manifest.charts.length === 0) refuse(`${manifestPath} lists no charts`);
+  const cfg = config.charts;
+  if (!cfg) refuse('config.json has no "charts" block, which holds the words around the charts');
+
+  const byScenario = new Map();
+  for (const c of manifest.charts) {
+    for (const k of ['file', 'scenario', 'metric', 'title']) {
+      if (!c[k]) refuse(`${manifestPath}: a chart has no "${k}": ${JSON.stringify(c)}`);
+    }
+    if (!existsSync(join(chartsDir, c.file))) refuse(`${manifestPath} lists ${c.file} and ${chartsDir} does not hold it`);
+    if (!byScenario.has(c.scenario)) byScenario.set(c.scenario, []);
+    byScenario.get(c.scenario).push(c);
+  }
+
+  const groups = [...byScenario].sort((a, b) => a[0].localeCompare(b[0])).map(([scenario, list]) => {
+    const figures = list.map((c) => {
+      const { w, h } = svgSize(c.file);
+      return `        <figure class="chart-file">
+          <img src="charts/${esc(c.file)}" width="${esc(w)}" height="${esc(h)}" loading="lazy" decoding="async" alt="${esc(c.title)}">
+          <figcaption>${esc(config.metricLabel[c.metric] ?? c.metric)}</figcaption>
+        </figure>`;
+    }).join('\n');
+    return `      <div class="chart-file-group" data-scenario="${esc(scenario)}">
+        <h3>${esc(config.scenarioLabel[scenario] ?? scenario)}</h3>
+        <div class="chart-files">
+${figures}
+        </div>
+      </div>`;
+  }).join('\n');
+
+  return `  <div class="section-head">
+      <div class="section-kicker">Drawn at ingest from run <code class="mono">${esc(manifest.runId)}</code> ${MIDDOT} libviprs-bench <code class="mono">${esc(String(manifest.rev).slice(0, 12))}</code></div>
+      <h2 id="charts-title">${prose(cfg.title)}</h2>
+    </div>
+
+    <p class="lead">${prose(cfg.lead)}</p>
+
+    <div class="status-callout" data-chart-count="${count(manifest.charts.length)}" data-held-count="${count(manifest.held.length)}">
+      <p>${count(manifest.charts.length)} chart${manifest.charts.length === 1 ? '' : 's'} drawn,
+        ${count(manifest.held.length)} scenario and metric pair${manifest.held.length === 1 ? '' : 's'} held out by the
+        comparability contract. ${prose(cfg.held)}</p>
+    </div>
+
+${groups}
+`;
+}
+
+// ---------------------------------------------------------------------------
 // 4. provenance and method
 // ---------------------------------------------------------------------------
 
@@ -1484,6 +1558,7 @@ const SECTIONS = [
   ['claim', claimSection],
   ['engines', enginesSection],
   ['history', historySection],
+  ['charts', chartsSection],
   ['method', methodSection],
   ['not-measured', notMeasuredSection],
 ];

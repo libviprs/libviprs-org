@@ -2157,6 +2157,145 @@
   <!-- GENERATED:history:END -->
   </section>
 
+  <section class="page-section" id="charts" aria-labelledby="charts-title">
+  <!-- GENERATED:charts:BEGIN -->
+  <div class="section-head">
+      <div class="section-kicker">Drawn at ingest from run <code class="mono">20260915T071511Z-adcf1ff21699ded673af74297a4a83104b96abd1-29e9d16b</code> · libviprs-bench <code class="mono">f0271d02c371</code></div>
+      <h2 id="charts-title">The storage backends, as the benchmark repository draws them.</h2>
+    </div>
+
+    <p class="lead">This site does not draw these. The libviprs-bench renderer draws them from the archived storage run named above, at the pinned revision, and ingest writes the files to charts/ and embeds them as images, the way causl.org embeds its charts. Every check draws them again and refuses any file that differs, so a chart cannot sit next to numbers it was not drawn from.</p>
+
+    <div class="status-callout" data-chart-count="19" data-held-count="25">
+      <p>19 charts drawn,
+        25 scenario and metric pairs held out by the
+        comparability contract. A pair is held out when the contract says the cells are not comparable across backends or too noisy to rank, and it is not drawn rather than drawn with a caveat.</p>
+    </div>
+
+      <div class="chart-file-group" data-scenario="first_lookup">
+        <h3>the first tile out of a freshly opened artefact</h3>
+        <div class="chart-files">
+        <figure class="chart-file">
+          <img src="charts/storage_first_lookup_p50.svg" width="236" height="314" loading="lazy" decoding="async" alt="Median latency · first_lookup">
+          <figcaption>median latency</figcaption>
+        </figure>
+        </div>
+      </div>
+      <div class="chart-file-group" data-scenario="generate">
+        <h3>write the whole pyramid</h3>
+        <div class="chart-files">
+        <figure class="chart-file">
+          <img src="charts/storage_generate_tiles_per_s.svg" width="488" height="314" loading="lazy" decoding="async" alt="Throughput · generate">
+          <figcaption>tiles per second</figcaption>
+        </figure>
+        <figure class="chart-file">
+          <img src="charts/storage_generate_wall.svg" width="488" height="314" loading="lazy" decoding="async" alt="Wall time · generate">
+          <figcaption>wall time</figcaption>
+        </figure>
+        </div>
+      </div>
+      <div class="chart-file-group" data-scenario="open">
+        <h3>open the artefact cold</h3>
+        <div class="chart-files">
+        <figure class="chart-file">
+          <img src="charts/storage_open_p50.svg" width="356" height="314" loading="lazy" decoding="async" alt="Median latency · open">
+          <figcaption>median latency</figcaption>
+        </figure>
+        </div>
+      </div>
+      <div class="chart-file-group" data-scenario="read_concurrent@1">
+        <h3>concurrent reads, 1 thread</h3>
+        <div class="chart-files">
+        <figure class="chart-file">
+          <img src="charts/storage_read_concurrent-1_lookups_per_s.svg" width="414" height="314" loading="lazy" decoding="async" alt="Lookup rate · read_concurrent@1">
+          <figcaption>lookups per second</figcaption>
+        </figure>
+        <figure class="chart-file">
+          <img src="charts/storage_read_concurrent-1_p50.svg" width="236" height="314" loading="lazy" decoding="async" alt="Median latency · read_concurrent@1">
+          <figcaption>median latency</figcaption>
+        </figure>
+        </div>
+      </div>
+      <div class="chart-file-group" data-scenario="read_concurrent@2">
+        <h3>concurrent reads, 2 threads</h3>
+        <div class="chart-files">
+        <figure class="chart-file">
+          <img src="charts/storage_read_concurrent-2_lookups_per_s.svg" width="488" height="314" loading="lazy" decoding="async" alt="Lookup rate · read_concurrent@2">
+          <figcaption>lookups per second</figcaption>
+        </figure>
+        <figure class="chart-file">
+          <img src="charts/storage_read_concurrent-2_p50.svg" width="488" height="314" loading="lazy" decoding="async" alt="Median latency · read_concurrent@2">
+          <figcaption>median latency</figcaption>
+        </figure>
+        </div>
+      </div>
+      <div class="chart-file-group" data-scenario="read_concurrent@4">
+        <h3>concurrent reads, 4 threads</h3>
+        <div class="chart-files">
+        <figure class="chart-file">
+          <img src="charts/storage_read_concurrent-4_lookups_per_s.svg" width="414" height="314" loading="lazy" decoding="async" alt="Lookup rate · read_concurrent@4">
+          <figcaption>lookups per second</figcaption>
+        </figure>
+        <figure class="chart-file">
+          <img src="charts/storage_read_concurrent-4_p50.svg" width="488" height="314" loading="lazy" decoding="async" alt="Median latency · read_concurrent@4">
+          <figcaption>median latency</figcaption>
+        </figure>
+        </div>
+      </div>
+      <div class="chart-file-group" data-scenario="read_plan_order">
+        <h3>walk the tiles a viewport plan asks for</h3>
+        <div class="chart-files">
+        <figure class="chart-file">
+          <img src="charts/storage_read_plan_order_lookups_per_s.svg" width="488" height="314" loading="lazy" decoding="async" alt="Lookup rate · read_plan_order">
+          <figcaption>lookups per second</figcaption>
+        </figure>
+        <figure class="chart-file">
+          <img src="charts/storage_read_plan_order_p50.svg" width="414" height="314" loading="lazy" decoding="async" alt="Median latency · read_plan_order">
+          <figcaption>median latency</figcaption>
+        </figure>
+        <figure class="chart-file">
+          <img src="charts/storage_read_plan_order_p99.svg" width="266" height="314" loading="lazy" decoding="async" alt="p99 latency · read_plan_order">
+          <figcaption>99th percentile latency</figcaption>
+        </figure>
+        </div>
+      </div>
+      <div class="chart-file-group" data-scenario="read_random">
+        <h3>hit random tiles</h3>
+        <div class="chart-files">
+        <figure class="chart-file">
+          <img src="charts/storage_read_random_lookups_per_s.svg" width="488" height="314" loading="lazy" decoding="async" alt="Lookup rate · read_random">
+          <figcaption>lookups per second</figcaption>
+        </figure>
+        <figure class="chart-file">
+          <img src="charts/storage_read_random_p50.svg" width="488" height="314" loading="lazy" decoding="async" alt="Median latency · read_random">
+          <figcaption>median latency</figcaption>
+        </figure>
+        <figure class="chart-file">
+          <img src="charts/storage_read_random_p99.svg" width="266" height="314" loading="lazy" decoding="async" alt="p99 latency · read_random">
+          <figcaption>99th percentile latency</figcaption>
+        </figure>
+        </div>
+      </div>
+      <div class="chart-file-group" data-scenario="read_tileid_order">
+        <h3>walk every tile in tile-id order</h3>
+        <div class="chart-files">
+        <figure class="chart-file">
+          <img src="charts/storage_read_tileid_order_lookups_per_s.svg" width="414" height="314" loading="lazy" decoding="async" alt="Lookup rate · read_tileid_order">
+          <figcaption>lookups per second</figcaption>
+        </figure>
+        <figure class="chart-file">
+          <img src="charts/storage_read_tileid_order_p50.svg" width="414" height="314" loading="lazy" decoding="async" alt="Median latency · read_tileid_order">
+          <figcaption>median latency</figcaption>
+        </figure>
+        <figure class="chart-file">
+          <img src="charts/storage_read_tileid_order_p99.svg" width="266" height="314" loading="lazy" decoding="async" alt="p99 latency · read_tileid_order">
+          <figcaption>99th percentile latency</figcaption>
+        </figure>
+        </div>
+      </div>
+  <!-- GENERATED:charts:END -->
+  </section>
+
   <section class="page-section" id="method" aria-labelledby="method-title">
   <!-- GENERATED:method:BEGIN -->
   <div class="section-head">

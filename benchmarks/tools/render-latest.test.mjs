@@ -31,6 +31,7 @@
  *   22. two_architectures_never_share_a_line
  *   23. the_page_says_what_is_exact_and_what_is_not_gradeable_where_the_timings_are
  *   24. the_dispersion_trio_and_the_estimator_that_made_it_are_on_the_page
+ *   25. the_charts_section_embeds_files_and_refuses_what_it_cannot_find (#91)
  *
  * Every count in here is read off benchmarks/history.json rather than written
  * down, because the last capture's figures outlived the capture by one round
@@ -56,6 +57,7 @@ const HISTORY = join(BENCH, 'history.json');
 const PAGE = join(BENCH, 'index.html');
 const CONFIG = join(here, 'config.json');
 const CSS = join(BENCH, 'css', 'benchmarks-dashboard.css');
+const CHARTS = join(BENCH, 'charts');
 
 const failures = [];
 let passed = 0;
@@ -77,18 +79,21 @@ const scratch = () => mkdtempSync(join(tmpdir(), 'libviprs-page-'));
 const clone = (x) => JSON.parse(JSON.stringify(x));
 
 function runCli(args) {
-  const r = spawnSync(process.execPath, [RENDERER, ...args], { encoding: 'utf8' });
+  // The charts the page embeds are files next to the real page; a scratch page
+  // has none beside it, so point at the committed ones unless a test chose.
+  const full = args.includes('--charts') ? args : [...args, '--charts', CHARTS];
+  const r = spawnSync(process.execPath, [RENDERER, ...full], { encoding: 'utf8' });
   return { code: r.status, out: r.stdout ?? '', err: r.stderr ?? '' };
 }
 
 /** Render a history into a fresh page and hand back the HTML. */
-function renderInto(history, { config = CONFIG } = {}) {
+function renderInto(history, { config = CONFIG, charts = CHARTS } = {}) {
   const dir = scratch();
   const hp = join(dir, 'history.json');
   const pp = join(dir, 'index.html');
   writeFileSync(hp, JSON.stringify(history, null, 2));
   writeFileSync(pp, readFileSync(PAGE, 'utf8'));
-  const r = runCli(['--history', hp, '--page', pp, '--config', config]);
+  const r = runCli(['--history', hp, '--page', pp, '--config', config, '--charts', charts]);
   return { ...r, html: () => readFileSync(pp, 'utf8'), dir, hp, pp };
 }
 
@@ -1381,6 +1386,49 @@ test('the_dispersion_trio_and_the_estimator_that_made_it_are_on_the_page', () =>
     'halving the drift changed the stated spread, so the two are not separate readings');
   return `trio and estimator on the page for the ${[storageRun, enginesRun].length} drawn run(s), ` +
     `drift halved on ${halvedRuns} of ${history.length}`;
+});
+
+// ---------------------------------------------------------------------------
+// 25. the_charts_section_embeds_files_and_refuses_what_it_cannot_find (#91)
+//
+// The section is made of <img> elements pointing at files ingest drew, and it
+// is generated from charts/manifest.json. Two ways for it to be wrong and look
+// fine: an <img> whose file is not there (a broken image icon on a live page),
+// and a section with no charts at all (a heading over nothing).
+//
+// Goes red against: a section that renders from the manifest without looking
+// for the files, and one that renders an empty manifest as an empty section.
+// ---------------------------------------------------------------------------
+test('the_charts_section_embeds_files_and_refuses_what_it_cannot_find', () => {
+  const manifest = readJson(join(CHARTS, 'manifest.json'));
+  const ok = renderInto(history);
+  assert(ok.code === 0, `rendering against the real charts failed: ${ok.err}`);
+  const html = ok.html();
+  const imgs = [...html.matchAll(/<img src="charts\/([^"]+\.svg)"[^>]*>/g)].map((m) => m[1]);
+  assert(imgs.length === manifest.charts.length,
+    `the page embeds ${imgs.length} chart file(s) and the manifest lists ${manifest.charts.length}`);
+  for (const m of html.matchAll(/<img src="charts\/[^"]+"[^>]*>/g)) {
+    assert(/ alt="[^"]+"/.test(m[0]), `an embedded chart has no alt text: ${m[0]}`);
+    assert(/ width="\d+/.test(m[0]) && / height="\d+/.test(m[0]), `an embedded chart reserves no box: ${m[0]}`);
+  }
+
+  // A manifest naming a file that is not there.
+  const missing = scratch();
+  writeFileSync(join(missing, 'manifest.json'), JSON.stringify(manifest));
+  const gone = renderInto(history, { charts: missing });
+  assert(gone.code !== 0, 'a manifest listing files that do not exist rendered anyway');
+  assert(/does not hold it/.test(gone.err), `refused, but not for the missing file: ${gone.err}`);
+
+  // An empty manifest.
+  const empty = scratch();
+  writeFileSync(join(empty, 'manifest.json'), JSON.stringify({ ...manifest, charts: [] }));
+  const none = renderInto(history, { charts: empty });
+  assert(none.code !== 0 && /lists no charts/.test(none.err), `an empty manifest was not refused: ${none.err}`);
+
+  // No manifest at all.
+  const bare = renderInto(history, { charts: scratch() });
+  assert(bare.code !== 0 && /no .*manifest\.json/.test(bare.err), `a missing manifest was not refused: ${bare.err}`);
+  return `${imgs.length} <img> elements, three refusals`;
 });
 
 // ---------------------------------------------------------------------------

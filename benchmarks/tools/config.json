@@ -366,5 +366,10 @@
       "replicateIndex"
     ],
     "_doc": "The fields a sample carries onto a chart point. groupSections builds a fixed-shape point and that point is the only thing computeVerdict sees, so a verdict rule that reads a field not in this list reads undefined, which looks exactly like a rule that is switched off. gated and gateBlockers are in here because the no-chip rule below is driven off them."
+  },
+  "charts": {
+    "title": "The storage backends, as the benchmark repository draws them.",
+    "lead": "This site does not draw these. The libviprs-bench renderer draws them from the archived storage run named above, at the pinned revision, and ingest writes the files to charts/ and embeds them as images, the way causl.org embeds its charts. Every check draws them again and refuses any file that differs, so a chart cannot sit next to numbers it was not drawn from.",
+    "held": "A pair is held out when the contract says the cells are not comparable across backends or too noisy to rank, and it is not drawn rather than drawn with a caveat."
   }
 }

@@ -119,7 +119,9 @@ code { background: var(--code-bg); padding: 0.05rem 0.28rem; border-radius: 3px;
   font-size: 0.72rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--primary);
+  /* --primary was 3.67:1 on the light background; --primary-dark is the darker
+     brand tone in light and the lighter one in dark, and clears 4.5:1 in both. */
+  color: var(--primary-dark);
   font-weight: 700;
   margin-bottom: 0.25rem;
 }
@@ -397,4 +399,38 @@ footer {
   main { padding: 1.75rem 1rem 3rem; }
   .claim-number { font-size: 1.5rem; }
   .results-table { font-size: 0.78rem; }
+}
+
+
+/* ----- Charts drawn at ingest (#91) --------------------------------------- */
+
+/* The SVGs are files, embedded as images: they carry their own surface, so the
+   frame is what ties each one to the page. */
+.chart-file-group {
+  margin-top: 1.5rem;
+}
+
+.chart-files {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  gap: 1rem;
+  margin: 0.5rem 0 1.5rem;
+}
+
+.chart-file {
+  margin: 0;
+}
+
+.chart-file img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.chart-file figcaption {
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--text-light);
 }
