@@ -85,7 +85,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Assert the pin is well formed and this job actually reads it
         run: node libviprs-org/cli/tools/sync-pin.test.js
@@ -162,7 +162,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Regenerate snippet manifest (enforces pyramid baseline §4)
         run: cargo run --manifest-path cli/tools/extract-snippets/Cargo.toml
@@ -183,7 +183,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Per-flag audit
         run: node cli/tools/test-flags/test.js
@@ -203,7 +203,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Regenerate op sections (validates oracle_class/shape enums)
         run: node cli/tools/gen-op-sections/index.js --out cli/tools/gen-op-sections/generated-op-sections.html
@@ -241,7 +241,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Static fallback tables match the JSON render
         run: node benchmarks/tools/bench-drift.js

@@ -35,7 +35,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       # First, because a stale page is the failure this job exists for and the
       # message says so in one line. The guards below are richer but slower to
