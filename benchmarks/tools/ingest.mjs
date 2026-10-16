@@ -81,8 +81,8 @@
  * Exit codes: 0 fine · 1 refused · 2 usage.
  */
 
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -94,6 +94,9 @@ export const EXIT = { OK: 0, REFUSED: 1, USAGE: 2 };
 export const PIN_PATH = join(here, '..', 'BENCH_REV');
 export const HISTORY_PATH = join(here, '..', 'history.json');
 export const RENDERER = join(here, 'render-latest.mjs');
+/** Where the rendered chart files and their manifest live, next to the page. */
+export const CHARTS_DIR = join(here, '..', 'charts');
+export const CHARTS_MANIFEST = 'manifest.json';
 
 /** The files this reads out of the benchmark repository, by name in one place.
  *
@@ -445,11 +448,174 @@ export async function verifyOrigin({ benchDir, rev, history: given }) {
 }
 
 // ---------------------------------------------------------------------------
+// the charts (libviprs-org#91)
+// ---------------------------------------------------------------------------
+//
+// causl-org serves file-based charts, `<img src="charts/chart_x.svg">`, drawn by
+// its benchmark repository's renderer. This does the same, with one difference
+// that matters: the SVGs are not committed over there (`report/**/*.svg` is
+// gitignored in libviprs-bench), so there is nothing to copy. They are DRAWN
+// here, at ingest, by the pinned revision's own renderer, from the archived
+// document the page already verifies. That keeps the property this directory
+// exists for: a chart cannot drift from the numbers printed beside it, because
+// both come out of the same document at the same revision.
+//
+// What the pinned revision can draw is what appears. `render.mjs` there reads
+// the Rust harness's JSON (benchmark_history.json, benchmark_results.json),
+// which the archived Python-runner documents are not, so it has nothing to draw
+// from them. `storage-charts.mjs` reads the archived storage document, so that
+// is the renderer used. The engines family has no renderer over there yet; its
+// charts on the page stay the ones render-latest.mjs draws, and the manifest
+// says which family the files are for rather than implying more.
+
+/** What the pinned revision's renderer needs, read out of git by object. */
+export const CHARTS_RENDERER = 'tools/charts/storage-charts.mjs';
+const CHARTS_FAMILY = 'storage';
+
+/** One install per revision per process. `npm ci` is the slow, networked step. */
+const installed = new Map();
+
+/** The pinned revision's chart code and its locked dependencies, in a temp dir.
+ *
+ *  `git archive` and not the working tree, for the same reason readAtRev is
+ *  `git show`: a dirty checkout of the benchmark repository cannot put anything
+ *  on the page. The renderer's one dependency (`@spdrman/bencharts`) comes from
+ *  the revision's own lockfile via `npm ci`, so it is the version the producer
+ *  drew with and not whatever is newest.
+ */
+export function chartCodeAt(benchDir, rev) {
+  if (installed.has(`${benchDir}\0${rev}`)) return installed.get(`${benchDir}\0${rev}`);
+  try {
+    execFileSync('git', ['-C', benchDir, 'cat-file', '-e', `${rev}:${CHARTS_RENDERER}`], { stdio: 'ignore' });
+  } catch {
+    throw new Error(
+      `libviprs-bench at ${rev} has no ${CHARTS_RENDERER}, so it cannot draw the ${CHARTS_FAMILY} ` +
+        'family and there is nothing to put in benchmarks/charts/. Pin a revision that has it.',
+    );
+  }
+  const dir = mkdtempSync(join(tmpdir(), 'libviprs-charts-'));
+  const archive = spawnSync(
+    'git',
+    ['-C', benchDir, 'archive', '--format=tar', rev, 'tools/charts', 'package.json', 'package-lock.json'],
+    { maxBuffer: 256 * 1024 * 1024 },
+  );
+  if (archive.status !== 0) {
+    throw new Error(`could not archive the chart code at ${rev}: ${String(archive.stderr).trim()}`);
+  }
+  const untar = spawnSync('tar', ['-x', '-C', dir], { input: archive.stdout });
+  if (untar.status !== 0) throw new Error(`could not unpack the chart code: ${String(untar.stderr).trim()}`);
+  const npm = spawnSync('npm', ['ci', '--ignore-scripts', '--no-audit', '--no-fund', '--loglevel=error'], {
+    cwd: dir,
+    encoding: 'utf8',
+  });
+  if (npm.status !== 0) {
+    throw new Error(`npm ci failed for the chart code at ${rev}: ${(npm.stderr || npm.stdout).trim()}`);
+  }
+  installed.set(`${benchDir}\0${rev}`, dir);
+  return dir;
+}
+
+/** The first <text> in a chart is its title. */
+function titleOf(svg) {
+  const m = /<text[^>]*>([^<]*)<\/text>/.exec(svg);
+  return (m ? m[1] : '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'");
+}
+
+/** The latest run of the charted family, by capture time. */
+export function latestRun(history, family = CHARTS_FAMILY) {
+  return history
+    .filter((e) => e.family === family)
+    .sort((a, b) => String(a.capturedAt).localeCompare(String(b.capturedAt)))
+    .at(-1);
+}
+
+/** Draw the charts for a history at a pinned revision.
+ *
+ *  Returns `{ files, manifestText }`: file name to SVG text, and the manifest
+ *  that render-latest.mjs turns into the page section. Pure with respect to this
+ *  repository: nothing is written.
+ */
+export async function renderChartsAt({ benchDir, rev, history }) {
+  const run = latestRun(history);
+  if (!run) throw new Error(`the history carries no ${CHARTS_FAMILY} run, so there is nothing to draw`);
+  const index = JSON.parse(readAtRev(benchDir, rev, BENCH.archiveIndex(run.family)));
+  const row = index.find((r) => r?.runId === run.runId);
+  if (!row) throw new Error(`run ${run.runId} is not in archive/${run.family}/index.json at ${rev}`);
+  const document = JSON.parse(readAtRev(benchDir, rev, BENCH.archiveFile(run.family, row.file)));
+
+  const dir = chartCodeAt(benchDir, rev);
+  const { buildStorageCharts } = await import(pathToFileURL(join(dir, CHARTS_RENDERER)).href);
+  const { charts, held, violations } = buildStorageCharts(document);
+  if (violations.length > 0) {
+    throw new Error(
+      `the pinned comparability contract is violated by run ${run.runId}: ` +
+        violations.map((v) => v.rule ?? JSON.stringify(v)).slice(0, 5).join('; '),
+    );
+  }
+  if (charts.length === 0) {
+    throw new Error(`the pinned renderer drew no charts from run ${run.runId}; an empty reading is a refusal`);
+  }
+
+  const files = new Map();
+  for (const c of [...charts].sort((a, b) => a.filename.localeCompare(b.filename))) files.set(c.filename, c.svg);
+  const manifest = {
+    renderer: `libviprs-bench ${CHARTS_RENDERER}`,
+    rev,
+    family: run.family,
+    runId: run.runId,
+    charts: [...files].map(([file, svg]) => {
+      const c = charts.find((x) => x.filename === file);
+      return { file, scenario: c.scenario, metric: c.metric, title: titleOf(svg) };
+    }),
+    held: held
+      .map((h) => ({ scenario: h.scenario, metric: h.metric ?? null, status: h.status }))
+      .sort((a, b) => `${a.scenario}${a.metric}${a.status}`.localeCompare(`${b.scenario}${b.metric}${b.status}`))
+      .filter((h, i, all) => i === 0 || JSON.stringify(h) !== JSON.stringify(all[i - 1])),
+  };
+  return { files, manifestText: `${JSON.stringify(manifest, null, 2)}\n` };
+}
+
+/** Compare a rendering with what is on disk. Every difference, never the first. */
+export function diffCharts(chartsDir, { files, manifestText }) {
+  const problems = [];
+  const onDisk = existsSync(chartsDir)
+    ? readdirSync(chartsDir).filter((f) => f.endsWith('.svg')).sort()
+    : [];
+  for (const [name, svg] of files) {
+    const path = join(chartsDir, name);
+    if (!existsSync(path)) {
+      problems.push(`charts/${name} is missing; the pinned renderer draws it`);
+    } else if (readFileSync(path, 'utf8') !== svg) {
+      problems.push(`charts/${name} differs from what the pinned renderer draws from the pinned document`);
+    }
+  }
+  for (const name of onDisk) {
+    if (!files.has(name)) problems.push(`charts/${name} is not drawn by the pinned renderer, so nothing supports it`);
+  }
+  const manifestPath = join(chartsDir, CHARTS_MANIFEST);
+  if (!existsSync(manifestPath)) problems.push(`charts/${CHARTS_MANIFEST} is missing`);
+  else if (readFileSync(manifestPath, 'utf8') !== manifestText) {
+    problems.push(`charts/${CHARTS_MANIFEST} differs from what the pinned renderer produced`);
+  }
+  return problems;
+}
+
+/** Replace the chart directory's contents with a rendering. */
+export function writeCharts(chartsDir, { files, manifestText }) {
+  mkdirSync(chartsDir, { recursive: true });
+  for (const name of readdirSync(chartsDir)) {
+    if (name.endsWith('.svg') || name === CHARTS_MANIFEST) rmSync(join(chartsDir, name));
+  }
+  for (const [name, svg] of files) writeFileSync(join(chartsDir, name), svg);
+  writeFileSync(join(chartsDir, CHARTS_MANIFEST), manifestText);
+}
+
+// ---------------------------------------------------------------------------
 // the command
 // ---------------------------------------------------------------------------
 
-function render(pagePath, historyPath, check) {
-  const args = [RENDERER, '--history', historyPath, '--page', pagePath];
+function render(pagePath, historyPath, check, chartsDir) {
+  const args = [RENDERER, '--history', historyPath, '--page', pagePath, '--charts', chartsDir];
   if (check) args.push('--check');
   execFileSync(process.execPath, args, { stdio: 'inherit' });
 }
@@ -486,7 +652,7 @@ async function main(argv) {
     return i === -1 ? undefined : argv[i + 1];
   };
   const has = (n) => argv.includes(`--${n}`);
-  const KNOWN = new Set(['bench', 'rev', 'check', 'sync', 'history', 'page', 'pin', 'help']);
+  const KNOWN = new Set(['bench', 'rev', 'check', 'sync', 'history', 'page', 'pin', 'charts', 'help']);
   const unknown = argv
     .filter((a) => a.startsWith('--'))
     .map((a) => a.slice(2).split('=')[0])
@@ -498,7 +664,8 @@ async function main(argv) {
   if (has('help') || !flag('bench')) {
     console.error(
       'usage: node benchmarks/tools/ingest.mjs --bench <libviprs-bench checkout> [--check]\n' +
-        '       node benchmarks/tools/ingest.mjs --bench <dir> --sync [--rev <sha>]',
+        '       node benchmarks/tools/ingest.mjs --bench <dir> --sync [--rev <sha>]\n' +
+        '       (--charts <dir> to point the chart directory elsewhere)',
     );
     return EXIT.USAGE;
   }
@@ -507,6 +674,7 @@ async function main(argv) {
   const pinPath = resolve(flag('pin') ?? PIN_PATH);
   const historyPath = resolve(flag('history') ?? HISTORY_PATH);
   const pagePath = resolve(flag('page') ?? join(here, '..', 'index.html'));
+  const chartsDir = resolve(flag('charts') ?? CHARTS_DIR);
   const sync = has('sync');
   if (flag('rev') && !sync) {
     console.error('--rev moves the pin, so it only makes sense with --sync');
@@ -568,19 +736,35 @@ async function main(argv) {
       );
       return EXIT.REFUSED;
     }
-    render(pagePath, historyPath, true);
-    console.log('the history is the pinned one and the page matches it');
+    // Re-render and compare. Not a checksum of what was written last time: a
+    // stale SVG next to fresh numbers is a page that contradicts itself and
+    // looks fine, so the pinned renderer draws them again and every byte is
+    // compared.
+    const drawn = await renderChartsAt({ benchDir, rev, history: frozenEntries });
+    const stale = diffCharts(chartsDir, drawn);
+    if (stale.length > 0) {
+      console.error('REFUSED: the charts are not what the pinned renderer draws from the pinned document.\n');
+      for (const p of stale) console.error(`  · ${p}\n`);
+      console.error('  · Run this with --sync to redraw them.\n');
+      return EXIT.REFUSED;
+    }
+    render(pagePath, historyPath, true, chartsDir);
+    console.log(`the history is the pinned one, ${drawn.files.size} chart(s) match the pinned renderer, and the page matches`);
     return EXIT.OK;
   }
 
+  // Draw before anything is written, so a renderer that cannot draw refuses
+  // with the tree untouched, the way a history that cannot verify does.
+  const drawn = await renderChartsAt({ benchDir, rev, history: JSON.parse(historyText) });
   writeFileSync(historyPath, historyText);
+  writeCharts(chartsDir, drawn);
   if (flag('rev')) writeFileSync(pinPath, `${rev}\n`);
   // The page follows in the same command, because otherwise somebody has to
   // remember to run the renderer and the one time they do not the page is a
   // published figure no run supports.
-  render(pagePath, historyPath, false);
-  render(pagePath, historyPath, true);
-  console.log(`synced ${historyPath} and regenerated ${pagePath} from libviprs-bench ${rev}`);
+  render(pagePath, historyPath, false, chartsDir);
+  render(pagePath, historyPath, true, chartsDir);
+  console.log(`synced ${historyPath}, ${drawn.files.size} chart(s) and ${pagePath} from libviprs-bench ${rev}`);
   return EXIT.OK;
 }
 

@@ -8,9 +8,20 @@
 // both themes, and whether the words around them are readable.
 
 import { test, expect } from '@playwright/test';
+import { appendFileSync } from 'node:fs';
 import { ratio, chartTokens, chartTextFills, resolveFill } from './contrast.mjs';
 
 const PAGE = '/benchmarks/';
+
+/** Print a measured ratio, and keep it in $E2E_RATIOS when that is set, so the
+ *  numbers a PR quotes are the ones the run produced. */
+function note(line) {
+  console.log(line);
+  if (process.env.E2E_RATIOS) appendFileSync(process.env.E2E_RATIOS, `${line}\n`);
+}
+
+const open = (page) => page.goto(PAGE, { waitUntil: 'domcontentloaded' });
+
 const SCHEMES = ['light', 'dark'];
 // The surface each scheme's chart paints for itself. Read from the charts
 // below as well; this is the independent expectation the pixel check uses.
@@ -38,7 +49,7 @@ async function loadAll(page) {
 test.describe('#91 charts are files, embedded as images', () => {
   test('#91 the page embeds one <img> per chart the pinned renderer drew', async ({ page, request }) => {
     const m = await manifest(request);
-    await page.goto(PAGE);
+    await open(page);
     const imgs = page.locator('#charts img[src^="charts/"]');
     await expect(imgs).toHaveCount(m.charts.length);
     expect(m.charts.length, 'the renderer drew something').toBeGreaterThan(0);
@@ -49,7 +60,7 @@ test.describe('#91 charts are files, embedded as images', () => {
   });
 
   test('#91 every chart file loads and has a size', async ({ page }) => {
-    await page.goto(PAGE);
+    await open(page);
     const n = await loadAll(page);
     expect(n).toBeGreaterThan(0);
     const broken = await page.locator('img[src^="charts/"]').evaluateAll((els) =>
@@ -58,7 +69,7 @@ test.describe('#91 charts are files, embedded as images', () => {
   });
 
   test('#91 every chart has distinct alt text and reserves its box before it loads', async ({ page }) => {
-    await page.goto(PAGE);
+    await open(page);
     const info = await page.locator('#charts img').evaluateAll((els) =>
       els.map((e) => ({ alt: e.alt, w: e.getAttribute('width'), h: e.getAttribute('height') })));
     expect(info.length).toBeGreaterThan(0);
@@ -75,7 +86,7 @@ test.describe('#91 charts are files, embedded as images', () => {
       // setting, so this is what proves the file honours prefers-color-scheme.
       const context = await browser.newContext({ colorScheme: scheme });
       const page = await context.newPage();
-      await page.goto(PAGE);
+      await open(page);
       await loadAll(page);
       const px = await page.locator('#charts img').evaluateAll((els) =>
         els.slice(0, 5).map((img) => {
@@ -95,7 +106,7 @@ test.describe('#91 charts are files, embedded as images', () => {
     for (const scheme of SCHEMES) {
       const context = await browser.newContext({ colorScheme: scheme, viewport: { width: 375, height: 800 } });
       const page = await context.newPage();
-      await page.goto(PAGE);
+      await open(page);
       await loadAll(page);
       const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(over, `${scheme}: page overflows by ${over}px`).toBeLessThanOrEqual(0);
@@ -126,7 +137,7 @@ test.describe('#91 contrast, measured', () => {
         expect(r, report.at(-1)).toBeGreaterThanOrEqual(AA);
       }
     }
-    console.log(report.join('\n'));
+    for (const line of report) note(line);
   });
 
   // The axis tick labels use --bc-muted. Measured, it is under 4.5:1 in the
@@ -143,7 +154,7 @@ test.describe('#91 contrast, measured', () => {
     for (const scheme of SCHEMES) {
       const t = tokens[scheme];
       const r = ratio(t['--bc-muted'], t['--bc-surface']);
-      console.log(`${scheme} --bc-muted ${t['--bc-muted']} on ${t['--bc-surface']} = ${r.toFixed(2)}:1`);
+      note(`${scheme} --bc-muted ${t['--bc-muted']} on ${t['--bc-surface']} = ${r.toFixed(2)}:1`);
       expect(r).toBeGreaterThanOrEqual(AA);
     }
   });
@@ -152,7 +163,7 @@ test.describe('#91 contrast, measured', () => {
     test(`#91 the words around the charts meet AA on the page, ${scheme}`, async ({ browser }) => {
       const context = await browser.newContext({ colorScheme: scheme });
       const page = await context.newPage();
-      await page.goto(PAGE);
+      await open(page);
       // The page's own theme switch is data-theme on <html>; set it to the
       // scheme under test so the page and the emulation agree.
       await page.evaluate((s) => document.documentElement.setAttribute('data-theme', s), scheme);
@@ -173,7 +184,7 @@ test.describe('#91 contrast, measured', () => {
       for (const p of pairs) {
         expect(p.missing, `${p.sel} is on the page`).toBeFalsy();
         const r = ratio(p.fg, p.bg);
-        console.log(`${scheme} ${p.sel} ${p.fg} on ${p.bg} = ${r.toFixed(2)}:1`);
+        note(`${scheme} ${p.sel} ${p.fg} on ${p.bg} = ${r.toFixed(2)}:1`);
         expect(r, `${scheme} ${p.sel}`).toBeGreaterThanOrEqual(AA);
       }
       await context.close();

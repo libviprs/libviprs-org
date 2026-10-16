@@ -12,6 +12,13 @@ where a benchmark number exists. This one draws it.
 - **`history.json`** is a frozen copy of that revision's
   `tools/publish/history.json`, the way `cli/rust/` is a frozen copy of
   libviprs-cli at `COUNTERPART_REV`.
+- **`charts/`** holds the SVG files the page embeds as `<img src="charts/...">`,
+  the way causl.org embeds its charts. They are not copied from libviprs-bench,
+  which gitignores its rendered `report/` output. `ingest.mjs` draws them at
+  ingest, with the pinned revision's own `tools/charts/storage-charts.mjs` and
+  the dependencies that revision's lockfile names, from the archived storage
+  document the page already verifies. `manifest.json` lists them and is what the
+  page section is generated from.
 - **`index.html`** is generated from `history.json` by `tools/render-latest.mjs`.
   Everything between a `GENERATED:<name>:BEGIN` marker and its `:END` is
   rewritten; hand-edit any of it and `--check` goes red.
@@ -46,6 +53,24 @@ the pinned revision's own importer config; the rest are written out in
 That last part is not tidiness. Before this existed, the two entries the page
 drew named run ids that no document in `libviprs-bench/archive/` carried, so the
 live figures could not be checked against the artefacts they came from.
+
+## The charts, and what --check does about them
+
+`--sync` draws them and `--check` draws them again and compares every byte: a
+stale SVG next to fresh numbers is a page that contradicts itself and looks fine,
+so a checksum of what was written last time would prove nothing. An edited chart,
+one the renderer does not draw, and one it draws that is missing each get their
+own sentence.
+
+Only the storage family has a renderer at the pinned revision. `render.mjs` over
+there reads the Rust harness's JSON, which the archived documents are not, and
+nothing draws the engines family from them yet. Those charts stay the inline ones
+`render-latest.mjs` writes, and the manifest names the family the files are for.
+
+Needs `npm` and network at ingest time (one `npm ci` of the pinned lockfile,
+ignoring scripts), which is the cost of using the producer's renderer unchanged.
+
+`e2e/` holds the Playwright specs; its README says how to run them.
 
 ## Why a pin rather than following libviprs-bench main
 

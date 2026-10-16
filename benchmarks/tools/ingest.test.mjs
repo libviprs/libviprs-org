@@ -16,12 +16,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { verifyOrigin, readAtRev, readPin, BENCH, PIN_PATH, HISTORY_PATH } from './ingest.mjs';
+import {
+  verifyOrigin, readAtRev, readPin, BENCH, PIN_PATH, HISTORY_PATH, CHARTS_DIR,
+  renderChartsAt, diffCharts, chartCodeAt,
+} from './ingest.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const INGEST = join(here, 'ingest.mjs');
@@ -355,6 +358,7 @@ test('the pin has to be a full commit sha when it is WRITTEN, which is the door 
   const history = join(dir, 'history.json');
   const page = join(dir, 'index.html');
   writeFileSync(pin, `${PINNED}\n`);
+  const charts = join(dir, 'charts');
   writeFileSync(history, '[]\n');
   cpSync(join(here, '..', 'index.html'), page);
   for (const bad of ['main', PINNED.slice(0, 12), 'origin/main']) {
@@ -397,7 +401,7 @@ test('--check passes on the repository as it stands', () => {
   // The frozen copy is the pinned history and the page matches it. Everything
   // below mutates a copy; this is the one that reads what is committed.
   const out = runIngest(['--bench', BENCH_DIR, '--check']);
-  assert.match(out, /the history is the pinned one and the page matches it/);
+  assert.match(out, /the history is the pinned one, \d+ chart\(s\) match the pinned renderer, and the page matches/);
 });
 
 /** A copy of the committed history and page, in a temp directory. */
@@ -407,7 +411,9 @@ function copyOfTheSite() {
   const page = join(dir, 'index.html');
   cpSync(HISTORY_PATH, history);
   cpSync(join(here, '..', 'index.html'), page);
-  return { dir, history, page };
+  const charts = join(dir, 'charts');
+  cpSync(CHARTS_DIR, charts, { recursive: true });
+  return { dir, history, page, charts };
 }
 
 test('--check refuses a run in the frozen copy that no archived document supports', () => {
@@ -416,12 +422,12 @@ test('--check refuses a run in the frozen copy that no archived document support
   // that version refuses this too, but on the wrong sentence: it says the copy
   // differs, which sends the reader to the wrong file. This is the state the
   // page was actually in, and the message has to name it.
-  const { history, page } = copyOfTheSite();
+  const { history, page, charts } = copyOfTheSite();
   const edited = JSON.parse(readFileSync(history, 'utf8'));
   edited.push({ ...edited[0], runId: 'invented-by-hand' });
   writeFileSync(history, JSON.stringify(edited));
   assert.throws(
-    () => runIngest(['--bench', BENCH_DIR, '--check', '--history', history, '--page', page]),
+    () => runIngest(['--bench', BENCH_DIR, '--check', '--history', history, '--page', page, '--charts', charts]),
     (e) => /no archived document at .* carries this run id/.test(String(e.stderr)),
   );
 });
@@ -436,11 +442,11 @@ test('--check refuses a frozen copy that verifies but is not the pinned one', ()
   // a single run, because what is left is empty and gets refused by the
   // empty-history rule instead. I wrote it that way first and it went red for
   // that reason.
-  const { history, page } = copyOfTheSite();
+  const { history, page, charts } = copyOfTheSite();
   const edited = JSON.parse(readFileSync(history, 'utf8'));
   writeFileSync(history, JSON.stringify(edited, null, 2));
   assert.throws(
-    () => runIngest(['--bench', BENCH_DIR, '--check', '--history', history, '--page', page]),
+    () => runIngest(['--bench', BENCH_DIR, '--check', '--history', history, '--page', page, '--charts', charts]),
     (e) => /is not the pinned revision/.test(String(e.stderr)),
   );
 });
@@ -452,6 +458,7 @@ test('--sync regenerates the page from the pinned history', () => {
   const dir = mkdtempSync(join(tmpdir(), 'org-'));
   const history = join(dir, 'history.json');
   const page = join(dir, 'index.html');
+  const charts = join(dir, 'charts');
   writeFileSync(history, '[]\n');
   cpSync(join(here, '..', 'index.html'), page);
   // A hand edit inside a generated region, which is the failure the staleness
@@ -467,7 +474,7 @@ test('--sync regenerates the page from the pinned history', () => {
     readFileSync(page, 'utf8').includes('22128'),
     'the page really was mutated; if 22127 is no longer on the page, pick a figure that is',
   );
-  runIngest(['--bench', BENCH_DIR, '--sync', '--history', history, '--page', page]);
+  runIngest(['--bench', BENCH_DIR, '--sync', '--history', history, '--page', page, '--charts', charts]);
   assert.equal(readFileSync(history, 'utf8'), readAtRev(BENCH_DIR, PINNED, BENCH.history));
   assert.ok(
     !readFileSync(page, 'utf8').includes('22128'),
@@ -475,8 +482,9 @@ test('--sync regenerates the page from the pinned history', () => {
   );
   // And the sync left the two in a state --check agrees with, which is the
   // half that means nobody has to remember to run the renderer.
-  const out = runIngest(['--bench', BENCH_DIR, '--check', '--history', history, '--page', page]);
-  assert.match(out, /the history is the pinned one and the page matches it/);
+  const out = runIngest(['--bench', BENCH_DIR, '--check', '--history', history, '--page', page, '--charts', charts]);
+  assert.match(out, /the history is the pinned one, \d+ chart\(s\) match the pinned renderer, and the page matches/);
+  assert.ok(existsSync(join(charts, 'manifest.json')), '--sync wrote the charts, not just the page');
 });
 
 test('--rev without --sync is a usage error rather than a silent no-op', () => {
@@ -487,4 +495,67 @@ test('an unknown flag is a usage error', () => {
   // Red against the shape where `--sink` is read as neither --sync nor an
   // error, so a typo publishes nothing and reports success.
   assert.throws(() => runIngest(['--bench', BENCH_DIR, '--sink']));
+});
+
+// ---------------------------------------------------------------------------
+// the charts (#91)
+// ---------------------------------------------------------------------------
+
+const pinnedHistory = () => JSON.parse(readAtRev(BENCH_DIR, PINNED, BENCH.history));
+
+test('the pinned renderer draws the storage family from the document it was verified against', async () => {
+  // Red against an ingest that has no chart step, and against one that draws
+  // from a different run than the page's own latest storage run.
+  const drawn = await renderChartsAt({ benchDir: BENCH_DIR, rev: PINNED, history: pinnedHistory() });
+  assert.ok(drawn.files.size >= 1, 'nothing was drawn');
+  const manifest = JSON.parse(drawn.manifestText);
+  assert.equal(manifest.rev, PINNED);
+  assert.deepEqual(manifest.charts.map((c) => c.file), [...drawn.files.keys()]);
+  const latestStorage = pinnedHistory().filter((e) => e.family === 'storage')
+    .sort((a, b) => String(a.capturedAt).localeCompare(String(b.capturedAt))).at(-1);
+  assert.equal(manifest.runId, latestStorage.runId);
+  for (const [name, svg] of drawn.files) {
+    assert.ok(svg.startsWith('<svg'), `${name} is not an SVG`);
+    assert.ok(!svg.includes('<script'), `${name} carries a script`);
+  }
+});
+
+test('drawing twice gives the same bytes, which is what makes --check a comparison', async () => {
+  // Red against a renderer (or an adapter) that stamps a time or an id.
+  const a = await renderChartsAt({ benchDir: BENCH_DIR, rev: PINNED, history: pinnedHistory() });
+  const b = await renderChartsAt({ benchDir: BENCH_DIR, rev: PINNED, history: pinnedHistory() });
+  assert.equal(a.manifestText, b.manifestText);
+  for (const [name, svg] of a.files) assert.equal(b.files.get(name), svg, `${name} is not deterministic`);
+});
+
+test('the committed charts are exactly what the pinned renderer draws', async () => {
+  const drawn = await renderChartsAt({ benchDir: BENCH_DIR, rev: PINNED, history: pinnedHistory() });
+  assert.deepEqual(diffCharts(CHARTS_DIR, drawn), []);
+});
+
+test('--check refuses an edited chart, a stray chart and a missing chart, each on its own sentence', () => {
+  // Red against a --check that trusts a checksum of what was written last time,
+  // or one that only looks at the files the renderer names (a stray file would
+  // sit on disk looking like evidence).
+  const first = JSON.parse(readFileSync(join(CHARTS_DIR, 'manifest.json'), 'utf8')).charts[0].file;
+  for (const [what, mutate, sentence] of [
+    ['edited', (c) => writeFileSync(join(c, first), readFileSync(join(c, first), 'utf8').replace('<svg', '<svg data-edited="1"')), /differs from what the pinned renderer draws/],
+    ['stray', (c) => writeFileSync(join(c, 'chart_invented.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>'), /chart_invented\.svg is not drawn by the pinned renderer/],
+    ['missing', (c) => rmSync(join(c, first)), /is missing; the pinned renderer draws it/],
+  ]) {
+    const { history, page, charts } = copyOfTheSite();
+    mutate(charts);
+    assert.throws(
+      () => runIngest(['--bench', BENCH_DIR, '--check', '--history', history, '--page', page, '--charts', charts]),
+      (e) => sentence.test(String(e.stderr)),
+      `${what} chart was not refused on the right sentence`,
+    );
+  }
+});
+
+test('a pin that predates the chart renderer is refused with the reason, not an import error', () => {
+  // 6284b1e is the pin before this existed: its render.mjs reads the Rust
+  // harness JSON and there is no storage-charts.mjs to draw the archive.
+  const old = '6284b1e83f02c9863f95a2b576b2c8eaffc79caf';
+  assert.throws(() => chartCodeAt(BENCH_DIR, old), /has no tools\/charts\/storage-charts\.mjs/);
 });

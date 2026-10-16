@@ -1,0 +1,249 @@
+{
+  "renderer": "libviprs-bench tools/charts/storage-charts.mjs",
+  "rev": "f0271d02c3713e36506470335ca4f182605cef58",
+  "family": "storage",
+  "runId": "20260915T071511Z-adcf1ff21699ded673af74297a4a83104b96abd1-29e9d16b",
+  "charts": [
+    {
+      "file": "storage_first_lookup_p50.svg",
+      "scenario": "first_lookup",
+      "metric": "p50",
+      "title": "Median latency · first_lookup"
+    },
+    {
+      "file": "storage_generate_tiles_per_s.svg",
+      "scenario": "generate",
+      "metric": "tiles_per_s",
+      "title": "Throughput · generate"
+    },
+    {
+      "file": "storage_generate_wall.svg",
+      "scenario": "generate",
+      "metric": "wall",
+      "title": "Wall time · generate"
+    },
+    {
+      "file": "storage_open_p50.svg",
+      "scenario": "open",
+      "metric": "p50",
+      "title": "Median latency · open"
+    },
+    {
+      "file": "storage_read_concurrent-1_lookups_per_s.svg",
+      "scenario": "read_concurrent@1",
+      "metric": "lookups_per_s",
+      "title": "Lookup rate · read_concurrent@1"
+    },
+    {
+      "file": "storage_read_concurrent-1_p50.svg",
+      "scenario": "read_concurrent@1",
+      "metric": "p50",
+      "title": "Median latency · read_concurrent@1"
+    },
+    {
+      "file": "storage_read_concurrent-2_lookups_per_s.svg",
+      "scenario": "read_concurrent@2",
+      "metric": "lookups_per_s",
+      "title": "Lookup rate · read_concurrent@2"
+    },
+    {
+      "file": "storage_read_concurrent-2_p50.svg",
+      "scenario": "read_concurrent@2",
+      "metric": "p50",
+      "title": "Median latency · read_concurrent@2"
+    },
+    {
+      "file": "storage_read_concurrent-4_lookups_per_s.svg",
+      "scenario": "read_concurrent@4",
+      "metric": "lookups_per_s",
+      "title": "Lookup rate · read_concurrent@4"
+    },
+    {
+      "file": "storage_read_concurrent-4_p50.svg",
+      "scenario": "read_concurrent@4",
+      "metric": "p50",
+      "title": "Median latency · read_concurrent@4"
+    },
+    {
+      "file": "storage_read_plan_order_lookups_per_s.svg",
+      "scenario": "read_plan_order",
+      "metric": "lookups_per_s",
+      "title": "Lookup rate · read_plan_order"
+    },
+    {
+      "file": "storage_read_plan_order_p50.svg",
+      "scenario": "read_plan_order",
+      "metric": "p50",
+      "title": "Median latency · read_plan_order"
+    },
+    {
+      "file": "storage_read_plan_order_p99.svg",
+      "scenario": "read_plan_order",
+      "metric": "p99",
+      "title": "p99 latency · read_plan_order"
+    },
+    {
+      "file": "storage_read_random_lookups_per_s.svg",
+      "scenario": "read_random",
+      "metric": "lookups_per_s",
+      "title": "Lookup rate · read_random"
+    },
+    {
+      "file": "storage_read_random_p50.svg",
+      "scenario": "read_random",
+      "metric": "p50",
+      "title": "Median latency · read_random"
+    },
+    {
+      "file": "storage_read_random_p99.svg",
+      "scenario": "read_random",
+      "metric": "p99",
+      "title": "p99 latency · read_random"
+    },
+    {
+      "file": "storage_read_tileid_order_lookups_per_s.svg",
+      "scenario": "read_tileid_order",
+      "metric": "lookups_per_s",
+      "title": "Lookup rate · read_tileid_order"
+    },
+    {
+      "file": "storage_read_tileid_order_p50.svg",
+      "scenario": "read_tileid_order",
+      "metric": "p50",
+      "title": "Median latency · read_tileid_order"
+    },
+    {
+      "file": "storage_read_tileid_order_p99.svg",
+      "scenario": "read_tileid_order",
+      "metric": "p99",
+      "title": "p99 latency · read_tileid_order"
+    }
+  ],
+  "held": [
+    {
+      "scenario": "decode_root",
+      "metric": null,
+      "status": "non-comparable"
+    },
+    {
+      "scenario": "first_lookup",
+      "metric": "p50",
+      "status": "unfit-to-race"
+    },
+    {
+      "scenario": "generate",
+      "metric": "tiles_per_s",
+      "status": "unfit-to-race"
+    },
+    {
+      "scenario": "generate",
+      "metric": "wall",
+      "status": "unfit-to-race"
+    },
+    {
+      "scenario": "open",
+      "metric": "p50",
+      "status": "unfit-to-race"
+    },
+    {
+      "scenario": "read_concurrent@1",
+      "metric": "lookups_per_s",
+      "status": "unfit-to-race"
+    },
+    {
+      "scenario": "read_concurrent@1",
+      "metric": "p50",
+      "status": "unfit-to-race"
+    },
+    {
+      "scenario": "read_concurrent@2",
+      "metric": "lookups_per_s",
+      "status": "unfit-to-race"
+    },
+    {
+      "scenario": "read_concurrent@2",
+      "metric": "p50",
+      "status": "unfit-to-race"
+    },
+    {
+      "scenario": "read_concurrent@4",
+      "metric": "lookups_per_s",
+      "status": "unfit-to-race"
+    },
+    {
+      "scenario": "read_concurrent@4",
+      "metric": "p50",
+      "status": "unfit-to-race"
+    },
+    {
+      "scenario": "read_concurrent@8",
+      "metric": "lookups_per_s",
+      "status": "unfit-to-race"
+    },
+    {
+      "scenario": "read_concurrent@8",
+      "metric": "p50",
+      "status": "unfit-to-race"
+    },
+    {
+      "scenario": "read_plan_order",
+      "metric": "lookups_per_s",
+      "status": "unfit-to-race"
+    },
+    {
+      "scenario": "read_plan_order",
+      "metric": "max",
+      "status": "unfit-to-race"
+    },
+    {
+      "scenario": "read_plan_order",
+      "metric": "p50",
+      "status": "unfit-to-race"
+    },
+    {
+      "scenario": "read_plan_order",
+      "metric": "p99",
+      "status": "unfit-to-race"
+    },
+    {
+      "scenario": "read_random",
+      "metric": "max",
+      "status": "unfit-to-race"
+    },
+    {
+      "scenario": "read_random",
+      "metric": "p50",
+      "status": "unfit-to-race"
+    },
+    {
+      "scenario": "read_random",
+      "metric": "p99",
+      "status": "unfit-to-race"
+    },
+    {
+      "scenario": "read_tileid_order",
+      "metric": "lookups_per_s",
+      "status": "unfit-to-race"
+    },
+    {
+      "scenario": "read_tileid_order",
+      "metric": "max",
+      "status": "unfit-to-race"
+    },
+    {
+      "scenario": "read_tileid_order",
+      "metric": "p50",
+      "status": "unfit-to-race"
+    },
+    {
+      "scenario": "read_tileid_order",
+      "metric": "p99",
+      "status": "unfit-to-race"
+    },
+    {
+      "scenario": "requests",
+      "metric": null,
+      "status": "non-comparable"
+    }
+  ]
+}

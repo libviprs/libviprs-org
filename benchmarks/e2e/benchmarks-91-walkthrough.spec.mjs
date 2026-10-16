@@ -23,7 +23,7 @@ for (const scheme of ['light', 'dark']) {
       recordVideo: { dir: join(OUT, `raw-${scheme}`), size: { width: 900, height: 620 } },
     });
     const page = await context.newPage();
-    await page.goto('/benchmarks/');
+    await page.goto('/benchmarks/', { waitUntil: 'domcontentloaded' });
     await page.evaluate((s) => document.documentElement.setAttribute('data-theme', s), scheme);
     const section = page.locator('#charts');
     await section.scrollIntoViewIfNeeded();
