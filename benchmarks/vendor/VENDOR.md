@@ -22,6 +22,20 @@ dashboard emits; `benchmarks/css/benchmarks-dashboard.css` defines none of them,
 because that stylesheet dresses the generated static page and the two class
 vocabularies are disjoint. They do not collide.
 
+## Checking it against the pin
+
+`node benchmarks/tools/check-vendor.mjs` catches a hand edit. `--bench <checkout>`
+also asks libviprs-bench what each file's blob is at `BENCH_REV` and refuses on a
+difference, which is what stops this vendoring a head nobody pinned. CI runs it in
+`benchmark-ingest.yml` beside `ingest.mjs --check`.
+
+## What it needs from this site
+
+The stylesheet reads causl's brand tokens, which this site does not define, so
+`css/dashboard-bridge.css` maps them onto this site's two themes and picks readable
+series and verdict colours per theme. It restyles no class. The specs in `e2e/`
+measure the result in both themes.
+
 ## Taking a newer revision
 
 Re-copy all three from a libviprs-bench checkout, then rewrite the manifest:

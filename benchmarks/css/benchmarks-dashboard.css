@@ -2,19 +2,25 @@
  *
  * The generated libviprs benchmark page.
  *
- * The class names here are the contract this page shares with causl's
- * dashboard, frozen in libviprs-bench at tools/contract/ and pinned in
- * benchmarks/tools/config.json under `contract`: .results-table, .num, .conf,
- * .status-callout, .section-head, .absent, .swatch, and the chart classes. The
- * markup render-latest.mjs emits uses those names so the parameterised chart
- * layer attaches to a page that already says everything without it.
+ * This stylesheet dresses the generated static page. It does NOT share class
+ * names with causl's dashboard: this page uses chart-*, claim-*, results-table
+ * and so on, and the interactive dashboard (vendor/dashboard.js) emits
+ * bench-section-*, bench-legend-*, filter-*, dashboard-* and verdict-*. The two
+ * vocabularies are disjoint, so they do not collide. An earlier version of this
+ * comment said the page shared a contract with the dashboard; that was an
+ * intent this file never implemented (libviprs-org#92).
  *
- * What is NOT taken from upstream is the palette. causl's dashboard.css is
- * written against causl brand tokens (--causal-cyan, --surface-base, --space-*)
- * that do not exist on this site, so freezing that file here would import a
- * second design system to fight the one libviprs.org already has. The tokens
- * below are the same ones benchmarks/libvips/css/benchmarks.css uses, so the
- * two benchmark pages look like they belong to the same site.
+ * The dashboard is styled by vendor/dashboard.css, frozen from libviprs-bench
+ * tools/contract/ and checked by tools/check-vendor.mjs. It reads causl's brand
+ * tokens, which css/dashboard-bridge.css maps onto the ones below.
+ *
+ * The palette is not taken from upstream. causl's dashboard.css is written
+ * against causl brand tokens (--causal-cyan, --surface-base, --space-*) that do
+ * not exist on this site, so it is vendored for the interactive view only, with
+ * its tokens mapped onto the ones below rather than a second design system
+ * fighting the one libviprs.org already has. The tokens below are the same ones
+ * benchmarks/libvips/css/benchmarks.css uses, so the two benchmark pages look
+ * like they belong to the same site.
  *
  * benchmarks/tools/render-latest.test.mjs::every_class_the_renderer_emits_is_styled
  * is the gate on that: a class the renderer emits and nothing here styles is a
@@ -433,4 +439,14 @@ footer {
   margin-top: 0.25rem;
   font-size: 0.85rem;
   color: var(--text-light);
+}
+
+/* ----- Links in the interactive section's text (#92) ----------------------- */
+
+/* --primary is 3.67:1 on the light background, so a link in running text takes
+   the darker tone, 9.96:1 in light and 7.80:1 in dark, and is underlined so colour
+   is not the only thing that says it is a link. */
+#interactive p a {
+  color: var(--primary-dark);
+  text-decoration: underline;
 }

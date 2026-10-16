@@ -85,6 +85,9 @@ jobs:
       - name: Every entry on the page is backed by an archived document
         run: node benchmarks/tools/ingest.mjs --bench bench --check
 
+      - name: The vendored dashboard is what the pinned revision holds
+        run: node benchmarks/tools/check-vendor.mjs --bench bench
+
       - name: The ingest's own guards
         env:
           BENCH_DIR: bench

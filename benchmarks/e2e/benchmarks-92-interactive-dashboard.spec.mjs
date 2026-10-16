@@ -124,17 +124,20 @@ test.describe('#92 it is interactive', () => {
     const { context, page } = await openDashboard(browser, 'light');
     const chips = page.locator('#dashboard-root .filter-chip input[type="checkbox"]');
     expect(await chips.count(), 'filter chips').toBeGreaterThan(2);
-    const before = await page.locator('#dashboard-root .bench-section-chart').first().innerHTML();
+    // A card that has points to draw: most of the memory and throughput cards
+    // read n/a, because the dashboard charts milliseconds only.
+    const chart = page.locator('#dashboard-root .bench-section-card:has(circle[data-series]) .bench-section-chart').first();
+    const before = await chart.innerHTML();
     const lib = page.locator('#dashboard-root input[type="checkbox"][aria-label^="library"]:checked').first();
     await lib.uncheck();
-    const after = await page.locator('#dashboard-root .bench-section-chart').first().innerHTML();
+    const after = await chart.innerHTML();
     expect(after, 'the chart redrew without that library').not.toEqual(before);
     await context.close();
   });
 
   test('#92 the wheel zooms a chart, a drag pans it and a double click resets both', async ({ browser }) => {
     const { context, page } = await openDashboard(browser, 'light');
-    const chart = page.locator('#dashboard-root .bench-section-chart').first();
+    const chart = page.locator('#dashboard-root .bench-section-card:has(circle[data-series]) .bench-section-chart').first();
     await chart.scrollIntoViewIfNeeded();
     const rest = await chart.innerHTML();
     const box = await chart.boundingBox();
@@ -148,6 +151,20 @@ test.describe('#92 it is interactive', () => {
     expect(await chart.innerHTML(), 'dragging panned it').not.toEqual(zoomed);
     await chart.dblclick();
     expect(await chart.innerHTML(), 'double click returned to the resting view').toEqual(rest);
+    await context.close();
+  });
+});
+
+test.describe('#92 what it says', () => {
+  // The vendored script writes this label as a literal and the config has no key
+  // for it. Frozen files are not ours to edit, so this is an expected failure
+  // that turns red the day the label is parameterised upstream
+  // (libviprs-bench#129), at which point the annotation goes.
+  test("#92 the Default view button names this project's series, not causl's", async ({ browser }) => {
+    test.fail(true, 'upstream: the label is a literal in the frozen dashboard.js; see libviprs-bench#129');
+    const { context, page } = await openDashboard(browser, 'light');
+    const text = await page.locator('#dashboard-root .filter-action', { hasText: /default view/i }).first().innerText();
+    expect(text).not.toMatch(/causl|mobx|redux/i);
     await context.close();
   });
 });
@@ -204,6 +221,36 @@ async function showEverything(page) {
 }
 
 test.describe('#92 contrast, measured', () => {
+  for (const scheme of SCHEMES) {
+    test(`#92 the words around the dashboard meet AA on the page, ${scheme}`, async ({ browser }) => {
+      const context = await browser.newContext({ colorScheme: scheme });
+      const page = await context.newPage();
+      await page.goto(PAGE, { waitUntil: 'domcontentloaded' });
+      await page.evaluate((s) => document.documentElement.setAttribute('data-theme', s), scheme);
+      const pairs = await page.evaluate(() => {
+        const bgOf = (el) => {
+          for (let n = el; n; n = n.parentElement) {
+            const c = getComputedStyle(n).backgroundColor;
+            if (c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') return c;
+          }
+          return 'rgb(255, 255, 255)';
+        };
+        return ['#interactive h2', '#interactive > p:not(.footnote)', '#interactive .footnote', '#interactive .footnote em', '#interactive a']
+          .map((sel) => {
+            const el = document.querySelector(sel);
+            return el ? { sel, fg: getComputedStyle(el).color, bg: bgOf(el) } : { sel, missing: true };
+          });
+      });
+      for (const p of pairs) {
+        expect(p.missing, `${p.sel} is on the page`).toBeFalsy();
+        const r = ratio(p.fg, p.bg);
+        note(`${scheme} ${p.sel} ${p.fg} on ${p.bg} = ${r.toFixed(2)}:1 (needs 4.5)`);
+        expect(r, `${scheme} ${p.sel}`).toBeGreaterThanOrEqual(AA);
+      }
+      await context.close();
+    });
+  }
+
   test('#92 every series in the vendored config has a colour for each theme in the bridge', async () => {
     // The bridge picks a readable variant of each series colour per theme. A
     // series added to the vendored config without an entry there would be drawn

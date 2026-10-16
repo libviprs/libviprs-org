@@ -534,7 +534,8 @@ test('check_is_red_on_a_stale_page_and_green_on_a_fresh_one', () => {
 // HTML is checked in, shows up in a diff, and cannot 404.
 //
 // Goes red against: a renderer that emits a mount point for dashboard.js and
-// leaves the tables to it, and against a chart drawn into a <canvas>.
+// leaves the tables to it, against a chart drawn into a <canvas>, and against a
+// second fetch anywhere but the interactive section's bootstrap.
 // ---------------------------------------------------------------------------
 test('the_page_renders_every_number_with_javascript_off', () => {
   const r = renderInto(history);
@@ -542,7 +543,15 @@ test('the_page_renders_every_number_with_javascript_off', () => {
   const html = full.replace(/<script\b[\s\S]*?<\/script\s*>/gi, '');
 
   assert(!/<canvas\b/i.test(html), 'the page charts into a <canvas>, which is blank with JS off');
-  assert(!/fetch\s*\(/.test(full), 'the page fetches something at load, which is how the panel this replaces started 404ing');
+  // The one allowed fetch is the interactive section's bootstrap (#92): it loads
+  // the vendored dashboard's config and, if that fails, says so in the section.
+  // Every number on the page is already in the markup above it, which is what the
+  // rest of this guard proves with the scripts stripped. A fetch anywhere else is
+  // how the panel this replaces started 404ing.
+  const withoutBootstrap = full.replace(/<script id="dashboard-bootstrap">[\s\S]*?<\/script\s*>/i, '');
+  assert(!/fetch\s*\(/.test(withoutBootstrap), 'the page fetches something at load, which is how the panel this replaces started 404ing');
+  assert(/<script id="dashboard-bootstrap">[\s\S]*?did not load/i.test(full),
+    'the dashboard bootstrap fetches but does not say on the page when it fails');
 
   // The headline figures of both families, read off the history so they follow
   // the capture rather than being typed in.
