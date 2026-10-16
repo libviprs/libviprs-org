@@ -185,7 +185,7 @@ jobs:
         if: steps.drift.outputs.stale == '1'
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Set up Rust
         if: steps.drift.outputs.stale == '1'

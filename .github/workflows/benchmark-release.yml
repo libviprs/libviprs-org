@@ -178,7 +178,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       # Verify the origin, take the history, regenerate the page, and check
       # itself, in one command. It refuses before it writes anything, so a
