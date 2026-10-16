@@ -1,7 +1,9 @@
 # `cli/rust/`
 
 Frozen, byte-identical copy of [`libviprs-cli/src`](../../../libviprs-cli/src):
-`main.rs` plus every `.rs` under `ops/`, at any depth. Refreshed by
+the files named in [`../tools/cli-source-files.txt`](../tools/cli-source-files.txt)
+(`main.rs`, `pipeline.rs` and the other modules that define flags) plus every `.rs`
+under `ops/`, at any depth. Refreshed by
 [`../tools/sync-cli-src.sh`](../tools/sync-cli-src.sh), and
 `COUNTERPART_REV` names the libviprs-cli revision it is a copy of.
 

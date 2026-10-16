@@ -12,10 +12,10 @@ use std::time::Instant;
 
 use clap::{ArgGroup, Parser, ValueEnum};
 use libviprs::{
-    BlankTileStrategy, ChecksumAlgo, ChecksumMode, CollectingObserver, DedupeStrategy,
+    BlankTileStrategy, ChecksumAlgo, CollectingObserver, DedupeStrategy, DirectoryPyramidReader,
     EngineBuilder, EngineConfig, EngineKind, FailurePolicy, FsSink, GeoCoord, GeoTransform, Layout,
-    ManifestBuilder, PmTilesSink, PyramidPlanner, Raster, ResumeMode, ResumePolicy, RetryPolicy,
-    TileFormat, extract_page_image,
+    ManifestV1, MigrateOptions, PyramidPlanner, Raster, ResumeMode, RetryPolicy, TileFormat,
+    extract_page_image, migrate_to_pmtiles,
     streaming::{BudgetPolicy, compute_strip_height, estimate_streaming_memory},
     streaming_mapreduce::{compute_inflight_strips, estimate_mapreduce_peak_memory},
 };
@@ -28,15 +28,31 @@ use libviprs::pmtiles::{
     tileid_to_zxy,
 };
 // PDFium vector rasterisation is gated behind the `pdfium` feature (on by
-// default). Without it the `--render` path is compiled out and `render_page_pdfium`
+// default). Without it the `--render` path is compiled out and `render_page_pdfium_with`
 // does not exist in the core crate, so the import is feature-gated too.
 #[cfg(feature = "pdfium")]
-use libviprs::pdf::render_page_pdfium;
+use libviprs::pdf::render_page_pdfium_with;
 
 /// Per-family op registry (`CLI_CONTRACT.md` §6). The pyramid/info/plan/
 /// test-image commands below stay in `main.rs` untouched; every op family is
 /// additive under `src/ops/`.
 mod ops;
+
+/// `viprs features`, and the refusal a format gets when its cargo feature was
+/// left out of this build (libviprs-cli#64).
+mod features;
+
+/// The single decode path every command loads an input through: SVG routing
+/// and the missing-feature refusal (libviprs-cli#64).
+mod input;
+
+/// `viprs pdf`, `viprs geo` and the planner query flags (#68).
+mod pdf_geo_plan;
+
+/// The pipeline controls on `viprs pyramid`, and `viprs verify`
+/// (libviprs-cli#66).
+mod pipeline;
+mod verify;
 
 /// Upper bound, in megabytes, accepted for `--memory-limit` and
 /// `--memory-budget`. Values above this are rejected at parse time. The cap is
@@ -83,6 +99,26 @@ enum Command {
     /// A container utility rather than a vips operation, so it lives here as a
     /// first-class built-in and never under `src/ops/` or in `OP_MAP.md`.
     Pmtiles(PmtilesArgs),
+
+    /// List the cargo features this binary was built with, one per line.
+    ///
+    /// These are this crate's cargo features, not a list of capabilities. A
+    /// feature that brings another with it is listed under its own name only:
+    /// an `s3` build has the core's object-store sink (the core's `s3` is an
+    /// alias for `object-store-sink`) and lists `s3`, not `object-store-sink`.
+    ///
+    /// A format whose feature is missing is refused with a message naming the
+    /// feature to rebuild with; this is how to check before trying.
+    Features(features::FeaturesArgs),
+
+    /// Inspect a PDF and extract one page, with a password, background, DPI or budget.
+    Pdf(pdf_geo_plan::PdfArgs),
+
+    /// Map pixels to geographic positions and back, and find tile centres.
+    Geo(pdf_geo_plan::GeoArgs),
+    /// Check a finished pyramid (a PMTiles archive or a tile tree) and name
+    /// any tile that is missing or damaged.
+    Verify(verify::VerifyArgs),
 }
 
 #[derive(Parser)]
@@ -91,7 +127,7 @@ enum Command {
     ArgGroup::new("checksums")
         .required(false)
         .multiple(true)
-        .args(["manifest_emit_checksums", "dedupe_all"]),
+        .args(["manifest_emit_checksums", "dedupe_all", "checksum"]),
 ))]
 struct PyramidArgs {
     /// Input file (PDF, PNG, JPEG, or TIFF). Use "-" for stdin.
@@ -109,7 +145,7 @@ struct PyramidArgs {
     /// Tile size in pixels.
     ///
     /// See also: [interactive example](https://libviprs.org/cli/#flag-tile-size).
-    #[arg(long, default_value = "256")]
+    #[arg(long, default_value = "256", value_parser = clap::value_parser!(u32).range(1..))]
     tile_size: u32,
 
     /// Tile overlap in pixels.
@@ -128,6 +164,11 @@ struct PyramidArgs {
     /// usage error rather than a silent reinterpretation: a Deep Zoom tier is
     /// not a slippy zoom, and an archive built from one is addressable but
     /// renders as nonsense in every PMTiles viewer.
+    ///
+    /// This is not the PMTiles layout. It picks the pyramid scheme, which
+    /// decides what a tile is and how it is addressed; `--pmtiles-layout`
+    /// picks where the tile bytes sit inside an archive, and is a different
+    /// setting altogether.
     ///
     /// See also: [interactive example](https://libviprs.org/cli/#flag-layout).
     #[arg(long)]
@@ -162,15 +203,23 @@ struct PyramidArgs {
     /// JPEG quality (1-100, only used with --format jpeg).
     ///
     /// See also: [interactive example](https://libviprs.org/cli/#flag-quality).
-    #[arg(long, default_value = "85")]
+    #[arg(long, default_value = "85", value_parser = clap::value_parser!(u8).range(1..=100))]
     quality: u8,
 
     /// DPI for PDF rendering/page-size scaling (default matches libvips).
-    #[arg(long, default_value = "72")]
+    #[arg(long, default_value = "72", value_parser = clap::value_parser!(u32).range(1..))]
     dpi: u32,
 
+    /// How a PDF page's pixel size comes out of --dpi. `exact` (default) is
+    /// the size libvips gives, round to nearest at `dpi / 72`. `legacy-truncated`
+    /// keeps the 0.5.x sizes, which are 0 to 2 px smaller for some pages.
+    ///
+    /// See also: [interactive example](https://libviprs.org/cli/#flag-page-sizing).
+    #[arg(long, value_enum, default_value_t = PageSizingArg::Exact)]
+    page_sizing: PageSizingArg,
+
     /// PDF page number to extract (1-based, only used for PDF inputs).
-    #[arg(long, default_value = "1")]
+    #[arg(long, default_value = "1", value_parser = page_number)]
     page: usize,
 
     /// Number of worker threads (0 = single-threaded).
@@ -183,12 +232,14 @@ struct PyramidArgs {
     #[arg(long, default_value = "64")]
     buffer_size: usize,
 
-    /// Geo-reference origin as "longitude,latitude" (top-left pixel).
-    #[arg(long)]
+    /// Geo-reference origin as "longitude,latitude" (top-left pixel). Needs
+    /// `--geo-scale`.
+    #[arg(long, requires = "geo_scale", allow_hyphen_values = true)]
     geo_origin: Option<String>,
 
     /// Geo-reference pixel scale as "scale_x,scale_y" (degrees per pixel).
-    #[arg(long)]
+    /// Needs `--geo-origin`.
+    #[arg(long, requires = "geo_origin", allow_hyphen_values = true)]
     geo_scale: Option<String>,
 
     /// Use PDFium for PDF rendering (required for vector PDFs).
@@ -386,12 +437,23 @@ struct PyramidArgs {
     /// See also: [interactive example](https://libviprs.org/cli/#flag-dedupe-all).
     #[arg(long, conflicts_with = "dedupe_blanks", help_heading = "Dedupe")]
     dedupe_all: bool,
+
+    #[command(flatten)]
+    pipeline: pipeline::PipelineArgs,
 }
 
 #[derive(Parser)]
 struct InfoArgs {
     /// PDF or image file to inspect.
     input: PathBuf,
+
+    /// Print one JSON object instead of text: `{"v": 1, "kind": "image",
+    /// "path", "width", "height", "format", "bytes"}` for an image, or
+    /// `{"v": 1, "kind": "pdf", "path", "pages", "page_sizes": [{"page",
+    /// "width_pts", "height_pts", "has_images"}]}` for a PDF. A failure
+    /// prints nothing on stdout and exits 1 as the text form does.
+    #[arg(long)]
+    json: bool,
 }
 
 #[derive(Parser)]
@@ -400,32 +462,42 @@ struct PlanArgs {
     width_or_input: String,
 
     /// Image height in pixels (required when width is given as a number).
-    #[arg(long)]
+    #[arg(long, value_parser = clap::value_parser!(u32).range(1..))]
     height: Option<u32>,
 
     /// Tile size in pixels.
-    #[arg(long, default_value = "256")]
+    #[arg(long, default_value = "256", value_parser = clap::value_parser!(u32).range(1..))]
     tile_size: u32,
 
     /// Tile overlap in pixels.
     #[arg(long, default_value = "0")]
     overlap: u32,
 
-    /// Tile layout format.
+    /// Tile layout format. Besides the three `pyramid` writes, `plan` takes
+    /// `zoomify` and `iiif` for its sidecar and tile-path queries.
     #[arg(long, default_value = "deep-zoom")]
-    layout: LayoutArg,
+    layout: pdf_geo_plan::PlanLayoutArg,
 
     /// DPI for PDF dimensions (only used when input is a PDF).
-    #[arg(long, default_value = "72")]
+    #[arg(long, default_value = "72", value_parser = clap::value_parser!(u32).range(1..))]
     dpi: u32,
 
+    /// How a PDF page's pixel size comes out of --dpi (only used when input
+    /// is a PDF). `exact` (default) is the size libvips gives. `legacy-truncated`
+    /// keeps the 0.5.x sizes.
+    #[arg(long, value_enum, default_value_t = PageSizingArg::Exact)]
+    page_sizing: PageSizingArg,
+
     /// PDF page number (1-based, only used when input is a PDF).
-    #[arg(long, default_value = "1")]
+    #[arg(long, default_value = "1", value_parser = page_number)]
     page: usize,
 
     /// Centre the image within the tile grid (even padding on all sides).
     #[arg(long)]
     centre: bool,
+
+    #[command(flatten)]
+    queries: pdf_geo_plan::PlanQueryArgs,
 }
 
 #[derive(Parser)]
@@ -434,12 +506,37 @@ struct TestImageArgs {
     output: PathBuf,
 
     /// Image width in pixels.
-    #[arg(long, default_value = "1024")]
+    #[arg(long, default_value = "1024", value_parser = clap::value_parser!(u32).range(1..))]
     width: u32,
 
     /// Image height in pixels.
-    #[arg(long, default_value = "1024")]
+    #[arg(long, default_value = "1024", value_parser = clap::value_parser!(u32).range(1..))]
     height: u32,
+}
+
+/// clap `value_parser` for a 1-based `--page`: 0 names no page in any
+/// document, so it is a usage mistake (exit 2) before anything is opened. A
+/// page past the end of a real document is a 1, since only the file knows.
+fn page_number(value: &str) -> Result<usize, String> {
+    match value.parse::<usize>() {
+        Ok(0) => Err("pages are numbered from 1".to_string()),
+        Ok(page) => Ok(page),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// Refuse an overlap that leaves no tile, before any input is read.
+///
+/// The planner refuses it too, but only once the input has been decoded and
+/// as an operational failure, and the mistake is in the command line whatever
+/// the input turns out to be (#81).
+fn check_overlap(tile_size: u32, overlap: u32) {
+    if overlap >= tile_size {
+        usage_error(
+            &format!("--overlap {overlap} must be less than --tile-size {tile_size}"),
+            "an overlap as wide as the tile leaves no tile; lower --overlap or raise --tile-size",
+        );
+    }
 }
 
 #[derive(Clone, ValueEnum)]
@@ -487,6 +584,35 @@ enum StorageArg {
 /// right extension, for as long as this flag refused the format. Reading an
 /// archive somebody else wrote was never the same claim as being able to write
 /// one.
+/// `--page-sizing`: the CLI face of `libviprs::PageSizing` (libviprs#1199).
+#[derive(Clone, Copy, ValueEnum)]
+pub(crate) enum PageSizingArg {
+    /// The libvips size: `rint(pts * (dpi / 72.0))`, ties to even.
+    Exact,
+    /// The 0.5.x size: f32 truncation, then pdfium aspect-fit.
+    #[value(alias = "legacy")]
+    LegacyTruncated,
+}
+
+impl PageSizingArg {
+    /// The spelling `--page-sizing` prints back, in `plan` and `pdf info`.
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            PageSizingArg::Exact => "exact",
+            PageSizingArg::LegacyTruncated => "legacy-truncated",
+        }
+    }
+}
+
+impl From<PageSizingArg> for libviprs::PageSizing {
+    fn from(a: PageSizingArg) -> Self {
+        match a {
+            PageSizingArg::Exact => libviprs::PageSizing::Exact,
+            PageSizingArg::LegacyTruncated => libviprs::PageSizing::LegacyTruncated,
+        }
+    }
+}
+
 #[derive(Clone, ValueEnum)]
 enum FormatArg {
     Png,
@@ -514,6 +640,9 @@ enum PmtilesCommand {
 
     /// Unpack an archive back into a loose `{z}/{x}/{y}` tile tree.
     Extract(PmtilesExtractArgs),
+
+    /// Pack a loose `{z}/{x}/{y}` tile tree into an archive.
+    Pack(PmtilesPackArgs),
 }
 
 #[derive(Parser)]
@@ -554,6 +683,76 @@ struct PmtilesExtractArgs {
 
     /// Directory to write the `{z}/{x}/{y}.{ext}` tree into.
     output: PathBuf,
+}
+
+/// `viprs pmtiles pack`: the inverse of `extract`.
+///
+/// Every plan field is either read from a manifest or named on the command
+/// line, and the two routes are mutually exclusive so that two descriptions of
+/// one plan can never disagree. There is no third route and there must not be
+/// one: see the doc on [`run_pmtiles_pack`].
+#[derive(Parser)]
+#[command(group(
+    ArgGroup::new("plan_from_manifest")
+        .arg("manifest")
+        .conflicts_with("plan_explicit"),
+))]
+#[command(group(
+    ArgGroup::new("plan_explicit")
+        .args(["width", "height", "tile_size", "overlap", "layout", "format"])
+        .multiple(true),
+))]
+struct PmtilesPackArgs {
+    /// The `{z}/{x}/{y}` tile tree to pack.
+    input: PathBuf,
+
+    /// The `.pmtiles` archive to write.
+    archive: PathBuf,
+
+    /// Take the plan from the manifest.json of a `viprs pyramid` run that
+    /// wrote one (for example with `--manifest-emit-checksums`).
+    ///
+    /// That run puts it inside the tree and beside it. With neither this nor
+    /// any plan flag given, `<INPUT>/manifest.json` is used when it is there
+    /// (and under 16 MiB), and the run says so.
+    #[arg(long)]
+    manifest: Option<PathBuf>,
+
+    /// Source image width in pixels.
+    ///
+    /// Deliberately has no default. A tree cannot be packed without knowing
+    /// the grid that placed it, and a default here would be a guess wearing a
+    /// number.
+    #[arg(long)]
+    width: Option<u32>,
+
+    /// Source image height in pixels. No default, for the same reason.
+    #[arg(long)]
+    height: Option<u32>,
+
+    /// Tile size in pixels.
+    #[arg(long)]
+    tile_size: Option<u32>,
+
+    /// Tile overlap in pixels.
+    #[arg(long)]
+    overlap: Option<u32>,
+
+    /// Tile layout that placed the tree.
+    #[arg(long)]
+    layout: Option<LayoutArg>,
+
+    /// Encoding the stored tiles are in.
+    #[arg(long)]
+    format: Option<FormatArg>,
+
+    /// The tree was written with the image centred in the grid.
+    ///
+    /// Outside the manifest group on purpose: `GenerationSettings` records
+    /// tile size, overlap, layout and format but NOT centring, so a manifest
+    /// cannot answer this and a centred tree still needs to be told.
+    #[arg(long)]
+    centre: bool,
 }
 
 /// CLI representation of the checksum algorithm (maps to [`ChecksumAlgo`]).
@@ -662,10 +861,17 @@ fn main() {
     // ∪ hidden `__dump-commands` (`CLI_CONTRACT.md` §6). Dispatch on the matched
     // subcommand: built-ins deserialize through the derive `Cli`; op families
     // route to their `run()`.
+    // Before clap, which would report an extra positional ahead of the
+    // swallowed flag, or take the flag silently when nothing follows it.
+    pdf_geo_plan::refuse_swallowed_flag(&std::env::args_os().collect::<Vec<_>>());
     let matches = ops::assembled_cli().get_matches();
 
     match matches.subcommand() {
-        Some(("pyramid" | "info" | "plan" | "test-image" | "pmtiles", _)) => {
+        Some((
+            "pyramid" | "info" | "plan" | "test-image" | "pmtiles" | "features" | "pdf" | "geo"
+            | "verify",
+            _,
+        )) => {
             let cli = Cli::from_arg_matches(&matches)
                 .expect("a built-in subcommand deserializes through the derive Cli");
             match cli.command {
@@ -674,15 +880,23 @@ fn main() {
                 Command::Plan(args) => run_plan(args),
                 Command::TestImage(args) => run_test_image(args),
                 Command::Pmtiles(args) => run_pmtiles(args),
+                Command::Features(args) => features::run(args),
+                Command::Pdf(args) => pdf_geo_plan::run_pdf(args),
+                Command::Geo(args) => pdf_geo_plan::run_geo(args),
+                Command::Verify(args) => verify::run(args),
             }
         }
         Some(("__dump-commands", sub)) => ops::run_dump(sub),
         Some((name, sub)) => {
-            // Op failure → exit 1 (`CLI_CONTRACT.md` §8); usage errors already
-            // exited 2 inside clap parsing above.
+            // `CLI_CONTRACT.md` §8: clap already exited 2 for what it checks.
+            // A value the op refuses on the command line alone comes back as
+            // an `ops::UsageError` and is a 2 as well; everything else (the
+            // input, a matrix file, the core op) is an operational failure, 1.
             if let Err(e) = ops::dispatch(name, sub) {
-                eprintln!("Error: {e:#}");
-                process::exit(1);
+                if ops::is_usage_error(&e) {
+                    usage_error(&format!("{e:#}"), &format!("see 'viprs {name} --help'"));
+                }
+                operational_error(&format!("{e:#}"));
             }
         }
         None => {
@@ -933,7 +1147,9 @@ fn maybe_init_tracing(level: &Option<String>) {
     {
         use tracing_subscriber::EnvFilter;
         // @doc-snippet:begin slot=tracing-init imports=tracing_subscriber::EnvFilter
+        // stderr, like every other diagnostic: stdout carries `--events`.
         tracing_subscriber::fmt()
+            .with_writer(std::io::stderr)
             // @doc-test: phase3_tracing.rs::emits_pipeline_span:371
             .with_env_filter(EnvFilter::new(_level)) // @doc-flag: trace-level kind=param param_name=trace-level
             .init();
@@ -944,256 +1160,58 @@ fn maybe_init_tracing(level: &Option<String>) {
         eprintln!(
             "Error: --trace-level requires libviprs-cli built with the `tracing` feature (rebuild with `--features tracing`)."
         );
-        process::exit(2);
+        // A feature this build left out is an operational failure, not a
+        // usage mistake (README, "Exit codes").
+        process::exit(1);
     }
 }
 
 fn run_pyramid(args: PyramidArgs) {
+    // Ctrl-C first, before either driver is picked, so every engine below
+    // stops at a tile boundary on it and the run exits 130.
+    let cancel = pipeline::install_sigint();
+    check_overlap(args.tile_size, args.overlap);
+    if pipeline::takes_over(&args) {
+        return pipeline::run(args, cancel);
+    }
+
+    // What is left is `--packfile`, and a fresh `--memory-budget` run into a
+    // tile tree, on the streaming engines. Both resolve every flag before the
+    // input is touched: a usage error must not depend on whether the file
+    // happens to decode, and a refused run must not have written anything.
     let start = Instant::now();
-
-    // Resolve every flag combination before the input is touched. A usage error
-    // must not depend on whether the file happens to decode, and a refused run
-    // must not have written anything by the time it is refused.
     let sink_uri = resolve_sink_uri(&args);
-    let to_archive = sink_uri.starts_with("pmtiles://");
-    let layout = resolve_layout(&args, to_archive);
-    let tile_format = resolve_tile_format(&args, to_archive);
+    let layout = resolve_layout(&args, false);
+    let tile_format = resolve_tile_format(&args, false);
 
-    // Initialise tracing if requested (exits with an error when the feature is off).
-    maybe_init_tracing(&args.trace_level);
+    let pipeline::Prepared { raster, plan } = pipeline::prepare(&args, layout);
+    let engine_config = pipeline::engine_config(&args);
+    let events = pipeline::EventPrinter::new(pipeline::EventsArg::None);
 
-    // Load the source raster
-    let raster = load_source(&args);
-
-    let w = raster.width();
-    let h = raster.height();
-    eprintln!(
-        "Source: {}x{} {:?} ({:.1} MB)",
-        w,
-        h,
-        raster.format(),
-        raster.data().len() as f64 / (1024.0 * 1024.0)
-    );
-
-    // Geo-reference (optional)
-    if let Some(geo) = build_geo_transform(&args, w, h) {
-        let bounds = geo.image_bounds(w, h);
-        eprintln!(
-            "Geo bounds: ({:.6}, {:.6}) → ({:.6}, {:.6})",
-            bounds.min.x, bounds.min.y, bounds.max.x, bounds.max.y
+    let (result, output, resumable) = if let Some(path) = sink_uri.strip_prefix("packfile://") {
+        let (result, output) = run_pyramid_packfile(
+            path,
+            &raster,
+            &plan,
+            tile_format,
+            engine_config,
+            resolve_resume_mode(&args),
+            cancel,
         );
-    }
-
-    // Plan (the layout was resolved against the storage backend above).
-    // @doc-snippet:begin slot=planner imports=PyramidPlanner,Layout
-    let planner = match PyramidPlanner::new(
-        w,
-        h,
-        // @doc-test: blank_tile_strategy.rs::emit_solid_white_matches_expected:138
-        args.tile_size, // @doc-flag: tile-size kind=param param_name=tile-size
-        // @doc-test: builder_sink_fs.rs::two_arg_new_defaults_to_png:47
-        args.overlap, // @doc-flag: overlap kind=param param_name=overlap
-        // @doc-test: google_centre_pyramid.rs::google_centre_portrait_plan_structure:107
-        layout, // @doc-flag: layout kind=param param_name=layout
-    ) {
-        // @doc-test: google_centre_pyramid.rs::google_centre_portrait_plan_structure:107
-        Ok(p) => p.with_centre(args.centre), // @doc-flag: centre kind=append
-        Err(e) => {
-            eprintln!("Error creating pyramid plan: {e}");
-            process::exit(1);
-        }
-    };
-    // @doc-snippet:end slot=planner
-
-    // Pre-render memory check
-    let peak_memory = planner.estimate_peak_memory();
-    let (canvas_w, canvas_h) = planner.canvas_dimensions();
-    eprintln!(
-        "Memory estimate: {:.1} MB peak (canvas: {}x{}, source: {}x{})",
-        peak_memory as f64 / (1024.0 * 1024.0),
-        canvas_w,
-        canvas_h,
-        w,
-        h
-    );
-
-    // @doc-snippet:begin slot=memory-limit
-    // @doc-test: streaming_engine.rs::estimate_streaming_memory_reasonable:435
-    if args.memory_limit > 0 {
-        // @doc-flag: memory-limit kind=param param_name=memory-limit
-        let limit_bytes = mb_to_bytes(args.memory_limit);
-        if peak_memory > limit_bytes {
-            eprintln!(
-                "Error: estimated peak memory ({:.1} MB) exceeds --memory-limit ({} MB)",
-                peak_memory as f64 / (1024.0 * 1024.0),
-                args.memory_limit
-            );
-            eprintln!("Hint: reduce --dpi or image dimensions to lower memory usage");
-            process::exit(1);
-        }
-    }
-    // @doc-snippet:end slot=memory-limit
-
-    let plan = planner.plan();
-    eprintln!(
-        "Plan: {} levels, {} tiles, tile_size={}, overlap={}",
-        plan.level_count(),
-        plan.total_tile_count(),
-        args.tile_size,
-        args.overlap
-    );
-
-    // Resolve engine configuration
-    let blank_strategy = build_blank_tile_strategy(&args);
-    let failure_policy = build_failure_policy(&args);
-    let dedupe_strategy = build_dedupe_strategy(&args);
-    let checksum_algo: ChecksumAlgo = args.checksum_algo.clone().into();
-
-    // Manifest builder (attached to sinks that support it)
-    let manifest_builder = if args.manifest_emit_checksums {
-        Some(ManifestBuilder::new().with_checksums(checksum_algo))
+        (result, output, pipeline::Resumable::No)
     } else {
-        None
+        let dir = pipeline::tree_dir(&args, &sink_uri);
+        let sink = pipeline::tree_sink(&args, &dir, &plan, tile_format);
+        let result = run_generate(&args, &raster, &plan, &sink, engine_config, cancel);
+        (result, dir, pipeline::Resumable::Yes)
     };
-
-    // Engine config
-    // @doc-snippet:begin slot=engine-config imports=EngineConfig,BlankTileStrategy,FailurePolicy,DedupeStrategy,RetryPolicy
-    let mut engine_config = EngineConfig::default()
-        // @doc-test: builder_engine_surface.rs::builder_honours_with_concurrency:100
-        .with_concurrency(args.concurrency) // @doc-flag: concurrency kind=appendChain
-        // @doc-test: builder_engine_surface.rs::builder_honours_with_buffer_size:119
-        .with_buffer_size(args.buffer_size) // @doc-flag: buffer-size kind=appendChain
-        // @doc-test: blank_tile_strategy.rs::placeholder_solid_white_matches_expected:201
-        .with_blank_tile_strategy(blank_strategy) // @doc-flag: skip-blank kind=append
-        // @doc-test: phase3_blank_tolerance.rs::engine_with_tolerance_writes_placeholder_for_near_white_tiles:248
-        // @doc-flag: blank-tolerance kind=append
-        // @doc-test: phase3_retry.rs::retries_on_transient_errors:256
-        // @doc-flag: retry-max kind=param param_name=retry-max
-        // @doc-test: phase3_retry.rs::retries_on_transient_errors:256
-        // @doc-flag: retry-backoff kind=param param_name=retry-backoff
-        // @doc-test: builder_resume_retry.rs::builder_with_failure_policy_accepts_every_variant:145
-        .with_failure_policy(failure_policy); // @doc-flag: failure-policy kind=param param_name=failure-policy
-
-    if let Some(ds) = dedupe_strategy {
-        // @doc-test: phase3_dedupe_blanks.rs::blanks_dedupe_manifest_lists_references:364
-        // @doc-flag: dedupe-blanks kind=append
-        // @doc-test: phase3_dedupe_blanks.rs::all_mode_dedupes_identical_non_blank_tiles:467
-        engine_config = engine_config.with_dedupe_strategy(ds); // @doc-flag: dedupe-all kind=append
-    }
-    // @doc-snippet:end slot=engine-config
-
-    // Build the sink the resolved URI names.
-    let resume_mode = resolve_resume_mode(&args);
-
-    // We dispatch on the URI scheme.  The code below builds the appropriate
-    // sink and then runs the engine.  Feature-gated variants fall back to a
-    // friendly error when the feature is not compiled in.
-    if let Some(rest) = sink_uri.strip_prefix("s3://") {
-        run_pyramid_s3(
-            rest,
-            &args,
-            &raster,
-            &plan,
-            tile_format,
-            engine_config,
-            resume_mode,
-            start,
-        );
-    } else if let Some(rest) = sink_uri.strip_prefix("pmtiles://") {
-        run_pyramid_pmtiles(
-            rest,
-            &args,
-            &raster,
-            &plan,
-            tile_format,
-            engine_config,
-            resume_mode,
-            start,
-        );
-    } else if let Some(rest) = sink_uri.strip_prefix("packfile://") {
-        run_pyramid_packfile(
-            rest,
-            &args,
-            &raster,
-            &plan,
-            tile_format,
-            engine_config,
-            resume_mode,
-            start,
-        );
-    } else {
-        // fs:// (strip optional scheme prefix)
-        let base_dir = if let Some(p) = sink_uri.strip_prefix("fs://") {
-            PathBuf::from(p)
-        } else if let Some(output) = args.output.clone() {
-            // A `--sink` naming a scheme this build does not know has always
-            // fallen through to the positional output, and that stays true.
-            output
-        } else {
-            PathBuf::from(&sink_uri)
-        };
-
-        // Build FsSink with Phase 3 options
-        // @doc-snippet:begin slot=sink-fs imports=FsSink,TileFormat,ChecksumMode,ChecksumAlgo,ManifestBuilder
-        let mut sink = FsSink::new(&base_dir, plan.clone())
-            // @doc-test: builder_sink_fs.rs::with_format_overrides_default:62
-            .with_format(tile_format); // @doc-flag: format kind=param param_name=format
-        // @doc-test: builder_sink_fs.rs::with_format_overrides_default:62
-        // @doc-flag: quality kind=param param_name=quality
-        if let Some(mb) = manifest_builder {
-            // @doc-test: builder_sink_fs.rs::compose_format_checksums_manifest_resume:110
-            sink = sink.with_manifest(mb); // @doc-flag: manifest-emit-checksums kind=append
-        }
-        if args.manifest_emit_checksums {
-            // @doc-test: phase3_checksum.rs::emit_only_populates_manifest_checksums:223
-            sink = sink.with_checksums(ChecksumMode::EmitOnly, checksum_algo); // @doc-flag: checksum-algo kind=param param_name=checksum-algo
-        }
-        if let Some(ds) = build_dedupe_strategy(&args) {
-            sink = sink.with_dedupe(ds);
-        }
-        if args.resume {
-            sink = sink.with_resume(true);
-        }
-        // @doc-snippet:end slot=sink-fs
-
-        // The resumable entry point honours `resume_mode` (Overwrite wipes
-        // the output, Resume continues from a checkpoint, Verify checks).
-        // The streaming / MapReduce paths do not yet understand resume modes,
-        // so we only route through `run_generate` when `--memory-budget` is
-        // supplied *and* the user has not explicitly asked for resume/verify.
-        let result = if args.memory_budget.is_some()
-            && !matches!(resume_mode, ResumeMode::Resume | ResumeMode::Verify)
-        {
-            // Budgeted streaming / MapReduce path. Default here is still
-            // overwrite-in-place (no wipe); that's acceptable because the
-            // user opted into a different engine.
-            run_generate(&args, &raster, &plan, &sink, engine_config, start)
-        } else {
-            let policy = match resume_mode {
-                ResumeMode::Overwrite => ResumePolicy::overwrite(),
-                ResumeMode::Resume => ResumePolicy::resume(),
-                ResumeMode::Verify => ResumePolicy::verify(),
-            };
-            match EngineBuilder::new(&raster, plan.clone(), &sink)
-                .with_config(engine_config.clone())
-                .with_resume(policy)
-                .run()
-            {
-                Ok(r) => r,
-                Err(e) => {
-                    eprintln!("Error generating pyramid: {e}");
-                    process::exit(1);
-                }
-            }
-        };
-
-        finish_run(result, &base_dir, start);
-    }
+    pipeline::conclude(result, &output, start, resumable, &events);
 }
 
-/// Entry point for the monolithic / streaming / mapreduce generation paths
-/// (filesystem sink only).  Returns the [`libviprs::EngineResult`] for
-/// summary printing.
+/// Entry point for the streaming / mapreduce generation paths behind
+/// `--memory-budget` (filesystem sink only). Hands the engine's answer back for
+/// [`pipeline::conclude`] to turn into the summary and the exit code, so a
+/// Ctrl-C here exits 130 like every other run.
 ///
 /// Routes through [`EngineBuilder`] so the CLI never constructs a
 /// `StreamingConfig` / `MapReduceConfig` / free-function call by hand —
@@ -1204,8 +1222,8 @@ fn run_generate(
     plan: &libviprs::PyramidPlan,
     sink: &FsSink,
     engine_config: EngineConfig,
-    _start: Instant,
-) -> libviprs::EngineResult {
+    cancel: libviprs::CancelToken,
+) -> Result<libviprs::EngineResult, libviprs::EngineError> {
     let observer = CollectingObserver::new();
 
     // Pick the engine kind + memory budget up-front so the diagnostic logging
@@ -1303,7 +1321,8 @@ fn run_generate(
         .with_buffer_size(engine_config.buffer_size)
         .with_background_rgb(engine_config.background_rgb)
         .with_blank_strategy(engine_config.blank_tile_strategy)
-        .with_failure_policy(engine_config.failure_policy.clone());
+        .with_failure_policy(engine_config.failure_policy.clone())
+        .with_cancel(cancel);
     if let Some(ds) = engine_config.dedupe_strategy {
         builder = builder.with_dedupe(ds);
     }
@@ -1320,14 +1339,9 @@ fn run_generate(
     // @doc-test: builder_resume_matrix.rs::monolithic_verify_with_raster_source:134
     // @doc-flag: verify kind=appendChain
 
-    match builder.run() {
-        Ok(r) => r,
-        Err(e) => {
-            eprintln!("Error generating pyramid: {e}");
-            process::exit(1);
-        }
-    }
+    let result = builder.run();
     // @doc-snippet:end slot=engine-builder
+    result
 }
 
 /// Print the post-run summary line.
@@ -1347,89 +1361,6 @@ fn finish_run(result: libviprs::EngineResult, output: &std::path::Path, start: I
     eprintln!("{summary}");
     eprintln!("Output: {}", output.display());
     // @doc-snippet:end slot=finish
-}
-
-// ---------------------------------------------------------------------------
-// S3 sink dispatch (feature-gated)
-// ---------------------------------------------------------------------------
-
-#[allow(clippy::too_many_arguments)]
-fn run_pyramid_s3(
-    _rest: &str,
-    _args: &PyramidArgs,
-    _raster: &Raster,
-    _plan: &libviprs::PyramidPlan,
-    _tile_format: TileFormat,
-    _engine_config: EngineConfig,
-    _resume_mode: ResumeMode,
-    _start: Instant,
-) {
-    #[cfg(feature = "s3")]
-    {
-        // @doc-snippet:begin slot=sink-s3 imports=ObjectStoreSink
-        // TODO Phase 3: parse bucket/prefix from _rest, build ObjectStoreConfig,
-        // construct ObjectStoreSink, run generate_pyramid_resumable or
-        // generate_pyramid_observed as appropriate.
-        // @doc-test: phase3_packfile.rs::tar_sink_produces_valid_archive:177
-        // @doc-flag: sink kind=override
-        eprintln!("Error: s3:// sink is not yet fully wired (Phase 3 TODO).");
-        process::exit(2);
-        // @doc-snippet:end slot=sink-s3
-    }
-    #[cfg(not(feature = "s3"))]
-    {
-        eprintln!("Error: s3:// sink requires the `s3` feature — rebuild with `--features s3`.");
-        process::exit(2);
-    }
-}
-
-// ---------------------------------------------------------------------------
-// PMTiles sink dispatch (always compiled)
-// ---------------------------------------------------------------------------
-
-/// Generate a pyramid straight into one PMTiles v3 archive.
-///
-/// Structurally the same as [`run_pyramid_packfile`]: build the sink, map the
-/// resume mode onto a policy, run the engine, print the summary against the
-/// path the sink actually wrote. The difference is that nothing here is
-/// feature-gated, because the container lives in the core crate unconditionally
-/// and `libviprs-tests` builds this binary with `--no-default-features`.
-#[allow(clippy::too_many_arguments)]
-fn run_pyramid_pmtiles(
-    path: &str,
-    args: &PyramidArgs,
-    raster: &Raster,
-    plan: &libviprs::PyramidPlan,
-    tile_format: TileFormat,
-    engine_config: EngineConfig,
-    resume_mode: ResumeMode,
-    start: Instant,
-) {
-    // @doc-snippet:begin slot=sink-pmtiles imports=PmTilesSink,TileFormat
-    // @doc-test: cli_e2e.rs::pyramid_default_output_is_a_pmtiles_archive:1
-    // @doc-flag: storage kind=param param_name=storage
-    let sink = match PmTilesSink::try_new(path, plan.clone(), tile_format) {
-        Ok(s) => s,
-        Err(e) => operational_error(&format!("creating the PMTiles archive failed: {e}")),
-    };
-    // @doc-snippet:end slot=sink-pmtiles
-
-    let policy = match resume_mode {
-        ResumeMode::Overwrite => ResumePolicy::overwrite(),
-        ResumeMode::Resume => ResumePolicy::resume(),
-        ResumeMode::Verify => ResumePolicy::verify(),
-    };
-    let result = match EngineBuilder::new(raster, plan.clone(), &sink)
-        .with_config(engine_config.clone())
-        .with_resume(policy)
-        .run()
-    {
-        Ok(r) => r,
-        Err(e) => operational_error(&format!("generating pyramid: {e}")),
-    };
-
-    let _ = args;
-    finish_run(result, sink.out_path(), start);
 }
 
 // ---------------------------------------------------------------------------
@@ -1637,6 +1568,7 @@ fn run_pmtiles(args: PmtilesArgs) {
         PmtilesCommand::Tile(a) => run_pmtiles_tile(a),
         PmtilesCommand::Verify(a) => run_pmtiles_verify(a),
         PmtilesCommand::Extract(a) => run_pmtiles_extract(a),
+        PmtilesCommand::Pack(a) => run_pmtiles_pack(a),
     }
 }
 
@@ -1845,24 +1777,530 @@ fn run_pmtiles_extract(args: PmtilesExtractArgs) {
     println!("Extracted {written} tiles to {}", args.output.display());
 }
 
+/// `viprs pmtiles pack <tree> <archive>`: the inverse of `extract`.
+///
+/// **This command will not guess a plan, and this is where somebody proposes a
+/// `--guess` flag.** `DirectoryPyramidReader::try_open` refuses to infer one
+/// because a directory of tiles does not say what its level indices mean, how
+/// big a tile is, or which layout placed it. Guess wrong about the layout, the
+/// level base, the tile size or the row axis and every tile lands at the wrong
+/// tile id, producing a structurally perfect archive that `viprs pmtiles
+/// verify` passes and that a round trip through our own reader cannot catch,
+/// because the reader resolves through the same wrong plan. Getting the row
+/// axis wrong flips y, and the archive looks right until it is opened over a
+/// real basemap. See libviprs#1118.
+///
+/// So the plan arrives one of two ways and they are mutually exclusive at parse
+/// time: a manifest, which is reporting rather than guessing, or the explicit
+/// flags, where `--width` and `--height` have no defaults so the command cannot
+/// run blind.
+///
+/// The refusals ask the library's own gates rather than restating them, so
+/// they cannot drift: `layout_is_zxy` for a layout PMTiles cannot address,
+/// `TileType::try_from_tile_format` for `TileFormat::Raw`, and
+/// `tile_coord_to_zxy` on the top level's far corner for a plan too deep to
+/// address. They run before the tree is opened, which is what makes a bad plan
+/// on the command line a usage error (2) rather than a failure halfway into a
+/// walk of billions of coordinates. A plan out of a manifest that fails the
+/// same gates is an operational failure (1).
+///
+/// Packing nothing is a failure too. A wrong `--format` or the wrong
+/// directory visits every coordinate, finds nothing, and the writer would
+/// publish a valid empty archive; this exits 1 instead and removes that
+/// archive. Absent tiles and tile-shaped files the plan never visited are
+/// warnings, because a `--skip-blank` tree legitimately has holes.
+///
+/// An interrupted pack simply restarts: the writer stages to a temp file and
+/// renames, so a half-done archive never wears the final name.
+fn run_pmtiles_pack(args: PmtilesPackArgs) {
+    // Where the plan came from decides what a bad plan is. Named on the
+    // command line it is the person's typo and a usage error (2); read out of
+    // a manifest it is a file that does not say what it should (1).
+    enum PlanSource {
+        Flags,
+        Manifest(PathBuf),
+        TreeManifest(PathBuf),
+    }
+
+    let explicit = args.width.is_some()
+        || args.height.is_some()
+        || args.tile_size.is_some()
+        || args.overlap.is_some()
+        || args.layout.is_some()
+        || args.format.is_some();
+    let source = match args.manifest.clone() {
+        Some(path) => PlanSource::Manifest(path),
+        None if !explicit => match manifest_inside_tree(&args.input) {
+            Some(path) => PlanSource::TreeManifest(path),
+            None => PlanSource::Flags,
+        },
+        None => PlanSource::Flags,
+    };
+    let from_flags = matches!(source, PlanSource::Flags);
+    let refuse = |message: &str, hint: &str| refuse_pack_plan(from_flags, message, hint);
+
+    let (width, height, tile_size, overlap, layout, format) = match &source {
+        PlanSource::Manifest(path) | PlanSource::TreeManifest(path) => {
+            let manifest = match ManifestV1::read_from(path) {
+                Ok(m) => m,
+                Err(e) => operational_error(&format!("reading {}: {e}", path.display())),
+            };
+            (
+                manifest.source.width,
+                manifest.source.height,
+                manifest.generation.tile_size,
+                manifest.generation.overlap,
+                manifest.generation.layout,
+                manifest.generation.format,
+            )
+        }
+        PlanSource::Flags => {
+            let (Some(width), Some(height)) = (args.width, args.height) else {
+                usage_error(
+                    "pack needs the grid that placed the tree, and --width/--height were not given",
+                    "pass --width and --height (plus --tile-size, --overlap, --layout and --format \
+                     if they were not the defaults), or point --manifest at the manifest.json a \
+                     `viprs pyramid` run wrote (for example with --manifest-emit-checksums). \
+                     There is no inference here on purpose: a wrong plan produces an archive that \
+                     verifies and is still wrong",
+                );
+            };
+            let layout: Layout = args.layout.unwrap_or(LayoutArg::Xyz).into();
+            let format = match args.format.unwrap_or(FormatArg::Png) {
+                // Quality does not describe an existing tile, it describes one
+                // being encoded, and pack copies payloads through byte for
+                // byte. The library reads the tile type off this and nothing
+                // re-encodes, so the number is inert.
+                FormatArg::Jpeg => TileFormat::Jpeg { quality: 80 },
+                FormatArg::Png => TileFormat::Png,
+                FormatArg::Raw => TileFormat::Raw,
+                FormatArg::Webp => TileFormat::Webp,
+            };
+            (
+                width,
+                height,
+                args.tile_size.unwrap_or(256),
+                args.overlap.unwrap_or(0),
+                layout,
+                format,
+            )
+        }
+    };
+
+    let planner = match PyramidPlanner::new(width, height, tile_size, overlap, layout) {
+        Ok(p) => p.with_centre(args.centre),
+        Err(e) => refuse(
+            &format!("that plan does not describe a pyramid: {e}"),
+            "check --width, --height, --tile-size and --overlap",
+        ),
+    };
+
+    // The three refusals below are the library's own gates, asked up front
+    // rather than restated, so they cannot drift from what the writer checks.
+    // Asking them here, before anything is opened, is what makes them usage
+    // errors instead of a failure halfway into a walk.
+    if !libviprs::sink_pmtiles::layout_is_zxy(layout) {
+        refuse(
+            &format!(
+                "the {} layout is not addressed by (z, x, y), so PMTiles has no tile ids for it",
+                layout_name(layout)
+            ),
+            "only an xyz or google tree can be packed",
+        );
+    }
+    if let Err(e) = libviprs::pmtiles::TileType::try_from_tile_format(format) {
+        refuse(
+            &format!(
+                "--format {} cannot go in an archive: {e}",
+                format_name(format)
+            ),
+            "PMTiles stores encoded tiles; pack a png, jpeg or webp tree",
+        );
+    }
+    let plan = planner.plan();
+    // Every other level is smaller than the top one, so the top level's far
+    // corner is the one coordinate that decides whether the whole plan is
+    // addressable. Checked before the walk: `--width 4294967295 --tile-size 1`
+    // plans fine and would otherwise stat billions of absent coordinates
+    // before the writer ever saw a tile it could refuse.
+    if let Some(top) = plan.levels.iter().max_by_key(|l| l.level) {
+        let corner = libviprs::planner::TileCoord {
+            level: top.level,
+            col: top.cols.saturating_sub(1),
+            row: top.rows.saturating_sub(1),
+        };
+        if let Err(e) = libviprs::sink_pmtiles::tile_coord_to_zxy(corner) {
+            refuse(
+                &format!(
+                    "that plan's top level is zoom {} with {}x{} tiles, which PMTiles cannot \
+                     address: {e}",
+                    top.level, top.cols, top.rows
+                ),
+                "check --width, --height and --tile-size for a slipped digit",
+            );
+        }
+    }
+
+    match &source {
+        PlanSource::Flags => println!("Plan (from the command line):"),
+        PlanSource::Manifest(path) => println!("Plan (from {}):", path.display()),
+        PlanSource::TreeManifest(path) => {
+            println!("Plan (from {}, found in the tree):", path.display())
+        }
+    }
+    println!("  width x height      : {width} x {height}");
+    println!("  tile size           : {tile_size}");
+    println!("  overlap             : {overlap}");
+    println!("  layout              : {}", layout_name(layout));
+    println!("  format              : {}", format_name(format));
+    println!(
+        "  centre              : {}",
+        if args.centre { "yes" } else { "no" }
+    );
+
+    let inner = match DirectoryPyramidReader::try_open(&args.input, plan.clone(), format) {
+        Ok(r) => r,
+        Err(e) => operational_error(&format!("opening {}: {e}", args.input.display())),
+    };
+
+    // Counted before the walk, so a tree with nothing of this format in it is
+    // refused before an archive exists, and so the walk's own counts can be
+    // held against what is really on disk afterwards.
+    let census = tile_shaped_files(&args.input, format.extension());
+    if census.matching == 0 {
+        operational_error(&format!(
+            "no tiles to pack: {} holds no {{z}}/{{x}}/{{y}}.{} files{}",
+            args.input.display(),
+            format.extension(),
+            census.describe_others(),
+        ));
+    }
+
+    let reader = GuardedTreeReader::new(inner, tile_size, overlap);
+    let report = match migrate_to_pmtiles(&reader, &plan, &args.archive, MigrateOptions::default())
+    {
+        Ok(r) => r,
+        Err(e) => operational_error(&format!("packing {}: {e}", args.input.display())),
+    };
+
+    if report.tiles_written == 0 {
+        // The writer has already published a valid, empty archive under the
+        // final name. It is this run's own output, and leaving it there is how
+        // an empty archive ends up being served.
+        let _ = std::fs::remove_file(&report.out_path);
+        operational_error(&format!(
+            "no tiles were packed: the plan visited {} coordinates and found none of the {} \
+             .{} files in {}, so the plan does not match the tree{}",
+            report.coords_visited,
+            census.matching,
+            format.extension(),
+            args.input.display(),
+            census.describe_others(),
+        ));
+    }
+
+    println!("Wrote {}", report.out_path.display());
+    println!("  coordinates visited : {}", report.coords_visited);
+    println!("  tiles written       : {}", report.tiles_written);
+    println!("  tiles absent        : {}", report.tiles_absent);
+    println!("  distinct payloads   : {}", report.distinct_payloads);
+    println!(
+        "  tile format         : {}",
+        format_name(report.tile_format)
+    );
+
+    // Warnings, not failures: a --skip-blank tree legitimately has holes, and
+    // the archive that was written is exactly what the plan found.
+    if report.tiles_absent > 0 {
+        eprintln!(
+            "Warning: {} of the {} tiles the plan names were absent from the tree. That is \
+             expected for a tree written with --skip-blank; otherwise check the plan.",
+            report.tiles_absent, report.coords_visited
+        );
+    }
+    let unvisited = census.matching.saturating_sub(report.tiles_written);
+    if unvisited > 0 {
+        eprintln!(
+            "Warning: {unvisited} tile-shaped .{} file(s) in the tree were never visited by the \
+             plan and are not in the archive, so the plan probably does not match the tree.",
+            format.extension()
+        );
+    }
+    if !census.others.is_empty() {
+        eprintln!(
+            "Warning: the tree also holds tile-shaped files in another format, which were not \
+             packed{}",
+            census.describe_others()
+        );
+    }
+}
+
+/// Refuse a pack plan as a usage error when it came off the command line, or
+/// as an operational failure when a manifest supplied it.
+fn refuse_pack_plan(from_flags: bool, message: &str, hint: &str) -> ! {
+    if from_flags {
+        usage_error(message, hint)
+    } else {
+        operational_error(message)
+    }
+}
+
+/// The largest `manifest.json` pack will pick up from inside a tree on its
+/// own. A real one is a few hundred bytes, plus a checksum line per tile when
+/// checksums were asked for, so this is generous; past it the file is not
+/// read unasked, and `--manifest` still takes it explicitly.
+const TREE_MANIFEST_MAX_BYTES: u64 = 16 * 1024 * 1024;
+
+/// `<tree>/manifest.json`, when it is a regular file small enough to read
+/// unasked. A link, a directory or an oversized file is passed over with a
+/// warning rather than followed.
+fn manifest_inside_tree(tree: &Path) -> Option<PathBuf> {
+    let path = tree.join("manifest.json");
+    let meta = std::fs::symlink_metadata(&path).ok()?;
+    if !meta.is_file() {
+        eprintln!(
+            "Warning: {} is not a regular file, so it was not used as the plan",
+            path.display()
+        );
+        return None;
+    }
+    if meta.len() > TREE_MANIFEST_MAX_BYTES {
+        eprintln!(
+            "Warning: {} is {} bytes, more than pack reads unasked; pass it with --manifest to use it",
+            path.display(),
+            meta.len()
+        );
+        return None;
+    }
+    Some(path)
+}
+
+fn layout_name(layout: Layout) -> String {
+    format!("{layout:?}").to_lowercase()
+}
+
+fn format_name(format: TileFormat) -> &'static str {
+    match format {
+        TileFormat::Png => "png",
+        TileFormat::Jpeg { .. } => "jpeg",
+        TileFormat::Raw => "raw",
+        TileFormat::Webp => "webp",
+    }
+}
+
+/// What a tree holds that is shaped like a `{z}/{x}/{y}.{ext}` tile.
+struct TileCensus {
+    /// Files under the extension the plan reads.
+    matching: u64,
+    /// Files under any other extension, by extension.
+    others: std::collections::BTreeMap<String, u64>,
+}
+
+impl TileCensus {
+    fn describe_others(&self) -> String {
+        if self.others.is_empty() {
+            return String::new();
+        }
+        let listed: Vec<String> = self
+            .others
+            .iter()
+            .map(|(ext, n)| format!("{n} .{ext}"))
+            .collect();
+        format!(
+            " (it does hold {} tile-shaped files: pass the --format they are in)",
+            listed.join(", ")
+        )
+    }
+}
+
+/// Count the tile-shaped files under `root` without following a link.
+///
+/// Three levels deep and numeric at every level, which is the shape both
+/// addressable layouts write (`z/x/y` and google's `z/y/x`). A symlinked file
+/// counts, so the tile read that refuses it is reached; a symlinked directory
+/// is not descended into.
+fn tile_shaped_files(root: &Path, ext: &str) -> TileCensus {
+    let mut census = TileCensus {
+        matching: 0,
+        others: std::collections::BTreeMap::new(),
+    };
+    let numeric = |name: &std::ffi::OsStr| {
+        name.to_str()
+            .is_some_and(|s| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()))
+    };
+    let dirs = |dir: &Path| -> Vec<std::fs::DirEntry> {
+        std::fs::read_dir(dir)
+            .map(|entries| entries.flatten().collect())
+            .unwrap_or_default()
+    };
+    for z in dirs(root) {
+        if !(z.file_type().is_ok_and(|t| t.is_dir()) && numeric(&z.file_name())) {
+            continue;
+        }
+        for x in dirs(&z.path()) {
+            if !(x.file_type().is_ok_and(|t| t.is_dir()) && numeric(&x.file_name())) {
+                continue;
+            }
+            for y in dirs(&x.path()) {
+                if y.file_type().is_ok_and(|t| t.is_dir()) {
+                    continue;
+                }
+                let path = y.path();
+                let (Some(stem), Some(found)) = (path.file_stem(), path.extension()) else {
+                    continue;
+                };
+                if !numeric(stem) {
+                    continue;
+                }
+                match found.to_str() {
+                    Some(e) if e == ext => census.matching += 1,
+                    Some(e) => *census.others.entry(e.to_string()).or_default() += 1,
+                    None => {}
+                }
+            }
+        }
+    }
+    census
+}
+
+/// A [`DirectoryPyramidReader`] whose tile reads take a tile path as it is.
+///
+/// The library reader is a plain `fs::read`, which follows a symlink to
+/// wherever it points and reads a FIFO or `/dev/zero` until it blocks or runs
+/// out of memory. Pack copies whatever it reads into an archive somebody else
+/// will serve, so every component of a tile path is checked with
+/// `symlink_metadata`, anything that is not a regular file is refused with the
+/// reason, and one tile is capped at what a tile of the plan's size could
+/// weigh. Everything else is the library reader's.
+struct GuardedTreeReader {
+    inner: DirectoryPyramidReader,
+    max_tile_bytes: u64,
+    tile_side: u64,
+}
+
+impl GuardedTreeReader {
+    fn new(inner: DirectoryPyramidReader, tile_size: u32, overlap: u32) -> Self {
+        let tile_side = u64::from(tile_size) + 2 * u64::from(overlap);
+        // 16 bytes a pixel covers a 16-bit RGBA PNG stored with no
+        // compression at all, the heaviest tile any supported format can
+        // encode, and the 1 MiB covers container overhead on a small tile.
+        let max_tile_bytes = tile_side
+            .saturating_mul(tile_side)
+            .saturating_mul(16)
+            .saturating_add(1024 * 1024);
+        Self {
+            inner,
+            max_tile_bytes,
+            tile_side,
+        }
+    }
+
+    fn refused(path: &Path, why: &str) -> libviprs::PyramidReadError {
+        libviprs::PyramidReadError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("{} {why}", path.display()),
+        ))
+    }
+}
+
+impl libviprs::PyramidReader for GuardedTreeReader {
+    fn describe(&self) -> Result<libviprs::PyramidDescription, libviprs::PyramidReadError> {
+        self.inner.describe()
+    }
+
+    fn tile(
+        &self,
+        coord: libviprs::planner::TileCoord,
+    ) -> Result<Option<Vec<u8>>, libviprs::PyramidReadError> {
+        use std::io::Read;
+
+        let format = self.inner.tile_format().unwrap_or(TileFormat::Png);
+        let Some(relative) = self.inner.plan().tile_path(coord, format.extension()) else {
+            return Ok(None);
+        };
+        let relative = PathBuf::from(relative);
+        let components: Vec<_> = relative.components().collect();
+        let mut path = self.inner.base_dir().to_path_buf();
+        for (i, component) in components.iter().enumerate() {
+            path.push(component);
+            let meta = match std::fs::symlink_metadata(&path) {
+                Ok(m) => m,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+                Err(e) => return Err(e.into()),
+            };
+            if meta.file_type().is_symlink() {
+                return Err(Self::refused(
+                    &path,
+                    "is a symlink; pack reads tiles as regular files and does not follow links",
+                ));
+            }
+            if i + 1 < components.len() {
+                if !meta.is_dir() {
+                    // A file where a level directory should be holds no tile
+                    // for this coordinate.
+                    return Ok(None);
+                }
+                continue;
+            }
+            if !meta.is_file() {
+                return Err(Self::refused(&path, "is not a regular file"));
+            }
+            if meta.len() > self.max_tile_bytes {
+                return Err(Self::refused(
+                    &path,
+                    &format!(
+                        "is {} bytes, larger than the {} bytes any {}px tile can weigh",
+                        meta.len(),
+                        self.max_tile_bytes,
+                        self.tile_side
+                    ),
+                ));
+            }
+        }
+
+        // Read through a cap as well as checking the length, because the file
+        // can grow between the stat and the read.
+        let file = std::fs::File::open(&path)?;
+        let mut bytes = Vec::new();
+        file.take(self.max_tile_bytes + 1).read_to_end(&mut bytes)?;
+        if bytes.len() as u64 > self.max_tile_bytes {
+            return Err(Self::refused(
+                &path,
+                &format!(
+                    "grew past the {} bytes any {}px tile can weigh while it was read",
+                    self.max_tile_bytes, self.tile_side
+                ),
+            ));
+        }
+        Ok(Some(bytes))
+    }
+
+    fn tile_format(&self) -> Option<TileFormat> {
+        self.inner.tile_format()
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Packfile sink dispatch (feature-gated)
 // ---------------------------------------------------------------------------
 
-#[allow(clippy::too_many_arguments)]
+/// Generate a pyramid into a tar, tar.gz or zip packfile. Hands the engine's
+/// answer and the path written back for [`pipeline::conclude`].
 fn run_pyramid_packfile(
     _path: &str,
-    _args: &PyramidArgs,
     _raster: &Raster,
     _plan: &libviprs::PyramidPlan,
     _tile_format: TileFormat,
     _engine_config: EngineConfig,
     _resume_mode: ResumeMode,
-    _start: Instant,
+    _cancel: libviprs::CancelToken,
+) -> (
+    Result<libviprs::EngineResult, libviprs::EngineError>,
+    PathBuf,
 ) {
     #[cfg(feature = "packfile")]
     {
-        use libviprs::{PackfileFormat, PackfileSink};
+        use libviprs::{PackfileFormat, PackfileSink, ResumePolicy};
 
         // Infer archive format from path extension.
         let path_lower = _path.to_lowercase();
@@ -1877,10 +2315,7 @@ fn run_pyramid_packfile(
         // @doc-snippet:begin slot=sink-packfile imports=PackfileSink,PackfileFormat,TileFormat
         let sink = match PackfileSink::new(_path, fmt, _plan.clone(), _tile_format) {
             Ok(s) => s,
-            Err(e) => {
-                eprintln!("Error creating packfile sink: {e}");
-                process::exit(1);
-            }
+            Err(e) => operational_error(&format!("creating packfile sink: {e}")),
         };
         // @doc-snippet:end slot=sink-packfile
 
@@ -1889,26 +2324,18 @@ fn run_pyramid_packfile(
             ResumeMode::Resume => ResumePolicy::resume(),
             ResumeMode::Verify => ResumePolicy::verify(),
         };
-        let result = match EngineBuilder::new(_raster, _plan.clone(), &sink)
-            .with_config(_engine_config.clone())
+        let result = EngineBuilder::new(_raster, _plan.clone(), &sink)
+            .with_config(_engine_config)
             .with_resume(policy)
-            .run()
-        {
-            Ok(r) => r,
-            Err(e) => {
-                eprintln!("Error generating pyramid: {e}");
-                process::exit(1);
-            }
-        };
-
-        finish_run(result, sink.out_path(), _start);
+            .with_cancel(_cancel)
+            .run();
+        (result, sink.out_path().to_path_buf())
     }
     #[cfg(not(feature = "packfile"))]
     {
-        eprintln!(
-            "Error: packfile:// sink requires the `packfile` feature — rebuild with `--features packfile`."
+        operational_error(
+            "packfile:// sink requires the `packfile` feature — rebuild with `--features packfile`.",
         );
-        process::exit(2);
     }
 }
 
@@ -1928,6 +2355,30 @@ fn run_info(args: InfoArgs) {
 
     if ext == "pdf" {
         match libviprs::pdf_info(path) {
+            Ok(info) if args.json => {
+                let pages: Vec<serde_json::Value> = info
+                    .pages
+                    .iter()
+                    .map(|page| {
+                        serde_json::json!({
+                            "page": page.page_number,
+                            "width_pts": page.width_pts,
+                            "height_pts": page.height_pts,
+                            "has_images": page.has_images,
+                        })
+                    })
+                    .collect();
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "v": 1,
+                        "kind": "pdf",
+                        "path": path.display().to_string(),
+                        "pages": info.page_count,
+                        "page_sizes": pages,
+                    })
+                );
+            }
             Ok(info) => {
                 println!("PDF: {}", path.display());
                 println!("Pages: {}", info.page_count);
@@ -1947,7 +2398,21 @@ fn run_info(args: InfoArgs) {
             }
         }
     } else {
-        match libviprs::decode_file(path) {
+        match input::decode_path_default(path) {
+            Ok(raster) if args.json => {
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "v": 1,
+                        "kind": "image",
+                        "path": path.display().to_string(),
+                        "width": raster.width(),
+                        "height": raster.height(),
+                        "format": format!("{:?}", raster.format()),
+                        "bytes": raster.data().len(),
+                    })
+                );
+            }
             Ok(raster) => {
                 println!("Image: {}", path.display());
                 println!("Dimensions: {}x{}", raster.width(), raster.height());
@@ -1958,7 +2423,7 @@ fn run_info(args: InfoArgs) {
                 );
             }
             Err(e) => {
-                eprintln!("Error reading image: {e}");
+                eprintln!("Error reading image: {e:#}");
                 process::exit(1);
             }
         }
@@ -1966,6 +2431,7 @@ fn run_info(args: InfoArgs) {
 }
 
 fn run_plan(args: PlanArgs) {
+    check_overlap(args.tile_size, args.overlap);
     let (w, h) = resolve_plan_dimensions(&args);
 
     let layout: Layout = args.layout.into();
@@ -1977,11 +2443,18 @@ fn run_plan(args: PlanArgs) {
         }
     };
     let plan = planner.plan();
+    if args.queries.is_query() {
+        pdf_geo_plan::run_plan_query(&args.queries, &plan, layout);
+        return;
+    }
 
     let peak_memory = planner.estimate_peak_memory();
     let (canvas_w, canvas_h) = planner.canvas_dimensions();
 
     println!("Image: {}x{}", w, h);
+    if plan_input_is_pdf(&args) {
+        println!("Page sizing: {}", args.page_sizing.name());
+    }
     println!(
         "Canvas: {}x{} ({:.1} MB)",
         canvas_w,
@@ -2049,13 +2522,32 @@ fn run_test_image(args: TestImageArgs) {
     );
 }
 
+/// True when `plan` read its size from a PDF page, so the sizing rule is part
+/// of what the printed size means.
+fn plan_input_is_pdf(args: &PlanArgs) -> bool {
+    args.width_or_input.parse::<u32>().is_err()
+        && std::path::Path::new(&args.width_or_input)
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| e.eq_ignore_ascii_case("pdf"))
+}
+
 fn resolve_plan_dimensions(args: &PlanArgs) -> (u32, u32) {
     // Try parsing as a number first
     if let Ok(w) = args.width_or_input.parse::<u32>() {
-        let h = args.height.unwrap_or_else(|| {
-            eprintln!("--height is required when width is given as a number");
-            process::exit(1);
-        });
+        // Both are the command line's mistake, so both are usage errors (#81).
+        if w == 0 {
+            usage_error(
+                "a width of 0 describes no image",
+                "give the width in pixels, 1 or more, or the path of an image or PDF",
+            );
+        }
+        let Some(h) = args.height else {
+            usage_error(
+                "--height is required when width is given as a number",
+                "pass --height, or give the path of an image or PDF to read both from",
+            );
+        };
         return (w, h);
     }
 
@@ -2077,12 +2569,11 @@ fn resolve_plan_dimensions(args: &PlanArgs) -> (u32, u32) {
             Ok(info) => {
                 let page_info = info.pages.iter().find(|p| p.page_number == args.page);
                 match page_info {
-                    Some(p) => {
-                        let scale = args.dpi as f64 / 72.0;
-                        let w = (p.width_pts * scale) as u32;
-                        let h = (p.height_pts * scale) as u32;
-                        (w, h)
-                    }
+                    Some(p) => libviprs::PageSizing::from(args.page_sizing).pixel_dims(
+                        p.width_pts,
+                        p.height_pts,
+                        args.dpi,
+                    ),
                     None => {
                         eprintln!(
                             "Page {} not found in PDF (has {} pages)",
@@ -2098,10 +2589,10 @@ fn resolve_plan_dimensions(args: &PlanArgs) -> (u32, u32) {
             }
         }
     } else {
-        match libviprs::decode_file(&path) {
+        match input::decode_path_default(&path) {
             Ok(raster) => (raster.width(), raster.height()),
             Err(e) => {
-                eprintln!("Error reading image: {e}");
+                eprintln!("Error reading image: {e:#}");
                 process::exit(1);
             }
         }
@@ -2117,10 +2608,10 @@ fn load_source(args: &PyramidArgs) -> Raster {
             eprintln!("Error reading stdin: {e}");
             process::exit(1);
         }
-        match libviprs::decode_bytes(&buf) {
+        match input::decode_bytes_default(&buf) {
             Ok(r) => return r,
             Err(e) => {
-                eprintln!("Error decoding image from stdin: {e}");
+                eprintln!("Error decoding image from stdin: {e:#}");
                 process::exit(1);
             }
         }
@@ -2139,13 +2630,13 @@ fn load_source(args: &PyramidArgs) -> Raster {
         .unwrap_or("")
         .to_lowercase();
 
-    // @doc-snippet:begin slot=load-source imports=Raster,extract_page_image,render_page_pdfium,decode_file
+    // @doc-snippet:begin slot=load-source imports=Raster,extract_page_image,render_page_pdfium_with,decode_file
     if ext == "pdf" {
         // @doc-test: pdfium_integration.rs::libviprs_pdfium_render_paths:34
         if args.render {
             // @doc-flag: render kind=override
             // `--render` requires the `pdfium` feature. When the binary is built
-            // `--no-default-features` (pdfium-free), `render_page_pdfium` is absent,
+            // `--no-default-features` (pdfium-free), `render_page_pdfium_with` is absent,
             // so this path is compiled out and the flag fails loudly instead.
             #[cfg(not(feature = "pdfium"))]
             {
@@ -2165,8 +2656,9 @@ fn load_source(args: &PyramidArgs) -> Raster {
                     args.page, args.dpi
                 );
                 // @doc-test: pdfium_integration.rs::libviprs_pdfium_render_paths:34
-                match render_page_pdfium(&path, args.page, args.dpi) {
+                match render_page_pdfium_with(&path, args.page, args.dpi, args.page_sizing.into()) {
                     // @doc-flag: dpi kind=param param_name=dpi
+                    // @doc-flag: page-sizing kind=param param_name=sizing
                     Ok(r) => r,
                     Err(e) => {
                         eprintln!("Error rendering PDF with pdfium: {e}");
@@ -2201,12 +2693,11 @@ fn load_source(args: &PyramidArgs) -> Raster {
                     Ok(info) => {
                         let page_info = info.pages.iter().find(|p| p.page_number == args.page);
                         match page_info {
-                            Some(p) => {
-                                let scale = args.dpi as f64 / 72.0;
-                                let w = (p.width_pts * scale) as u32;
-                                let h = (p.height_pts * scale) as u32;
-                                (w, h)
-                            }
+                            Some(p) => libviprs::PageSizing::from(args.page_sizing).pixel_dims(
+                                p.width_pts,
+                                p.height_pts,
+                                args.dpi,
+                            ),
                             None => {
                                 eprintln!("Page {} not found in PDF", args.page);
                                 process::exit(1);
@@ -2244,10 +2735,10 @@ fn load_source(args: &PyramidArgs) -> Raster {
         }
     } else {
         eprintln!("Decoding {}...", path.display());
-        match libviprs::decode_file(&path) {
+        match input::decode_path_default(&path) {
             Ok(r) => r,
             Err(e) => {
-                eprintln!("Error decoding image: {e}");
+                eprintln!("Error decoding image: {e:#}");
                 process::exit(1);
             }
         }
@@ -2273,21 +2764,12 @@ fn build_geo_transform(args: &PyramidArgs, _w: u32, _h: u32) -> Option<GeoTransf
     // @doc-snippet:end slot=geo
 }
 
+/// `--geo-origin` / `--geo-scale` as an `x,y` pair, through the same parser
+/// `viprs geo` uses, so a bad or non-finite pair is a usage error (exit 2) on
+/// both commands.
 fn parse_coord_pair(s: &str, name: &str) -> (f64, f64) {
-    let parts: Vec<&str> = s.split(',').collect();
-    if parts.len() != 2 {
-        eprintln!("Invalid --{name}: expected \"x,y\", got \"{s}\"");
-        process::exit(1);
-    }
-    let x = parts[0].trim().parse::<f64>().unwrap_or_else(|e| {
-        eprintln!("Invalid --{name} x value \"{}\": {e}", parts[0]);
-        process::exit(1);
-    });
-    let y = parts[1].trim().parse::<f64>().unwrap_or_else(|e| {
-        eprintln!("Invalid --{name} y value \"{}\": {e}", parts[1]);
-        process::exit(1);
-    });
-    (x, y)
+    let v = pdf_geo_plan::parse_floats(s, name, 2);
+    (v[0], v[1])
 }
 
 #[cfg(test)]
@@ -2364,14 +2846,21 @@ mod tests {
     }
 
     #[test]
-    fn help_does_not_advertise_s3() {
-        // The s3:// sink is a compiled-in stub, so the help must not advertise
-        // an `s3://` scheme users cannot actually use.
+    fn help_mentions_s3_only_beside_the_feature_it_needs() {
+        // The s3:// sink was a compiled-in stub, and this test used to forbid
+        // the help from mentioning it at all. It writes through the local stub
+        // store now (libviprs-cli#66), but only in a build with the `s3`
+        // feature, so the help may name the scheme only where it also names
+        // that feature.
         use clap::CommandFactory;
         let help = PyramidArgs::command().render_long_help().to_string();
+        let mentions: Vec<&str> = help
+            .split("\n\n")
+            .filter(|para| para.contains("s3://"))
+            .collect();
         assert!(
-            !help.contains("s3://"),
-            "help text must not advertise the unimplemented s3:// sink scheme, got:\n{help}"
+            mentions.iter().all(|para| para.contains("`s3` feature")),
+            "every help paragraph naming s3:// must say it needs the `s3` feature, got:\n{help}"
         );
     }
 

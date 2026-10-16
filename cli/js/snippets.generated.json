@@ -253,7 +253,7 @@
             "        \"and\" => raster.try_bandand()?,",
             "        \"or\" => raster.try_bandor()?,",
             "        \"eor\" => raster.try_bandeor()?,",
-            "        other => bail!(\"unknown bandbool operation {other:?} (expected and|or|eor)\"),",
+            "        other => usage_bail!(\"unknown bandbool operation {other:?} (expected and|or|eor)\"),",
             "    };"
           ]
         },
@@ -582,6 +582,44 @@
       },
       "flags": {}
     },
+    "canny": {
+      "about": "Canny edge detector (up to non-maximum suppression).",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = raster.try_canny(sigma, precision)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let raster = io::load(&in_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
     "cast": {
       "about": "Cast an image to a new pixel format (uchar, ushort, or float).",
       "interactive": false,
@@ -605,7 +643,7 @@
             "        \"uchar\" => 1,",
             "        \"ushort\" => 2,",
             "        \"float\" => 4,",
-            "        other => bail!(\"unsupported cast format {other:?} (expected uchar|ushort|float)\"),",
+            "        other => usage_bail!(\"unsupported cast format {other:?} (expected uchar|ushort|float)\"),",
             "    };",
             "    let target = PixelFormat::with_channels(channels, bytes)",
             "        .ok_or_else(|| anyhow!(\"no {fmt_name} format exists for a {channels}-band image\"))?;",
@@ -1492,7 +1530,7 @@
             "    let out = match dir {",
             "        \"horizontal\" => raster.try_fliphor()?,",
             "        \"vertical\" => raster.try_flipver()?,",
-            "        other => bail!(\"unknown flip direction {other:?} (expected horizontal|vertical)\"),",
+            "        other => usage_bail!(\"unknown flip direction {other:?} (expected horizontal|vertical)\"),",
             "    };"
           ]
         },
@@ -2593,6 +2631,52 @@
       },
       "flags": {}
     },
+    "join": {
+      "about": "Join a pair of images left-right or top-bottom.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = left.try_join(",
+            "        &right,",
+            "        direction,",
+            "        expand,",
+            "        Some(shim),",
+            "        background.as_deref(),",
+            "        Some(align),",
+            "    )?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let left = io::load(&in1_path, &limits)?;",
+            "    let right = io::load(&in2_path, &limits)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
     "labelregions": {
       "about": "Label 4-connected regions; write the label mask and print the segment count.",
       "interactive": false,
@@ -2775,6 +2859,45 @@
       },
       "flags": {}
     },
+    "matrixmultiply": {
+      "about": "Multiply two matrices read from vips text-matrix files.",
+      "interactive": false,
+      "imports_base": [
+        "decode_file",
+        "save_file"
+      ],
+      "slot_order": [
+        "load",
+        "apply",
+        "save"
+      ],
+      "slots": {
+        "apply": {
+          "imports_when_active": [],
+          "lines": [
+            "    let out = left.try_matrixmultiply(&right)?;"
+          ]
+        },
+        "load": {
+          "imports_when_active": [
+            "decode_file"
+          ],
+          "lines": [
+            "    let left = load_matrix(&left_path)?;",
+            "    let right = load_matrix(&right_path)?;"
+          ]
+        },
+        "save": {
+          "imports_when_active": [
+            "save_file"
+          ],
+          "lines": [
+            "    io::save(&out, &out_path)?;"
+          ]
+        }
+      },
+      "flags": {}
+    },
     "merge": {
       "about": "Merge two overlapping images with a feathered seam.",
       "interactive": false,
@@ -2833,7 +2956,7 @@
             "    let out = match op {",
             "        \"erode\" => raster.try_erode(&mask_refs)?,",
             "        \"dilate\" => raster.try_dilate(&mask_refs)?,",
-            "        other => bail!(\"unknown morph operation {other:?} (expected erode|dilate)\"),",
+            "        other => usage_bail!(\"unknown morph operation {other:?} (expected erode|dilate)\"),",
             "    };"
           ]
         },
@@ -3219,6 +3342,25 @@
             "repo": "libviprs-tests"
           },
           "fragment": "// PDF rendering DPI: {v} (used with --render and --match-page-size)"
+        },
+        "page-sizing": {
+          "kind": "append",
+          "slot": "load-source",
+          "default": "exact",
+          "type": "enum",
+          "options": [
+            "exact",
+            "legacy-truncated"
+          ],
+          "cli": "--page-sizing {v}",
+          "imports_when_active": [],
+          "test": {
+            "file": "pdfium_page_size_exact.rs",
+            "fn": "every_render_route_reports_the_libvips_size",
+            "line": 297,
+            "repo": "libviprs"
+          },
+          "fragment": "// PDF page sizing: {v} (exact is the libvips size, legacy-truncated keeps the 0.5.x size; used with --render)"
         },
         "render": {
           "kind": "override",

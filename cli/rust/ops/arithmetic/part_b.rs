@@ -2,7 +2,7 @@
 //! section, `CLI_CONTRACT.md` §3/§5/§6).
 //!
 //! This lane fills the disjoint second half of the arithmetic family (part A
-//! owns statistics / const-linear / unary-rounding / hough). It contributes 20
+//! owns statistics / const-linear / unary-rounding / hough). It contributes 21
 //! `viprs` subcommands whose names, positional order, flag names, enum
 //! spellings, and input bounds mirror vips 8.18.4 exactly (verified against
 //! `vips <op>` usage). Every handler keeps the §3 `load → try_op → save` shape
@@ -16,6 +16,7 @@
 //! | `divide L R OUT`             | `divide`          | S2 | EAC | float quotient, `.v` |
 //! | `minpair L R OUT`           | `minpair`         | S2 | EXACT | format-preserving |
 //! | `maxpair L R OUT`           | `maxpair`         | S2 | EXACT | format-preserving |
+//! | `remainder L R OUT`         | `remainder`       | S2 | EXACT | integer remainder, format-preserving; `x % 0` is 0 (vips: -1) |
 //! | `sum A B [C…] OUT`          | `sum`             | S2 variadic | EAC | image array → ushort, `.v` |
 //! | `relational L R OUT OP`     | `relational`      | S2 | EXACT | enum equal\|noteq\|less\|lesseq\|more\|moreeq → 0/255 |
 //! | `relational_const IN OUT OP C`| `relational_const`| S1 | EXACT | scalar const (per-band vector is core-limited) |
@@ -53,15 +54,17 @@
 //! `read_u32`): `boolean`, `boolean_const`, `scale`, `stdif`, `recomb`,
 //! `premultiply`, `unpremultiply`. Their handlers reject a float input up front
 //! via [`reject_float`] with a typed exit-1 error rather than reaching the
-//! panic. The remaining ops are float-safe: `subtract` / `divide` /
-//! `multiply` / `minpair` / `maxpair` / `sum` and the relational family accept
-//! float (returning a typed error where they cannot), and the transcendental /
+//! panic. `remainder` refuses a float input in the core itself, as a typed
+//! error, so it needs no guard here. The remaining ops are float-safe:
+//! `subtract` / `divide` / `multiply` / `minpair` / `maxpair` / `sum` and the
+//! relational family accept float (returning a typed error where they
+//! cannot), and the transcendental /
 //! complex ops (`math` / `math2` / `complexform` / `complex` / `complexget`)
 //! take float by design.
 
 use std::path::PathBuf;
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Result, bail};
 use clap::{Arg, ArgMatches, Command, value_parser};
 use libviprs::{ArithmeticError, Raster};
 
@@ -104,6 +107,11 @@ pub fn metas() -> Vec<CommandMeta> {
         },
         CommandMeta {
             name: "maxpair",
+            shape: NImageToImage,
+            oracle_class: Exact,
+        },
+        CommandMeta {
+            name: "remainder",
             shape: NImageToImage,
             oracle_class: Exact,
         },
@@ -241,6 +249,10 @@ pub fn commands() -> Vec<Command> {
         ),
         binary_cmd("minpair", "Samplewise minimum of a pair of images."),
         binary_cmd("maxpair", "Samplewise maximum of a pair of images."),
+        binary_cmd(
+            "remainder",
+            "Remainder after integer division of the left image by the right.",
+        ),
         io::with_decode_limit_args(
             Command::new("sum")
                 .about("Sum an array of two or more images into one image.")
@@ -528,6 +540,7 @@ pub fn run(name: &str, m: &ArgMatches) -> Result<()> {
         "divide" => run_binary(m, Raster::try_div),
         "minpair" => run_binary(m, Raster::try_minpair),
         "maxpair" => run_binary(m, Raster::try_maxpair),
+        "remainder" => run_binary(m, Raster::try_remainder),
         "sum" => run_sum(m),
         "relational" => run_relational(m),
         "relational_const" => run_relational_const(m),
@@ -606,7 +619,7 @@ fn run_relational(m: &ArgMatches) -> Result<()> {
         "lesseq" => left.try_less_eq(&right)?,
         "more" => left.try_more_than(&right)?,
         "moreeq" => left.try_more_eq(&right)?,
-        other => bail!("unknown relational operator {other:?}"),
+        other => usage_bail!("unknown relational operator {other:?}"),
     };
     io::save(&out, &PathBuf::from(pos(m, "OUT")))?;
     Ok(())
@@ -625,7 +638,7 @@ fn run_relational_const(m: &ArgMatches) -> Result<()> {
         "lesseq" => raster.less_eq_const(c),
         "more" => raster.more_than_const(c),
         "moreeq" => raster.more_eq_const(c),
-        other => bail!("unknown relational operator {other:?}"),
+        other => usage_bail!("unknown relational operator {other:?}"),
     };
     io::save(&out, &PathBuf::from(pos(m, "OUT")))?;
     Ok(())
@@ -642,7 +655,7 @@ fn run_boolean(m: &ArgMatches) -> Result<()> {
         "and" => left.try_bitand(&right)?,
         "or" => left.try_bitor(&right)?,
         "eor" => left.try_bitxor(&right)?,
-        other => bail!("unknown boolean operator {other:?} (expected and|or|eor)"),
+        other => usage_bail!("unknown boolean operator {other:?} (expected and|or|eor)"),
     };
     io::save(&out, &PathBuf::from(pos(m, "OUT")))?;
     Ok(())
@@ -655,7 +668,7 @@ fn run_boolean_const(m: &ArgMatches) -> Result<()> {
     reject_float("boolean_const", &raster)?;
     let c = *m.get_one::<i64>("C").expect("required positional");
     // and|or|eor take an i64 mask; lshift|rshift take a u32 shift count. A
-    // negative or too-large shift is a typed exit-1 error, NEVER a panic
+    // negative or too-large shift is a usage error (exit 2), NEVER a panic
     // (bands B2 lesson): u32::try_from surfaces the range fault.
     let out = match pos(m, "OP") {
         "and" => raster.bitand_const(c),
@@ -663,7 +676,7 @@ fn run_boolean_const(m: &ArgMatches) -> Result<()> {
         "eor" => raster.bitxor_const(c),
         "lshift" => raster.lshift(shift_count(c)?),
         "rshift" => raster.rshift(shift_count(c)?),
-        other => bail!("unknown boolean operator {other:?}"),
+        other => usage_bail!("unknown boolean operator {other:?}"),
     };
     io::save(&out, &PathBuf::from(pos(m, "OUT")))?;
     Ok(())
@@ -674,7 +687,7 @@ fn run_boolean_const(m: &ArgMatches) -> Result<()> {
 /// §8).
 fn shift_count(c: i64) -> Result<u32> {
     u32::try_from(c)
-        .map_err(|_| anyhow!("shift count {c} is out of range (must be 0..={})", u32::MAX))
+        .map_err(|_| usage_err!("shift count {c} is out of range (must be 0..={})", u32::MAX))
 }
 
 /// `scale IN OUT [--log]` — S1 linear/log stretch to uchar.
@@ -753,7 +766,7 @@ fn run_math(m: &ArgMatches) -> Result<()> {
         "asinh" => raster.asinh(),
         "acosh" => raster.acosh(),
         "atanh" => raster.atanh(),
-        other => bail!("unknown math operation {other:?}"),
+        other => usage_bail!("unknown math operation {other:?}"),
     };
     io::save(&out, &PathBuf::from(pos(m, "OUT")))?;
     Ok(())
@@ -768,7 +781,7 @@ fn run_math2(m: &ArgMatches) -> Result<()> {
         "atan2" => left.try_atan2(&right)?,
         "pow" => left.try_pow(&right)?,
         "wop" => left.try_wop(&right)?,
-        other => bail!("unknown math2 operation {other:?} (expected atan2|pow|wop)"),
+        other => usage_bail!("unknown math2 operation {other:?} (expected atan2|pow|wop)"),
     };
     io::save(&out, &PathBuf::from(pos(m, "OUT")))?;
     Ok(())
@@ -792,7 +805,7 @@ fn run_complex(m: &ArgMatches) -> Result<()> {
         "polar" => raster.try_polar()?,
         "rect" => raster.try_rect()?,
         "conj" => raster.try_conj()?,
-        other => bail!("unknown complex operation {other:?} (expected polar|rect|conj)"),
+        other => usage_bail!("unknown complex operation {other:?} (expected polar|rect|conj)"),
     };
     io::save(&out, &PathBuf::from(pos(m, "OUT")))?;
     Ok(())
@@ -805,7 +818,7 @@ fn run_complexget(m: &ArgMatches) -> Result<()> {
     let out = match pos(m, "OP") {
         "real" => raster.try_real()?,
         "imag" => raster.try_imag()?,
-        other => bail!("unknown complexget operation {other:?} (expected real|imag)"),
+        other => usage_bail!("unknown complexget operation {other:?} (expected real|imag)"),
     };
     io::save(&out, &PathBuf::from(pos(m, "OUT")))?;
     Ok(())
@@ -837,7 +850,7 @@ mod tests {
                 "meta {name} has no command"
             );
         }
-        assert_eq!(meta_names.len(), 20, "arith-b contributes 20 commands");
+        assert_eq!(meta_names.len(), 21, "arith-b contributes 21 commands");
     }
 
     #[test]

@@ -354,7 +354,13 @@ function main() {
   });
   console.log('');
   console.log(broken.length + ' / ' + results.length + ' flags broken across ' + commands.length + ' command(s)');
-  process.exit(broken.length ? 1 : 0);
+
+  // The sync script's own guard (libviprs-org#93, #94), run here so CI and the
+  // pre-commit hook reach it without a new step.
+  console.log('');
+  const guard = require('child_process').spawnSync(
+    process.execPath, [path.join(__dirname, '..', 'sync-cli-src.test.js')], { stdio: 'inherit' });
+  process.exit(broken.length || guard.status !== 0 ? 1 : 0);
 }
 
 main();

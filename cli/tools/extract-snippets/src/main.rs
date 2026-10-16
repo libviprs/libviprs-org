@@ -189,7 +189,20 @@ fn main() -> ExitCode {
 
     // Multi-file input: main.rs first, then every ops/*.rs (glob, sorted).
     let mut sources: Vec<(PathBuf, String)> = Vec::new();
-    read_source_into(&rust_dir.join("main.rs"), &mut sources);
+    // The top-level files come from cli/tools/cli-source-files.txt, the list
+    // sync-cli-src.sh copies from, so the two cannot disagree about where flags
+    // live (libviprs-org#94).
+    let list_path = manifest_dir.join("../cli-source-files.txt");
+    let list = match std::fs::read_to_string(&list_path) {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("extract-cli-snippets: cannot read {}: {e}", list_path.display());
+            return ExitCode::from(1);
+        }
+    };
+    for name in list.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')) {
+        read_source_into(&rust_dir.join(name), &mut sources);
+    }
     for path in glob_ops_rs(&rust_dir.join("ops")) {
         read_source_into(&path, &mut sources);
     }
@@ -1275,7 +1288,7 @@ fn main() {
                 .as_object()
                 .unwrap()
                 .len(),
-            32
+            33
         );
     }
 
@@ -1346,9 +1359,21 @@ fn main() {
     fn pyramid_source_flags_match_embed() {
         // The real §4 cross-check: the flag-id set the frozen cli/rust/main.rs
         // declares for `pyramid` must equal the embed's flag-id set.
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../rust/main.rs");
-        let src = std::fs::read_to_string(path).expect("read cli/rust/main.rs");
-        let commands = parse(&src);
+        // Every file in cli/tools/cli-source-files.txt, merged the way main()
+        // merges them: the pyramid flags are split between main.rs and
+        // pipeline.rs (libviprs-org#94), so reading main.rs alone is half a set.
+        let list_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../cli-source-files.txt");
+        let list = std::fs::read_to_string(list_path).expect("read cli-source-files.txt");
+        let mut commands: BTreeMap<String, Command> = BTreeMap::new();
+        for name in list
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty() && !l.starts_with('#'))
+        {
+            let path = format!("{}/../../rust/{name}", env!("CARGO_MANIFEST_DIR"));
+            let src = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {path}: {e}"));
+            merge_commands(&mut commands, parse(&src));
+        }
         let parsed_pyramid = commands
             .get(DEFAULT_COMMAND)
             .expect("pyramid parsed from main.rs annotations");

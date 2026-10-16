@@ -1369,7 +1369,7 @@ println!("{value}");</code></pre>
         "and" =&gt; raster.try_bandand()?,
         "or" =&gt; raster.try_bandor()?,
         "eor" =&gt; raster.try_bandeor()?,
-        other =&gt; bail!("unknown bandbool operation {other:?} (expected and|or|eor)"),
+        other =&gt; usage_bail!("unknown bandbool operation {other:?} (expected and|or|eor)"),
     };
     io::save(&amp;out, &amp;out_path)?;</code></pre>
       </div>
@@ -1925,7 +1925,7 @@ save_file(&amp;result, &amp;output)?;</code></pre>
         "uchar" =&gt; 1,
         "ushort" =&gt; 2,
         "float" =&gt; 4,
-        other =&gt; bail!("unsupported cast format {other:?} (expected uchar|ushort|float)"),
+        other =&gt; usage_bail!("unsupported cast format {other:?} (expected uchar|ushort|float)"),
     };
     let target = PixelFormat::with_channels(channels, bytes)
         .ok_or_else(|| anyhow!("no {fmt_name} format exists for a {channels}-band image"))?;
@@ -3743,7 +3743,7 @@ println!("{value}");</code></pre>
     let out = match dir {
         "horizontal" =&gt; raster.try_fliphor()?,
         "vertical" =&gt; raster.try_flipver()?,
-        other =&gt; bail!("unknown flip direction {other:?} (expected horizontal|vertical)"),
+        other =&gt; usage_bail!("unknown flip direction {other:?} (expected horizontal|vertical)"),
     };
     io::save(&amp;out, &amp;out_path)?;</code></pre>
       </div>
@@ -6542,7 +6542,7 @@ save_file(&amp;result, &amp;output)?;</code></pre>
     let out = match op {
         "erode" =&gt; raster.try_erode(&amp;mask_refs)?,
         "dilate" =&gt; raster.try_dilate(&amp;mask_refs)?,
-        other =&gt; bail!("unknown morph operation {other:?} (expected erode|dilate)"),
+        other =&gt; usage_bail!("unknown morph operation {other:?} (expected erode|dilate)"),
     };
     io::save(&amp;out, &amp;out_path)?;</code></pre>
       </div>

@@ -1,8 +1,8 @@
 //! Conversion op family — the Wave-2 **conversion** lane (`CLI_CONTRACT.md`
 //! §3/§6, `OP_MAP.md` conversion section).
 //!
-//! The core `src/conversion.rs` exposes 53 `pub fn` that fold to 21 base ops;
-//! those become **nineteen** `viprs` subcommands here (the `fliphor`/`flipver`
+//! The core `src/conversion.rs` exposes 55 `pub fn` that fold to 22 base ops;
+//! those become **twenty** `viprs` subcommands here (the `fliphor`/`flipver`
 //! twins collapse into `flip` with a `horizontal|vertical` enum, and
 //! `identity_ushort` folds into `identity --ushort`, exactly as `OP_MAP.md`
 //! prescribes). Command names, positional orders, flag names, enum spellings and
@@ -29,12 +29,13 @@
 //! | `grey OUT WIDTH HEIGHT [--uchar]`        | `grey`        | S5 | BOUNDED-TOL | ramp; float `.v` eps 1e-6 / uchar ≤1 |
 //! | `identity OUT [--ushort]`                | `identity`    | S5 | EXACT | 256×1 / 65536×1 LUT |
 //! | `switch A B C… OUT`                      | `switch`      | S2 variadic | EXACT | first-non-zero index image |
+//! | `join IN1 IN2 OUT horizontal\|vertical [--expand --shim --background --align]` | `join` | S2 | EXACT | join a pair of images (libviprs-cli#67) |
 //!
 //! Every handler keeps the §3 `load → try_op → save` shape and calls only the
 //! panic-free `try_*` core APIs (or the genuinely-infallible `byteswap` /
 //! `identity` constructors, which cannot fail on any input), so a bad input
 //! becomes exit 1 rather than an abort (`CLI_CONTRACT.md` §8). Every numeric
-//! range conversion (`--band`/`--exponent`) yields a typed exit-1 error, never an
+//! range conversion (`--band`/`--exponent`) yields a usage error (exit 2), never an
 //! `as`-cast panic (the bands B2 lesson). The two variadic commands (`arrayjoin`,
 //! `switch`) go through [`io::inputs_and_out`], THE shared S2 idiom; `ifthenelse`
 //! takes three FIXED inputs so it uses plain positionals instead.
@@ -96,12 +97,15 @@
 // @doc-command:begin name=switch about="Find the index of the first non-zero condition image at each pixel." \
 //     slot-order=load,apply,save imports-base=decode_file,save_file
 // @doc-command:end name=switch
+// @doc-command:begin name=join about="Join a pair of images left-right or top-bottom." \
+//     slot-order=load,apply,save imports-base=decode_file,save_file
+// @doc-command:end name=join
 
 use std::path::PathBuf;
 
 use anyhow::{Result, anyhow, bail};
 use clap::{Arg, ArgAction, ArgMatches, Command, value_parser};
-use libviprs::{Angle, Angle45, Interpretation, PixelFormat, Raster};
+use libviprs::{Align, Angle, Angle45, Interpretation, JoinDirection, PixelFormat, Raster};
 
 use super::{CommandMeta, OracleClass, Shape, io};
 
@@ -138,6 +142,8 @@ pub fn metas() -> Vec<CommandMeta> {
         meta("grey", Creator, BoundedTol),
         meta("identity", Creator, Exact),
         meta("switch", NImageToImage, Exact),
+        // Two FIXED inputs then OUT, then the direction: vips's positional order.
+        meta("join", NImageToImage, Exact),
     ]
 }
 
@@ -202,7 +208,7 @@ fn interpretation_from_str(s: &str) -> Result<Interpretation> {
         "hsv" => Interpretation::Hsv,
         "oklab" => Interpretation::OkLab,
         "oklch" => Interpretation::OkLch,
-        other => bail!("unknown interpretation {other:?}"),
+        other => usage_bail!("unknown interpretation {other:?}"),
     })
 }
 
@@ -552,6 +558,60 @@ pub fn commands() -> Vec<Command> {
                         ),
                 ),
         ),
+        // join: S2, vips order `join in1 in2 out direction`. shim is gint
+        // 0..=1000000 in vips and the core refuses anything above it too.
+        io::with_decode_limit_args(
+            Command::new("join")
+                .about("Join a pair of images left-right or top-bottom.")
+                .arg(Arg::new("IN1").required(true).help("First input image"))
+                .arg(
+                    Arg::new("IN2")
+                        .required(true)
+                        .help("Second input image (right of, or below, IN1)"),
+                )
+                .arg(Arg::new("OUT").required(true).help("Output image"))
+                .arg(
+                    Arg::new("DIRECTION")
+                        .required(true)
+                        .value_name("horizontal|vertical")
+                        .value_parser(["horizontal", "vertical"])
+                        .help("Join left-right (horizontal) or top-bottom (vertical)"),
+                )
+                .arg(
+                    Arg::new("expand")
+                        .long("expand")
+                        .action(ArgAction::SetTrue)
+                        .help(
+                            "Keep all of both images (default: crop to the smaller one \
+                             along the shared axis)",
+                        ),
+                )
+                .arg(
+                    Arg::new("shim")
+                        .long("shim")
+                        .value_name("PX")
+                        .default_value("0")
+                        .value_parser(value_parser!(u32).range(0..=1_000_000))
+                        .help("Pixels between the two images (0..=1000000, default 0)"),
+                )
+                .arg(
+                    Arg::new("background")
+                        .long("background")
+                        .value_name("c…")
+                        .help(
+                            "Colour for new pixels: one constant for every band, or one \
+                             space-separated value per band. Default black.",
+                        ),
+                )
+                .arg(
+                    Arg::new("align")
+                        .long("align")
+                        .value_name("low|centre|high")
+                        .default_value("low")
+                        .value_parser(["low", "centre", "high"])
+                        .help("Align on the low, centre or high coordinate edge (default low)"),
+                ),
+        ),
     ]
 }
 
@@ -577,6 +637,7 @@ pub fn run(name: &str, m: &ArgMatches) -> Result<()> {
         "grey" => run_grey(m),
         "identity" => run_identity(m),
         "switch" => run_switch(m),
+        "join" => run_join(m),
         other => bail!("conversion family has no command {other:?}"),
     }
 }
@@ -594,22 +655,22 @@ fn parse_f64_vec(s: &str) -> Result<Vec<f64>> {
         .split_whitespace()
         .map(|t| {
             t.parse::<f64>()
-                .map_err(|e| anyhow!("value {t:?} is not a number: {e}"))
+                .map_err(|e| usage_err!("value {t:?} is not a number: {e}"))
         })
         .collect::<Result<_>>()?;
     if v.is_empty() {
-        bail!("expected at least one value (a space-separated vector like \"255 0 0\")");
+        usage_bail!("expected at least one value (a space-separated vector like \"255 0 0\")");
     }
     Ok(v)
 }
 
 /// vips clamps `gamma`'s exponent to `[1e-6, 1000]` and REJECTS anything outside
 /// it (a GObject property range). Mirror that surface: an out-of-range or
-/// non-finite exponent is a typed usage error (exit 1), never silently accepted
+/// non-finite exponent is a typed usage error (exit 2), never silently accepted
 /// (adversarial-review conversion finding 6).
 fn check_gamma_exponent(e: f64) -> Result<()> {
     if !e.is_finite() || !(1e-6..=1000.0).contains(&e) {
-        bail!("--exponent {e} out of range (vips accepts a finite value in 1e-6..=1000)");
+        usage_bail!("--exponent {e} out of range (vips accepts a finite value in 1e-6..=1000)");
     }
     Ok(())
 }
@@ -673,7 +734,7 @@ fn run_cast(m: &ArgMatches) -> Result<()> {
         "uchar" => 1,
         "ushort" => 2,
         "float" => 4,
-        other => bail!("unsupported cast format {other:?} (expected uchar|ushort|float)"),
+        other => usage_bail!("unsupported cast format {other:?} (expected uchar|ushort|float)"),
     };
     let target = PixelFormat::with_channels(channels, bytes)
         .ok_or_else(|| anyhow!("no {fmt_name} format exists for a {channels}-band image"))?;
@@ -701,7 +762,7 @@ fn run_flip(m: &ArgMatches) -> Result<()> {
     let out = match dir {
         "horizontal" => raster.try_fliphor()?,
         "vertical" => raster.try_flipver()?,
-        other => bail!("unknown flip direction {other:?} (expected horizontal|vertical)"),
+        other => usage_bail!("unknown flip direction {other:?} (expected horizontal|vertical)"),
     };
     // @doc-snippet:end command=flip slot=apply
 
@@ -721,7 +782,7 @@ fn run_rot(m: &ArgMatches) -> Result<()> {
         "d90" => Angle::D90,
         "d180" => Angle::D180,
         "d270" => Angle::D270,
-        other => bail!("unknown rotation angle {other:?} (expected d0|d90|d180|d270)"),
+        other => usage_bail!("unknown rotation angle {other:?} (expected d0|d90|d180|d270)"),
     };
 
     // @doc-snippet:begin command=rot slot=load imports=decode_file
@@ -752,7 +813,7 @@ fn run_rot45(m: &ArgMatches) -> Result<()> {
         "d225" => Angle45::D225,
         "d270" => Angle45::D270,
         "d315" => Angle45::D315,
-        other => bail!("unknown rot45 angle {other:?}"),
+        other => usage_bail!("unknown rot45 angle {other:?}"),
     };
 
     // @doc-snippet:begin command=rot45 slot=load imports=decode_file
@@ -798,7 +859,7 @@ fn run_msb(m: &ArgMatches) -> Result<()> {
     let out_path = PathBuf::from(pos(m, "OUT"));
     // vips default band is -1 (= all bands). With the `-1..` value_parser the
     // only negative clap admits is -1, which maps to the core's `None`. A
-    // positive band beyond `u32::MAX` is a typed exit-1 error — NOT a
+    // positive band beyond `u32::MAX` is a usage error (exit 2) — NOT a
     // `u32::try_from` panic/abort (exit 101), per CLI_CONTRACT.md §8.
     let band_raw = *m.get_one::<i64>("band").expect("clap default -1");
     let band: Option<u32> = if band_raw < 0 {
@@ -806,7 +867,7 @@ fn run_msb(m: &ArgMatches) -> Result<()> {
     } else {
         Some(
             u32::try_from(band_raw)
-                .map_err(|_| anyhow!("--band {band_raw} out of range (max {})", u32::MAX))?,
+                .map_err(|_| usage_err!("--band {band_raw} out of range (max {})", u32::MAX))?,
         )
     };
 
@@ -868,6 +929,47 @@ fn run_flatten(m: &ArgMatches) -> Result<()> {
     // @doc-snippet:begin command=flatten slot=save imports=save_file
     io::save(&out, &out_path)?;
     // @doc-snippet:end command=flatten slot=save
+    Ok(())
+}
+
+/// `join IN1 IN2 OUT DIRECTION [--expand --shim --background --align]`, S2.
+fn run_join(m: &ArgMatches) -> Result<()> {
+    let limits = io::decode_limits(m);
+    let in1_path = PathBuf::from(pos(m, "IN1"));
+    let in2_path = PathBuf::from(pos(m, "IN2"));
+    let out_path = PathBuf::from(pos(m, "OUT"));
+    let direction = match pos(m, "DIRECTION") {
+        "horizontal" => JoinDirection::Horizontal,
+        "vertical" => JoinDirection::Vertical,
+        other => usage_bail!("unknown direction {other:?} (expected horizontal|vertical)"),
+    };
+    let expand = m.get_flag("expand");
+    let shim = *m.get_one::<u32>("shim").expect("clap default 0");
+    let background = match m.get_one::<String>("background") {
+        Some(s) => Some(parse_f64_vec(s)?),
+        None => None,
+    };
+    let align: Align = pos(m, "align").parse().map_err(|e| usage_err!("{e}"))?;
+
+    // @doc-snippet:begin command=join slot=load imports=decode_file
+    let left = io::load(&in1_path, &limits)?;
+    let right = io::load(&in2_path, &limits)?;
+    // @doc-snippet:end command=join slot=load
+
+    // @doc-snippet:begin command=join slot=apply
+    let out = left.try_join(
+        &right,
+        direction,
+        expand,
+        Some(shim),
+        background.as_deref(),
+        Some(align),
+    )?;
+    // @doc-snippet:end command=join slot=apply
+
+    // @doc-snippet:begin command=join slot=save imports=save_file
+    io::save(&out, &out_path)?;
+    // @doc-snippet:end command=join slot=save
     Ok(())
 }
 
@@ -943,7 +1045,7 @@ fn run_gamma(m: &ArgMatches) -> Result<()> {
     // A missing flag maps to the core default (1/2.4). vips clamps gamma's
     // exponent to [1e-6, 1000] and REJECTS anything outside that (a GObject
     // property range); mirror that surface exactly so an out-of-range or
-    // non-finite exponent is a typed usage error (exit 1) rather than silently
+    // non-finite exponent is a typed usage error (exit 2) rather than silently
     // accepted (adversarial-review conversion finding 6). The core independently
     // rejects the non-positive / non-finite end too, but catching it here keeps
     // the whole admissible range in lock-step with vips.
@@ -1117,8 +1219,8 @@ mod tests {
         assert_eq!(cmd_names.len(), meta_names.len());
         assert_eq!(
             meta_names.len(),
-            19,
-            "the conversion family has nineteen commands"
+            20,
+            "the conversion family has twenty commands"
         );
     }
 
@@ -1380,5 +1482,49 @@ mod tests {
         assert_eq!(parse_f64_vec("255 0 0").unwrap(), vec![255.0, 0.0, 0.0]);
         assert!(parse_f64_vec("   ").is_err());
         assert!(parse_f64_vec("255 x").is_err());
+    }
+
+    #[test]
+    fn join_parses_vips_positional_order_and_defaults() {
+        let m = cmd("join")
+            .try_get_matches_from(["join", "a.png", "b.png", "o.png", "vertical"])
+            .unwrap();
+        assert_eq!(pos(&m, "IN1"), "a.png");
+        assert_eq!(pos(&m, "IN2"), "b.png");
+        assert_eq!(pos(&m, "OUT"), "o.png");
+        assert_eq!(pos(&m, "DIRECTION"), "vertical");
+        assert!(!m.get_flag("expand"));
+        assert_eq!(*m.get_one::<u32>("shim").unwrap(), 0);
+        assert_eq!(pos(&m, "align"), "low");
+        assert!(m.get_one::<String>("background").is_none());
+    }
+
+    #[test]
+    fn join_refuses_what_vips_refuses() {
+        let bad: [&[&str]; 4] = [
+            &["join", "a.png", "b.png", "o.png", "diagonal"],
+            &[
+                "join",
+                "a.png",
+                "b.png",
+                "o.png",
+                "horizontal",
+                "--shim",
+                "1000001",
+            ],
+            &[
+                "join",
+                "a.png",
+                "b.png",
+                "o.png",
+                "horizontal",
+                "--align",
+                "middle",
+            ],
+            &["join", "a.png", "b.png", "o.png"],
+        ];
+        for args in bad {
+            assert!(cmd("join").try_get_matches_from(args).is_err(), "{args:?}");
+        }
     }
 }
