@@ -1,0 +1,12 @@
+{
+  "name": "libviprs-org-benchmarks-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Playwright specs for the generated /benchmarks/ page. Run in a node 22 container; see README.md in this directory.",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0"
+  }
+}
