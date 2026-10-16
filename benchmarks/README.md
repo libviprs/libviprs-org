@@ -70,6 +70,13 @@ nothing draws the engines family from them yet. Those charts stay the inline one
 Needs `npm` and network at ingest time (one `npm ci` of the pinned lockfile,
 ignoring scripts), which is the cost of using the producer's renderer unchanged.
 
+`vendor/` holds the interactive dashboard (`dashboard.js`, `dashboard.css` and its
+config), copied byte for byte from libviprs-bench under a blob-sha manifest that
+`tools/check-vendor.mjs` verifies, against the pin as well. The page loads it
+alongside the generated content, outside the `GENERATED:` markers, from the same
+`history.json`; `VENDOR.md` there says why it is frozen and what it needs from
+this site.
+
 `e2e/` holds the Playwright specs; its README says how to run them.
 
 ## Why a pin rather than following libviprs-bench main

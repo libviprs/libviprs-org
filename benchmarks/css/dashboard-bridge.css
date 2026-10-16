@@ -1,0 +1,163 @@
+/* benchmarks/css/dashboard-bridge.css
+ *
+ * The tokens the vendored dashboard stylesheet reads, mapped onto this site's.
+ *
+ * vendor/dashboard.css is causl's, frozen byte for byte, and it is written
+ * against causl's brand tokens (--text-on-base, --causal-cyan, --space-3 ...).
+ * Those do not exist on this site, and a custom property that is not defined
+ * does not fall back to anything sensible: `color: var(--text-on-base)` computes
+ * to the inherited colour and a background built from one is transparent. So
+ * without this file the dashboard renders, unstyled in the ways that are hardest
+ * to spot, and "it renders" is true of a page that is half unreadable.
+ *
+ * Every mapping points at a token benchmarks-dashboard.css already defines for
+ * both themes, so the dashboard follows the page's light and dark switch rather
+ * than carrying its own. Nothing here restyles a class: that is the vendored
+ * file's job, and editing it is the divergence the manifest exists to stop.
+ *
+ * The pairs that matter are measured, not assumed, by
+ * benchmarks/e2e/benchmarks-92-interactive-dashboard.spec.mjs in both themes.
+ */
+
+#dashboard-root {
+  /* text and surfaces */
+  --text-on-base: var(--text);
+  --text-on-base-muted: var(--text-light);
+  --text-on-base-subtle: var(--text-light);
+  --text-on-elevated: var(--text);
+  --text-on-elevated-muted: var(--text-light);
+  --text-on-elevated-subtle: var(--text-light);
+  --surface-elevated: var(--panel-bg);
+  --border-on-elevated: var(--border);
+  --border-subtle: var(--border);
+  --fog: var(--text-light);
+
+  /* the accent, and the four verdict colours the dashboard reuses */
+  --causal-cyan: var(--primary-dark);
+  --commit-amber: var(--warn);
+  --conflict-coral: var(--bad);
+  --success-mint: var(--ok);
+  --signal-blue: #1d5a99;
+
+  /* type, spacing and shape */
+  --mono: "Source Code Pro", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+
+  /* interaction states */
+  --state-focus-outline: var(--primary-dark);
+  --state-hover-bg: var(--code-bg);
+  --state-hover-fg: var(--text);
+  --state-pressed-bg: var(--panel-bg);
+  --state-error-fg: var(--bad);
+  --state-warning-bg: var(--code-bg);
+  --state-warning-border: var(--warn);
+}
+
+[data-theme="dark"] #dashboard-root {
+  --signal-blue: #8fb8f0;
+}
+
+/* The dashboard draws its axis and caption text with a fixed light grey
+   (#A9B5C9) written for a dark surface. On this site's light theme that is
+   1.98:1 against the card, so a stylesheet rule, which beats the presentation
+   attribute, gives it the page's secondary text colour: 7.1:1 on the card. The
+   dark theme keeps the dashboard's own colour (8.40:1). */
+:root:not([data-theme="dark"]) #dashboard-root svg text {
+  fill: var(--text-light);
+}
+
+/* ----- Series and verdict colours, per theme ------------------------------
+   The series and verdict colours come from vendor/dashboard-config.json and are
+   written by the dashboard into SVG attributes and inline custom properties. They
+   were chosen for a dark surface: on this site's light theme streaming and
+   monolithic are 2.85:1 and 2.91:1 against the card, the verdict mint is 1.4:1,
+   and on the dark theme mapreduce is 2.89:1. A stylesheet rule beats a
+   presentation attribute, and !important beats an inline custom property, so the
+   page picks a darker or lighter variant per theme here and the config stays
+   frozen. Measured by the contrast specs for both themes (4.5:1 for the legend
+   text, 3:1 for the lines and dots).
+
+   One entry per series in the vendored config. benchmarks-92-...spec.mjs fails
+   if the config gains a series that is not listed here. */
+
+:root:not([data-theme="dark"]) #dashboard-root {
+  --series-pmtiles: #8e24aa;
+  --series-directory: #bd2a6b;
+  --series-libvips: #00697a;
+  --series-streaming: #1b7332;
+  --series-monolithic: #1565c0;
+  --series-mapreduce: #c62828;
+  --verdict-pass: #1e6b45;
+  --verdict-regressed: #b42318;
+  --verdict-improved: #2a4fc4;
+  --verdict-noisy: #8a5a00;
+  --verdict-unknown: #596579;
+}
+
+[data-theme="dark"] #dashboard-root {
+  --series-pmtiles: #c77dd6;
+  --series-directory: #e0609a;
+  --series-libvips: #0097a7;
+  --series-streaming: #34a853;
+  --series-monolithic: #2196f3;
+  --series-mapreduce: #f06a65;
+  --verdict-pass: #5ee6a8;
+  --verdict-regressed: #ff646e;
+  --verdict-improved: #7c9cff;
+  --verdict-noisy: #ffb347;
+  --verdict-unknown: #a9b5c9;
+}
+
+#dashboard-root .bench-legend-item[data-library="pmtiles"] { --lib-color: var(--series-pmtiles) !important; }
+#dashboard-root path[data-series="pmtiles"][stroke-width="1.8"] { stroke: var(--series-pmtiles); }
+#dashboard-root path[data-series="pmtiles"][fill-opacity] { fill: var(--series-pmtiles); }
+#dashboard-root circle[data-series="pmtiles"] { fill: var(--series-pmtiles); }
+
+#dashboard-root .bench-legend-item[data-library="directory"] { --lib-color: var(--series-directory) !important; }
+#dashboard-root path[data-series="directory"][stroke-width="1.8"] { stroke: var(--series-directory); }
+#dashboard-root path[data-series="directory"][fill-opacity] { fill: var(--series-directory); }
+#dashboard-root circle[data-series="directory"] { fill: var(--series-directory); }
+
+#dashboard-root .bench-legend-item[data-library="libvips"] { --lib-color: var(--series-libvips) !important; }
+#dashboard-root path[data-series="libvips"][stroke-width="1.8"] { stroke: var(--series-libvips); }
+#dashboard-root path[data-series="libvips"][fill-opacity] { fill: var(--series-libvips); }
+#dashboard-root circle[data-series="libvips"] { fill: var(--series-libvips); }
+
+#dashboard-root .bench-legend-item[data-library="streaming"] { --lib-color: var(--series-streaming) !important; }
+#dashboard-root path[data-series="streaming"][stroke-width="1.8"] { stroke: var(--series-streaming); }
+#dashboard-root path[data-series="streaming"][fill-opacity] { fill: var(--series-streaming); }
+#dashboard-root circle[data-series="streaming"] { fill: var(--series-streaming); }
+
+#dashboard-root .bench-legend-item[data-library="monolithic"] { --lib-color: var(--series-monolithic) !important; }
+#dashboard-root path[data-series="monolithic"][stroke-width="1.8"] { stroke: var(--series-monolithic); }
+#dashboard-root path[data-series="monolithic"][fill-opacity] { fill: var(--series-monolithic); }
+#dashboard-root circle[data-series="monolithic"] { fill: var(--series-monolithic); }
+
+#dashboard-root .bench-legend-item[data-library="mapreduce"] { --lib-color: var(--series-mapreduce) !important; }
+#dashboard-root path[data-series="mapreduce"][stroke-width="1.8"] { stroke: var(--series-mapreduce); }
+#dashboard-root path[data-series="mapreduce"][fill-opacity] { fill: var(--series-mapreduce); }
+#dashboard-root circle[data-series="mapreduce"] { fill: var(--series-mapreduce); }
+
+#dashboard-root .bench-legend-item[data-verdict="pass"] { --verdict-color: var(--verdict-pass) !important; }
+#dashboard-root .verdict-legend-item[data-kind="pass"] .verdict-legend-dot { --verdict-color: var(--verdict-pass) !important; }
+
+#dashboard-root .bench-legend-item[data-verdict="regressed"] { --verdict-color: var(--verdict-regressed) !important; }
+#dashboard-root .verdict-legend-item[data-kind="regressed"] .verdict-legend-dot { --verdict-color: var(--verdict-regressed) !important; }
+
+#dashboard-root .bench-legend-item[data-verdict="improved"] { --verdict-color: var(--verdict-improved) !important; }
+#dashboard-root .verdict-legend-item[data-kind="improved"] .verdict-legend-dot { --verdict-color: var(--verdict-improved) !important; }
+
+#dashboard-root .bench-legend-item[data-verdict="noisy"] { --verdict-color: var(--verdict-noisy) !important; }
+#dashboard-root .verdict-legend-item[data-kind="noisy"] .verdict-legend-dot { --verdict-color: var(--verdict-noisy) !important; }
+
+#dashboard-root .bench-legend-item[data-verdict="unknown"],
+#dashboard-root .bench-legend-item[data-verdict="skipped"] { --verdict-color: var(--verdict-unknown) !important; }
+#dashboard-root .verdict-legend-item[data-kind="unknown"] .verdict-legend-dot { --verdict-color: var(--verdict-unknown) !important; }

@@ -40,6 +40,19 @@
   -->
 
   <link rel="stylesheet" href="css/benchmarks-dashboard.css">
+
+  <!--
+    The interactive dashboard's own stylesheet, vendored byte for byte from
+    libviprs-bench at benchmarks/vendor/ and checked by
+    benchmarks/tools/check-vendor.mjs. It defines the bench-*, filter-*,
+    dashboard-* and verdict-* classes the dashboard emits; the stylesheet above
+    dresses the generated static page and the two vocabularies are disjoint, so
+    they do not collide.
+  -->
+  <link rel="stylesheet" href="vendor/dashboard.css">
+
+  <!-- The tokens that stylesheet reads, mapped onto this site's two themes. -->
+  <link rel="stylesheet" href="css/dashboard-bridge.css">
 </head>
 <body>
 
@@ -2371,11 +2384,63 @@
   <!-- GENERATED:not-measured:END -->
   </section>
 
+  <!--
+    The interactive view. Not generated: everything above is written by
+    benchmarks/tools/render-latest.mjs from history.json and checked by a
+    required job, and this section is deliberately outside those markers so the
+    two cannot interfere.
+
+    Both views read the SAME history.json sitting next to this page. That is the
+    point of keeping them side by side rather than replacing one with the other:
+    the static charts are checked against an archived document by --check, and
+    the interactive charts are drawn from the same rows, so the two agreeing is
+    worth something. If they ever disagree, one of them is wrong and it will be
+    visible on this page rather than in a diff nobody reads.
+  -->
+  <section class="page-section" id="interactive" aria-labelledby="interactive-title">
+    <div class="section-head">
+      <h2 id="interactive-title">Explore the runs</h2>
+    </div>
+    <p>The same rows as above, drawn by the dashboard causl uses, with filtering, pan and zoom. It reads <a href="history.json"><code>history.json</code></a>, the same file the charts above are generated from.</p>
+    <p class="footnote">It charts one thing: median wall time in milliseconds, per series, across runs. A card for memory, throughput or cost reads n/a here because there is no millisecond figure to draw, and those are in the generated charts above. It starts on the latest run's three engines; ticking <em>include runs before</em> in the filters brings in the earlier runs, which is where the PMTiles and directory results appear.</p>
+    <div id="dashboard-root">
+      <noscript><p class="caveat">This view needs JavaScript. Every number it draws is already above, generated without it.</p></noscript>
+    </div>
+  </section>
+
 </main>
 
 <footer>
   <p>libviprs is MIT licensed. <a href="https://github.com/libviprs/libviprs">View on GitHub</a></p>
 </footer>
+
+<script id="dashboard-bootstrap">
+  /*
+    The dashboard reads its parameterisation from a global and then runs on
+    load, so the config has to be in place before the script is. Fetching it
+    rather than inlining it keeps one source of truth: the vendored
+    dashboard-config.json is the file the manifest checks, and a copy pasted
+    into this page could drift from it without anything noticing.
+  */
+  (function () {
+    var root = document.getElementById('dashboard-root');
+    function refuse(why) {
+      if (!root) return;
+      root.innerHTML = '<p class="caveat">The interactive view did not load (' + why + '). '
+        + 'Every number it would draw is generated above without it.</p>';
+    }
+    fetch('./vendor/dashboard-config.json', { cache: 'no-cache' })
+      .then(function (r) { if (!r.ok) throw new Error('config ' + r.status); return r.json(); })
+      .then(function (config) {
+        globalThis.LIBVIPRS_BENCH_CONFIG = config;
+        var s = document.createElement('script');
+        s.src = './vendor/dashboard.js';
+        s.onerror = function () { refuse('the dashboard script did not load'); };
+        document.body.appendChild(s);
+      })
+      .catch(function (e) { refuse(String(e && e.message ? e.message : e)); });
+  })();
+</script>
 
 </body>
 </html>

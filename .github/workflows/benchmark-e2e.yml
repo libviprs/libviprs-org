@@ -1,0 +1,50 @@
+name: benchmark-e2e
+
+# The Playwright specs in benchmarks/e2e: the charts embedded at ingest (#91) and
+# the interactive dashboard (#92), driven in a real browser against the committed
+# page, in both colour schemes, with the WCAG ratios measured and printed.
+#
+# They read the page and change nothing. The server is benchmarks/e2e/serve.mjs,
+# the repository root with no dependencies.
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'benchmarks/**'
+      - '.github/workflows/benchmark-e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install the specs' dependencies
+        working-directory: benchmarks/e2e
+        run: npm ci
+
+      - name: Install the browser
+        working-directory: benchmarks/e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: The specs
+        working-directory: benchmarks/e2e
+        run: npx playwright test
+
+      - name: Keep the traces when a spec fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: benchmarks/e2e/test-results
+          retention-days: 7
