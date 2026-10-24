@@ -166,6 +166,32 @@ test('the_legacy_cli_page_lists_each_pmtiles_flag', () => {
   assert(missing.length === 0, 'cli.html does not list: ' + missing.map((f) => '--' + f).join(', '));
 });
 
+test('the_rss_table_quotes_the_cores_measured_figures', () => {
+  // Copied from the table in libviprs src/pmtiles/writer.rs (peak RSS of one
+  // process per row, every payload distinct, default writer options). The
+  // core is not in this repo, so a change there means changing this list too.
+  const want = [['500,000', '22.8 MB'], ['1,000,000', '34.9 MB'], ['2,000,000', '35.8 MB'],
+                ['4,000,000', '35.9 MB'], ['10,000,000', '36.0 MB']];
+  const sec = sectionText(reference);
+  assert(sec, 'cli/index.html has no element with id="' + SECTION_ID + '"');
+  const rows = [...sec.matchAll(/<tr><td>([^<]*)<\/td><td>([^<]*)<\/td><\/tr>/g)].map((m) => [m[1], m[2]]);
+  const bad = want.filter(([n, rss]) => !rows.some(([a, b]) => a === n && b === rss));
+  assert(bad.length === 0, 'the RSS table does not carry these core figures: ' + bad.map((r) => r.join(' -> ')).join(', '));
+});
+
+test('the_window_size_and_the_default_are_stated_where_a_reader_looks', () => {
+  const sec = plain(sectionText(reference) || '');
+  assert(/roughly 129,000/.test(sec), 'the memory contract no longer says the default window tracks roughly 129,000 payloads (8 MiB / 65 bytes)');
+  for (const [name, file] of [['cli/index.html', reference], ['cli.html', read(LEGACY)]]) {
+    const dd = /--pmtiles-layout[\s\S]*?<\/dd>/.exec(file);
+    assert(dd && /Default: tile-id/.test(dd[0]), name + ' does not say --pmtiles-layout defaults to tile-id');
+    const dm = /--dedupe-memory-bytes[\s\S]*?<\/dd>/.exec(file);
+    assert(dm && /Default: 8 MiB/.test(dm[0]) && /65 bytes/.test(dm[0]), name + ' does not give --dedupe-memory-bytes its 8 MiB default and 65 bytes a tile');
+  }
+  const entry = plain(flagEntry(reference, 'dedupe-memory-bytes').dd);
+  assert(/Below 520 bytes/.test(entry), 'the --dedupe-memory-bytes entry does not state the 520 byte floor');
+});
+
 if (failures.length) {
   console.log('\n' + failures.length + ' failure(s)');
   process.exit(1);
