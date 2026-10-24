@@ -85,13 +85,13 @@ function flagEntry(html, name) {
   return dt ? { dt: dt[1], dd: dt[2] } : null;
 }
 
-// The element with id=SECTION_ID, from its open tag to the next <h2.
+// The element with id=SECTION_ID, from its open tag to the next <h2 or the end of its <section>.
 function sectionText(html) {
   const open = html.search(new RegExp('<(h[23]|section|div)\\b[^>]*\\bid="' + SECTION_ID + '"'));
   if (open === -1) return null;
   const rest = html.slice(open + 1);
-  const next = rest.search(/<h2\b/);
-  return next === -1 ? rest : rest.slice(0, next);
+  const end = rest.search(/<h2\b|<\/section>/);
+  return end === -1 ? rest : rest.slice(0, end);
 }
 
 const plain = (html) => html.replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ');

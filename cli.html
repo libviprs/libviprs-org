@@ -580,6 +580,26 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
     </dd>
   </dl>
 
+  <h3>PMTiles writer options</h3>
+  <dl class="flags">
+    <dt><code>--pmtiles-layout &lt;ORDER&gt;</code></dt>
+    <dd>
+      <p>Where the PMTiles writer puts the tile bytes inside the archive. Not <code>--layout</code>, which picks the pyramid scheme. <span class="default-val">Default: tile-id</span></p>
+      <p><code>tile-id</code> sorts at the end and writes the data in tile id order, so the archive is always clustered, at the cost of a scratch copy. <code>arrival</code> appends each tile as it comes and writes every byte once, but the archive then depends on the order tiles arrived in. Archives only. See <a href="cli/index.html#pmtiles-writer-memory">the memory contract</a>.</p>
+    </dd>
+
+    <dt><code>--ordered-emission</code></dt>
+    <dd>
+      <p>Ask the engine for tiles in ascending tile id order, so an <code>arrival</code> archive is byte-identical to the <code>tile-id</code> one with no reordering pass. It costs memory: every level's raster is held at once instead of one at a time, and <code>--memory-limit</code> counts them. Archives only. See <a href="cli/index.html#pmtiles-writer-memory">the memory contract</a>.</p>
+    </dd>
+
+    <dt><code>--dedupe-memory-bytes &lt;BYTES&gt;</code></dt>
+    <dd>
+      <p>Memory the PMTiles writer may spend recognising duplicate tiles, about 65 bytes per distinct tile remembered. <span class="default-val">Default: 8 MiB</span></p>
+      <p>Two identical tiles further apart than this window are stored twice, which is still a correct archive, just a larger one. Below 520 bytes the value is refused, and above a slot for every tile in the plan it is lowered to that. Archives only. See <a href="cli/index.html#pmtiles-writer-memory">the memory contract</a>.</p>
+    </dd>
+  </dl>
+
   <h3>Tracing options</h3>
   <dl class="flags">
     <dt><code>--trace-level &lt;LEVEL&gt;</code></dt>
