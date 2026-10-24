@@ -44,3 +44,6 @@ jobs:
 
       - name: The benchmark page split holds
         run: node tools/site-checks/page-split.test.js
+
+      - name: The PMTiles writer flags and memory contract are documented (#104)
+        run: node tools/site-checks/pmtiles-writer-docs.test.js
