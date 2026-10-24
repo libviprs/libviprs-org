@@ -349,6 +349,31 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
     </dd>
   </dl>
 
+  <h3>PMTiles writer options</h3>
+  <p>Three flags steer the PMTiles writer, and all three apply to an archive only: giving one with <code>--storage directory</code> (or to a <code>--packfile</code> run) is a usage error, exit 2. What they trade is laid out in <a href="#pmtiles-writer-memory">the writer's memory contract</a>.</p>
+  <dl class="flags">
+    <dt id="flag-pmtiles-layout"><code>--pmtiles-layout &lt;ORDER&gt;</code></dt>
+    <dd>
+      <p>Where the writer puts the tile bytes inside the archive. <span class="default-val">Default: tile-id</span></p>
+      <p>This is not <a href="#flag-layout"><code>--layout</code></a>. <code>--layout</code> picks the pyramid scheme, which decides what a tile is and how it is addressed. This one only decides the order of the tile data inside one archive, and changes no tile.</p>
+      <p>Values: <code>tile-id</code> stages the payloads as they arrive, sorts at the end and writes the data in tile id order. The archive is always clustered and does not depend on the order tiles arrived in (as far as the dedupe window reaches), and the price is a scratch copy of the tile data at the end. <code>arrival</code> appends each tile as it comes, so every tile byte is written once and never read back, and there is no scratch copy of the archive. The archive then depends on the order the tiles arrived in, and is clustered only if that order happened to be tile id order (the header says which it was).</p>
+      <p>See <a href="#pmtiles-writer-memory">the memory contract</a> for when to pick <code>arrival</code>.</p>
+    </dd>
+
+    <dt id="flag-ordered-emission"><code>--ordered-emission</code></dt>
+    <dd>
+      <p>Ask the engine for tiles in ascending tile id order. With <code>--pmtiles-layout arrival</code> this makes the archive byte-identical to the <code>tile-id</code> one, with no reordering pass.</p>
+      <p>It costs memory. The pyramid is built from the full-resolution level down, which is the reverse of tile id order, so an ordered run holds every level's raster at once instead of one at a time. The levels below the top add up to about a third of the top one. <a href="#flag-memory-limit"><code>--memory-limit</code></a> counts that, and the memory estimate prints a line for it. Under the default <code>tile-id</code> layout it is accepted but buys nothing, since that layout sorts at the end anyway; see <a href="#pmtiles-writer-memory">the memory contract</a>.</p>
+    </dd>
+
+    <dt id="flag-dedupe-memory-bytes"><code>--dedupe-memory-bytes &lt;BYTES&gt;</code></dt>
+    <dd>
+      <p>Memory the writer may spend recognising duplicate tiles. It costs about 65 bytes per distinct tile remembered. <span class="default-val">Default: 8 MiB</span></p>
+      <p>Two identical tiles further apart than this window are stored twice. That is still a correct archive, just a larger one. Below 520 bytes (one dedupe set) the value is refused with exit 2. Above a slot for every tile in the plan it is lowered to that, and the run prints a note saying so, because the writer allocates the whole window up front. When you pass the flag, <code>--memory-limit</code> counts the window.</p>
+      <p>This is the archive writer's window. It is not <a href="#flag-dedupe-all"><code>--dedupe-all</code></a>, which is about links and manifests in a tile tree. See <a href="#pmtiles-writer-memory">the memory contract</a> for what the window trades away.</p>
+    </dd>
+  </dl>
+
   <h3>Resumable job options</h3>
   <dl class="flags">
     <dt><code>--resume</code></dt>
@@ -721,6 +746,47 @@ viprs pmtiles tile atlas.pmtiles 3 4 5 | shasum -a 256</code></pre>
     <dt><code>&lt;OUTPUT&gt;</code></dt>
     <dd><p>Directory to write the tile tree into. Created automatically. The result is the same tree <code>viprs pyramid --storage directory</code> would have written for the same input.</p></dd>
   </dl>
+
+  <h3 id="pmtiles-writer-memory">The PMTiles writer's memory contract</h3>
+  <p>The writer behind <code>viprs pyramid</code>'s default storage takes tiles in any order and keeps its memory bounded. This section says what is bounded, what the one tunable window gives up, and when to reach for <a href="#flag-pmtiles-layout"><code>--pmtiles-layout</code></a>, <a href="#flag-ordered-emission"><code>--ordered-emission</code></a> and <a href="#flag-dedupe-memory-bytes"><code>--dedupe-memory-bytes</code></a>. All of it is the core writer's own documented behaviour (libviprs <code>src/pmtiles/writer.rs</code>).</p>
+
+  <h4>What is bounded</h4>
+  <ul>
+    <li><strong>Peak memory is independent of the number of tiles.</strong> The per-tile index is spilled to an append-only log on disk and externally sorted at the end, and the directories are built one leaf at a time.</li>
+    <li><strong>It is independent of the number of distinct payloads too.</strong> Remembering which payloads were already stored used to grow with that count. It is now a fixed-capacity window, and you set its size with <code>--dedupe-memory-bytes</code>. That matters because a large photograph produces essentially no duplicate tiles, so its distinct payloads and its tiles are the same figure.</li>
+    <li><strong>It is settable.</strong> The window is the one flag-sized knob, 8 MiB by default. The writer's sort buffer is the other big part of its footprint (24 MB at the default of a million records) and has no flag.</li>
+  </ul>
+  <p>Two small things do still grow with the tile count, each divided by a writer option rather than free: one 16-byte record per spilled sort run, and one 24-byte entry per directory leaf. At the default sort buffer a billion tiles cost about 15 KB of run table.</p>
+  <p>The core's own test measures one process per row, every payload distinct, at the default writer options (a million-record sort buffer and the 8 MiB window), with the figure being peak resident memory of the writer:</p>
+  <table>
+    <thead><tr><th>Distinct payloads</th><th>Writer peak RSS</th></tr></thead>
+    <tbody>
+      <tr><td>500,000</td><td>22.8 MB</td></tr>
+      <tr><td>1,000,000</td><td>34.9 MB</td></tr>
+      <tr><td>2,000,000</td><td>35.8 MB</td></tr>
+      <tr><td>4,000,000</td><td>35.9 MB</td></tr>
+      <tr><td>10,000,000</td><td>36.0 MB</td></tr>
+    </tbody>
+  </table>
+  <p>The figure stops moving once the sort buffer has filled, and most of what is left is that buffer plus the window. These measure the writer, not a whole <code>viprs pyramid</code> run: the source, the canvas and (with <code>--ordered-emission</code>) the level rasters are on top, and that is what the <code>Memory estimate</code> and <code>--memory-limit</code> account for.</p>
+
+  <h4>What the dedupe window trades away</h4>
+  <p>The window is a fixed capacity that remembers the payloads seen most recently, at about 65 bytes per payload (the default 8 MiB tracks roughly 129,000 of them). <strong>Two identical payloads further apart than the window are stored twice.</strong> The archive is still correct and reads identically. It is larger, and it stops being a pure function of the tile set, because whether two tiles share a blob now depends on how far apart they arrived.</p>
+  <p>Most inputs never notice. A photograph has no duplicate tiles to miss. A mostly blank pyramid has a handful of payloads that recur constantly, so they never leave a window of any size. What pays for a bigger window is a pyramid with more distinct payloads than the window holds <em>and</em> duplicates that repeat at long range. Raise <code>--dedupe-memory-bytes</code> for that, and you pay 65 bytes for each payload you add. If you compare archive bytes between runs or publish a checksum, set it past the number of distinct payloads you expect, and byte identity across different arrival orders comes back: it needs the whole job to fit in the window.</p>
+  <p>The floor is 520 bytes, one set of eight payloads. The writer would round anything smaller up to that, so the CLI refuses it instead of quietly spending a budget you did not ask for. The ceiling is a slot for every tile in the plan, because the writer allocates the window up front.</p>
+
+  <h4>tile-id or arrival</h4>
+  <table>
+    <thead><tr><th></th><th><code>tile-id</code> (default)</th><th><code>arrival</code></th></tr></thead>
+    <tbody>
+      <tr><td>Tile data written</td><td>Staged, then copied into tile id order at the end</td><td>Appended once, as tiles come</td></tr>
+      <tr><td>Scratch space</td><td>The index and a staged copy of the tile data</td><td>The index only</td></tr>
+      <tr><td>Same tiles, different arrival order</td><td>Same bytes (while the window holds the job)</td><td>Different bytes</td></tr>
+      <tr><td>Clustered</td><td>Always</td><td>Only if tiles arrived in tile id order</td></tr>
+    </tbody>
+  </table>
+  <p><code>tile-id</code> stays the default because <code>arrival</code> cannot keep the byte identity across shuffled or <code>clustered</code> runs: arrival order means the bytes depend on arrival order. Pick <code>arrival</code> when you want every byte written once and less free disk during the run, and you do not need the archive to be reproducible.</p>
+  <p>Add <code>--ordered-emission</code> to <code>arrival</code> when you want the best of both: the engine hands over tiles in tile id order, so the archive is byte-identical to the <code>tile-id</code> one with no reordering pass. The cost moves into memory, since every level's raster is held at once (the levels below the top add up to about a third of the top one). With the default <code>tile-id</code> layout it pays that for an archive you would have got anyway.</p>
 </section>
 
 <!-- ================================================================== -->
