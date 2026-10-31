@@ -109,9 +109,13 @@ const config = readJson(CONFIG);
  *  saying things like "storage carries no driftPct" about a run that is not on
  *  the page at all. The history is meant to accumulate, so that was a latent
  *  bug waiting for the second capture rather than a problem with it. */
+/** The PVec row (libviprs-bench#143) is a storage-family document whose only scenario is
+ *  `generate_scan`. It is drawn in its own section and never stands in for the storage claim. */
+const isPvecEntry = (r) => r.samples.length > 0 && r.samples.every((s) => s.key.startsWith('generate_scan.'));
+
 const latestOf = (family) =>
   history
-    .filter((r) => r.family === family)
+    .filter((r) => r.family === family && !isPvecEntry(r))
     .sort((a, b) => String(a.capturedAt).localeCompare(String(b.capturedAt)))
     .at(-1);
 
@@ -124,7 +128,7 @@ const latestOf = (family) =>
  *  of them did exactly that the moment a family had two runs. */
 const drawnIn = (h, family) =>
   h
-    .filter((r) => r.family === family)
+    .filter((r) => r.family === family && !isPvecEntry(r))
     .sort((a, b) => String(a.capturedAt).localeCompare(String(b.capturedAt)))
     .at(-1);
 
@@ -1438,6 +1442,84 @@ test('the_charts_section_embeds_files_and_refuses_what_it_cannot_find', () => {
   const bare = renderInto(history, { charts: scratch() });
   assert(bare.code !== 0 && /no .*manifest\.json/.test(bare.err), `a missing manifest was not refused: ${bare.err}`);
   return `${imgs.length} <img> elements, three refusals`;
+});
+
+// ---------------------------------------------------------------------------
+// 26. the_pvec_row_has_its_own_section_and_never_stands_in_for_the_storage_claim (libviprs-bench#143)
+//
+// The PVec run is a storage-family document, captured later than the storage sweep the claim is read
+// off, with one scenario and none of the headline cells. A renderer that takes "the latest storage
+// run" for the claim refuses it (no headline cell), and one that skips it leaves the row off the
+// page. The row is a table of the latest such run, every number read off it.
+//
+// Goes red against: a renderer with no pvec section; one that draws the claim from the pvec run; one
+// that types the tool caveats in rather than reading each row's `source`.
+// ---------------------------------------------------------------------------
+
+/** A PVec run built from the storage run on disk: same envelope, four contenders, one scenario. */
+function pvecRunFixture() {
+  const base = clone(storageRun);
+  const contenders = [
+    ['pmtiles', 8196.3, 650137600, 378279440, 109605291, 'scan-gray8 (png tiles)', 'high'],
+    ['pvec', 8309.5, 761065472, 587611589, 111570160, 'scan-gray8 (png tiles)', 'high'],
+    ['gdal-cog', 1960.8, 427085824, null, 5674192, 'scan-gray8 (deflate strips, predictor 2, not PNG)', 'high'],
+    ['libvips-zip', 1612.2, 381108224, null, 3785992, 'scan-gray8 (png tiles)', 'low'],
+  ];
+  const sample = (library, name, unit, direction, median, confidence) => ({
+    ...clone(storageRun.samples[0]), library, key: `generate_scan.${name}`, scenario: 'generate_scan', metric: name,
+    cell: 'scan@18720x13240', scale: 1308, source: 'scan-gray8', unit, direction, median, confidence,
+    gated: false, lowConfidenceReasons: confidence === 'low' ? ['cov 0.291 above 0.15'] : [],
+  });
+  base.runId = '20261031T185444Z-428eaab59a0f415f6446e441ede33450023a94fc-80c9e360';
+  base.capturedAt = '2099-01-01T00:00:00.000Z';
+  base.libraries = Object.fromEntries(contenders.map(([id, , , , , src]) => [id, { backend: id, source: src, attested: true }]));
+  base.samples = contenders.flatMap(([id, wall, rss, heap, out, , conf]) => [
+    sample(id, 'wall', 'ms', 'lower-is-better', wall, conf),
+    sample(id, 'peak_rss', 'bytes', 'lower-is-better', rss, 'high'),
+    ...(heap === null ? [] : [sample(id, 'heap_peak', 'bytes', 'lower-is-better', heap, 'high')]),
+    sample(id, 'output_bytes', 'bytes', 'lower-is-better', out, 'high'),
+  ]);
+  base.invariants = contenders.map(([id, , , , out]) => ({ library: id, scale: 1308, source: 'scan-gray8', name: 'tiles_produced', value: 1308, exact: true }));
+  base.replicates = [];
+  base.replicate = { ...clone(storageRun.replicate), cell: null };
+  base.skipped = [];
+  base.modelled = [];
+  return base;
+}
+
+test('the_pvec_row_has_its_own_section_and_never_stands_in_for_the_storage_claim', () => {
+  const page = readFileSync(PAGE, 'utf8');
+  assert(page.includes('<!-- GENERATED:pvec:BEGIN -->') && page.includes('<!-- GENERATED:pvec:END -->'),
+    'benchmarks/index.html has no GENERATED:pvec markers for the PVec row to be written between');
+
+  const withPvec = clone(history).concat([pvecRunFixture()]);
+  const r = renderInto(withPvec);
+  assert(r.code === 0, `a history holding the PVec run did not render: ${r.err}`);
+  const html = r.html();
+
+  // The claim still comes from the storage sweep, not from the later PVec run.
+  assert(html.includes(storageRun.runId), 'the storage claim no longer names the storage run it is read off');
+
+  const table = /<table class="results-table" data-pvec-table[\s\S]*?<\/table>/.exec(html);
+  assert(table, 'the page has no PVec table');
+  const rows = table[0];
+  for (const id of ['PMTiles', 'PVec', 'GDAL', 'libvips']) {
+    assert(rows.includes(id), `the PVec table has no row for ${id}`);
+  }
+  // Numbers are read off the run: wall in seconds to two decimals, never typed.
+  for (const wall of ['8.20', '8.31', '1.96', '1.61']) {
+    assert(rows.includes(wall), `the PVec table does not show a wall time of ${wall} s`);
+  }
+  // The caveat for the row GDAL wrote comes from its own `source`, and the low-confidence row is marked.
+  assert(rows.includes('deflate strips, predictor 2, not PNG'), 'the GDAL row does not say what it wrote');
+  assert(/data-confidence="low"/.test(rows), 'the libvips row is low confidence and the table does not say so');
+
+  // Changing the run changes the page: the figure is computed, not written in.
+  const changed = clone(withPvec);
+  changed.at(-1).samples.find((s) => s.library === 'pvec' && s.key === 'generate_scan.wall').median = 12345;
+  const r2 = renderInto(changed);
+  assert(r2.code === 0 && r2.html().includes('12.35'), 'editing the PVec wall time did not change the page');
+  return 'section, four rows, caveat from source, computed';
 });
 
 // ---------------------------------------------------------------------------
