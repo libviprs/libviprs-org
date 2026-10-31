@@ -72,7 +72,12 @@ for (const flag of ['--storage pvec', '--pvec-into', '--pixel-to-source', '--sou
   '--tile-size', '--json', '--tile']) {
   check(cli.includes(`<code>${flag}`) || cli.includes(`${flag}</code>`), `the CLI reference does not document ${flag}`);
 }
-check(/pvec-raster<\/code> feature/.test(cli), 'the CLI reference does not say the commands need the pvec-raster feature');
+check(/pvec-raster<\/code> feature/.test(cli), 'the CLI reference does not name the pvec-raster feature');
+check(/in the default build/.test(cli), 'the CLI reference does not say the commands are in the default build');
+for (const [name, text] of [['cli/index.html', cli], ['index.html', html]]) {
+  check(!/not in the default features/.test(text), `${name} still says the pvec commands are not in the default features`);
+  check(!/does not have them until/.test(text), `${name} still says released binaries lack the pvec commands`);
+}
 check(cli.includes('viprs pmtiles to-pvec') && cli.includes('viprs pvec rasters'), 'the CLI reference has no example of to-pvec and rasters');
 
 if (failures.length) {
