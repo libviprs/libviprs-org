@@ -560,7 +560,7 @@ test('a pin that predates the chart renderer is refused with the reason, not an 
   assert.throws(() => chartCodeAt(BENCH_DIR, old), /has no tools\/charts\/storage-charts\.mjs/);
 });
 
-test('the charts are drawn from the latest storage sweep, never from the later PVec run (libviprs-bench#143)', () => {
+test('the charts are drawn from the latest storage sweep, never from the writer sweeps or the later PVec run (libviprs-bench#143)', () => {
   // The PVec run is a storage-family document with one scenario. Drawing "the latest storage run"
   // from it would swap every storage chart for a one-scenario set, and the page shows the PVec row
   // as its own table instead.
@@ -568,9 +568,10 @@ test('the charts are drawn from the latest storage sweep, never from the later P
     runId, capturedAt, family: 'storage', samples: keys.map((key) => ({ key })),
   });
   const history = [
-    entry('sweep', '2026-10-24T07:48:35.812Z', ['generate.wall', 'read_random.p50']),
+    entry('sweep', '2026-10-01T00:00:00.000Z', ['generate.wall', 'read_random.p50']),
+    entry('writer', '2026-10-24T07:48:35.812Z', ['build_from_tiles.wall', 'write_ingest.wall']),
     entry('pvec', '2026-10-31T18:57:07.992Z', ['generate_scan.wall', 'generate_scan.peak_rss']),
   ];
   assert.equal(latestRun(history).runId, 'sweep');
-  assert.equal(latestRun([history[1]]), undefined, 'a history holding only the PVec run has no sweep to chart');
+  assert.equal(latestRun(history.slice(1)), undefined, 'writer sweeps and the PVec run are not sweeps to chart');
 });

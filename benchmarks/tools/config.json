@@ -371,5 +371,50 @@
     "title": "The storage backends, as the benchmark repository draws them.",
     "lead": "This site does not draw these. The libviprs-bench renderer draws them from the archived storage run named above, at the pinned revision, and ingest writes the files to charts/ and embeds them as images, the way causl.org embeds its charts. Every check draws them again and refuses any file that differs, so a chart cannot sit next to numbers it was not drawn from.",
     "held": "A pair is held out when the contract says the cells are not comparable across backends or too noisy to rank, and it is not drawn rather than drawn with a caveat."
+  },
+  "pvec": {
+    "_doc": "The PVec row (libviprs-bench#143, libviprs#1331): a storage-family document whose only scenario is generate_scan. It is drawn as its own table because it shares none of the storage sweep's cells, and the storage claim is read off the sweep, never off this run.",
+    "scenario": "generate_scan",
+    "title": "One scan into a PVec, a PMTiles archive, a GDAL COG and a libvips zip.",
+    "order": [
+      "pmtiles",
+      "pvec",
+      "gdal-cog",
+      "libvips-zip"
+    ],
+    "label": {
+      "pmtiles": "PMTiles archive (libviprs)",
+      "pvec": "PVec container (libviprs)",
+      "gdal-cog": "GDAL COG",
+      "libvips-zip": "libvips dzsave zip"
+    },
+    "columns": [
+      {
+        "key": "generate_scan.wall",
+        "label": "Wall time",
+        "kind": "seconds"
+      },
+      {
+        "key": "generate_scan.peak_rss",
+        "label": "Peak RSS",
+        "kind": "bytes"
+      },
+      {
+        "key": "generate_scan.heap_peak",
+        "label": "Heap peak",
+        "kind": "bytes"
+      },
+      {
+        "key": "generate_scan.output_bytes",
+        "label": "Artefact size",
+        "kind": "bytes"
+      }
+    ],
+    "compare": [
+      "pmtiles",
+      "pvec"
+    ],
+    "note": "PMTiles and PVec write byte-identical PNG tiles, so that pair is the like-for-like one. The GDAL row writes DEFLATE strips (its COG driver has no PNG codec) and the libvips row uses its own PNG encoder, so wall time and artefact size on those two rows include a codec difference. They are here because the comparison against a C library offering the same feature is the point, and each row says what it wrote.",
+    "notRun": "x86_64 only. The arm64 run was not done, and nothing here is extrapolated to it."
   }
 }

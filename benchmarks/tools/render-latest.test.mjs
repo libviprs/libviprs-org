@@ -109,13 +109,15 @@ const config = readJson(CONFIG);
  *  saying things like "storage carries no driftPct" about a run that is not on
  *  the page at all. The history is meant to accumulate, so that was a latent
  *  bug waiting for the second capture rather than a problem with it. */
-/** The PVec row (libviprs-bench#143) is a storage-family document whose only scenario is
- *  `generate_scan`. It is drawn in its own section and never stands in for the storage claim. */
-const isPvecEntry = (r) => r.samples.length > 0 && r.samples.every((s) => s.key.startsWith('generate_scan.'));
+/** The page draws a family's SWEEP: the run that reports one of its headline keys. The PVec row
+ *  (libviprs-bench#143, scenario `generate_scan`) and the writer sweeps are storage-family documents
+ *  too; neither stands in for the storage claim. */
+const isSweepEntry = (r) => readJson(CONFIG).families[r.family].headlineKeys
+  .some((k) => r.samples.some((s) => s.key === k));
 
 const latestOf = (family) =>
   history
-    .filter((r) => r.family === family && !isPvecEntry(r))
+    .filter((r) => r.family === family && isSweepEntry(r))
     .sort((a, b) => String(a.capturedAt).localeCompare(String(b.capturedAt)))
     .at(-1);
 
@@ -128,7 +130,7 @@ const latestOf = (family) =>
  *  of them did exactly that the moment a family had two runs. */
 const drawnIn = (h, family) =>
   h
-    .filter((r) => r.family === family && !isPvecEntry(r))
+    .filter((r) => r.family === family && isSweepEntry(r))
     .sort((a, b) => String(a.capturedAt).localeCompare(String(b.capturedAt)))
     .at(-1);
 
