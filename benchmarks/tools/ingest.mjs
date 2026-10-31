@@ -521,10 +521,18 @@ function titleOf(svg) {
   return (m ? m[1] : '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'");
 }
 
+/** The charts come from the latest SWEEP of the family: a run that reports one of the family's
+ *  headline keys. The PVec row (libviprs-bench#143) and the writer sweeps are storage-family
+ *  documents too, and neither reports one, so neither is drawn here. The page shows the PVec row as
+ *  its own table. */
+const PAGE_CONFIG = JSON.parse(readFileSync(join(here, 'config.json'), 'utf8'));
+const isSweepEntry = (e) => (PAGE_CONFIG.families[e.family]?.headlineKeys ?? [])
+  .some((k) => (e.samples ?? []).some((s) => s.key === k));
+
 /** The latest run of the charted family, by capture time. */
 export function latestRun(history, family = CHARTS_FAMILY) {
   return history
-    .filter((e) => e.family === family)
+    .filter((e) => e.family === family && isSweepEntry(e))
     .sort((a, b) => String(a.capturedAt).localeCompare(String(b.capturedAt)))
     .at(-1);
 }

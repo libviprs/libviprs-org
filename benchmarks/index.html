@@ -234,6 +234,35 @@
   <!-- GENERATED:claim:END -->
   </section>
 
+  <section class="page-section" id="pvec" aria-labelledby="pvec-title">
+  <!-- GENERATED:pvec:BEGIN -->
+  <div class="section-head">
+      <div class="section-kicker">Measured 2026-10-31 · run <code class="mono">20261031T185444Z-428eaab59a0f415f6446e441ede33450023a94fc-80c9e360</code></div>
+      <h2 id="pvec-title">One scan into a PVec, a PMTiles archive, a GDAL COG and a libvips zip.</h2>
+    </div>
+
+    <p class="lead">On the same scan and the same PNG tiles, PVec container (libviprs) took 8.310 s against
+      8.196 s for PMTiles archive (libviprs), and peaked at 761065472 <span class="unit">(725.8 MiB)</span> resident against 650137600 <span class="unit">(620.0 MiB)</span>.</p>
+
+    <div class="table-wrap">
+      <table class="results-table" data-pvec-table="20261031T185444Z-428eaab59a0f415f6446e441ede33450023a94fc-80c9e360">
+        <caption>Medians over the run's repetitions, one 18,720 by 13,240 scan, 512 px tiles, run <code class="mono">20261031T185444Z-428eaab59a0f415f6446e441ede33450023a94fc-80c9e360</code>.</caption>
+        <thead>
+          <tr><th scope="col">contender</th><th scope="col">Wall time</th><th scope="col">Peak RSS</th><th scope="col">Heap peak</th><th scope="col">Artefact size</th><th scope="col">confidence</th><th scope="col">what it wrote</th></tr>
+        </thead>
+        <tbody>
+        <tr><th scope="row">PMTiles archive (libviprs)</th><td class="num">8.196</td><td class="num">650137600 <span class="unit">(620.0 MiB)</span></td><td class="num">378279440 <span class="unit">(360.8 MiB)</span></td><td class="num">109605291 <span class="unit">(104.5 MiB)</span></td><td data-confidence="high"><span class="conf conf-high">high</span></td><td>scan-gray8 (png tiles)</td></tr>
+        <tr><th scope="row">PVec container (libviprs)</th><td class="num">8.310</td><td class="num">761065472 <span class="unit">(725.8 MiB)</span></td><td class="num">587611589 <span class="unit">(560.4 MiB)</span></td><td class="num">111570160 <span class="unit">(106.4 MiB)</span></td><td data-confidence="high"><span class="conf conf-high">high</span></td><td>scan-gray8 (png tiles)</td></tr>
+        <tr><th scope="row">GDAL COG</th><td class="num">1.961</td><td class="num">427085824 <span class="unit">(407.3 MiB)</span></td><td class="num absent" title="this run did not record it for this contender">not recorded</td><td class="num">5674192 <span class="unit">(5.4 MiB)</span></td><td data-confidence="high"><span class="conf conf-high">high</span></td><td>scan-gray8 (deflate strips, predictor 2, not PNG)</td></tr>
+        <tr><th scope="row">libvips dzsave zip</th><td class="num">1.612</td><td class="num">381108224 <span class="unit">(363.5 MiB)</span></td><td class="num absent" title="this run did not record it for this contender">not recorded</td><td class="num">3785992 <span class="unit">(3.6 MiB)</span></td><td data-confidence="low"><span class="conf conf-low">low</span></td><td>scan-gray8 (png tiles)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="footnote">PMTiles and PVec write byte-identical PNG tiles, so that pair is the like-for-like one. The GDAL row writes DEFLATE strips (its COG driver has no PNG codec) and the libvips row uses its own PNG encoder, so wall time and artefact size on those two rows include a codec difference. They are here because the comparison against a C library offering the same feature is the point, and each row says what it wrote. x86_64 only. The arm64 run was not done, and nothing here is extrapolated to it.</p>
+  <!-- GENERATED:pvec:END -->
+  </section>
+
   <section class="page-section" id="engines" aria-labelledby="engines-title">
   <!-- GENERATED:engines:BEGIN -->
   <div class="section-head">
@@ -2173,7 +2202,7 @@
   <section class="page-section" id="charts" aria-labelledby="charts-title">
   <!-- GENERATED:charts:BEGIN -->
   <div class="section-head">
-      <div class="section-kicker">Drawn at ingest from run <code class="mono">20260915T071511Z-adcf1ff21699ded673af74297a4a83104b96abd1-29e9d16b</code> · libviprs-bench <code class="mono">f0271d02c371</code></div>
+      <div class="section-kicker">Drawn at ingest from run <code class="mono">20260915T071511Z-adcf1ff21699ded673af74297a4a83104b96abd1-29e9d16b</code> · libviprs-bench <code class="mono">b49243ce1090</code></div>
       <h2 id="charts-title">The storage backends, as the benchmark repository draws them.</h2>
     </div>
 

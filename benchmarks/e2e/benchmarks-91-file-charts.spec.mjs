@@ -140,14 +140,11 @@ test.describe('#91 contrast, measured', () => {
     for (const line of report) note(line);
   });
 
-  // The axis tick labels use --bc-muted. Measured, it is under 4.5:1 in the
-  // light scheme. The token is the pinned renderer's (bencharts), not this
-  // repository's, so it cannot be fixed here without making the charts differ
-  // from what the pinned revision draws, which is exactly what --check refuses.
-  // Marked as an expected failure so it stays visible and turns red the day it
-  // is fixed upstream, at which point this annotation goes.
+  // The axis tick labels use --bc-muted, a token of the pinned renderer (bencharts). It was under
+  // 4.5:1 in the light scheme and could not be fixed here without making the charts differ from
+  // what the pinned revision draws. The pinned renderer moved the token (#6b6a64 on the light surface), so the expected-failure
+  // annotation that said it was below 4.5:1 is gone.
   test('#91 axis tick labels (--bc-muted) meet AA in both schemes', async ({ request }) => {
-    test.fail(true, 'upstream: --bc-muted is below 4.5:1 on the light surface; see the issue linked in the PR');
     const m = await manifest(request);
     const svg = await (await request.get(`/benchmarks/charts/${m.charts[0].file}`)).text();
     const tokens = chartTokens(svg);

@@ -127,11 +127,17 @@ test.describe('#92 it is interactive', () => {
     // A card that has points to draw: most of the memory and throughput cards
     // read n/a, because the dashboard charts milliseconds only.
     const chart = page.locator('#dashboard-root .bench-section-card:has(circle[data-series]) .bench-section-chart').first();
-    const before = await chart.innerHTML();
-    const lib = page.locator('#dashboard-root input[type="checkbox"][aria-label^="library"]:checked').first();
+    // A library this chart actually draws. The history now holds writer sweeps and the PVec run,
+    // whose cards draw other libraries than the first chip, and unchecking one a card does not
+    // draw changes nothing in it. The whole dashboard is compared, because a card whose only
+    // library was unchecked stops matching the locator above.
+    const root = page.locator('#dashboard-root');
+    const drawn = await chart.evaluate((el) => el.querySelector('[data-series]').getAttribute('data-series'));
+    const before = await root.innerHTML();
+    const lib = page.locator(`#dashboard-root input[type="checkbox"][aria-label^="library"][value="${drawn}"]:checked`).first();
     await lib.uncheck();
-    const after = await chart.innerHTML();
-    expect(after, 'the chart redrew without that library').not.toEqual(before);
+    const after = await root.innerHTML();
+    expect(after, 'the dashboard redrew without that library').not.toEqual(before);
     await context.close();
   });
 
@@ -156,12 +162,9 @@ test.describe('#92 it is interactive', () => {
 });
 
 test.describe('#92 what it says', () => {
-  // The vendored script writes this label as a literal and the config has no key
-  // for it. Frozen files are not ours to edit, so this is an expected failure
-  // that turns red the day the label is parameterised upstream
-  // (libviprs-bench#129), at which point the annotation goes.
+  // The label was a literal in the vendored script (libviprs-bench#129). The pinned
+  // revision parameterises it, so the expected-failure annotation that said so is gone.
   test("#92 the Default view button names this project's series, not causl's", async ({ browser }) => {
-    test.fail(true, 'upstream: the label is a literal in the frozen dashboard.js; see libviprs-bench#129');
     const { context, page } = await openDashboard(browser, 'light');
     const text = await page.locator('#dashboard-root .filter-action', { hasText: /default view/i }).first().innerText();
     expect(text).not.toMatch(/causl|mobx|redux/i);
@@ -260,8 +263,11 @@ test.describe('#92 contrast, measured', () => {
     const ids = JSON.parse(VENDORED_CONFIG).series.order;
     expect(ids.length).toBeGreaterThan(1);
     for (const id of ids) {
-      const defs = BRIDGE.match(new RegExp(`--series-${id}:`, 'g')) ?? [];
-      expect(defs.length, `--series-${id} is defined for light and for dark`).toBe(2);
+      // A custom property name cannot hold `@` or `+`, which the writer sweep's series ids do, so
+      // the bridge names the property by the id with those characters turned into hyphens.
+      const slug = id.replace(/[^A-Za-z0-9_-]/g, '-');
+      const defs = BRIDGE.match(new RegExp(`--series-${slug}:`, 'g')) ?? [];
+      expect(defs.length, `--series-${slug} is defined for light and for dark`).toBe(2);
     }
   });
 

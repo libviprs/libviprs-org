@@ -399,7 +399,20 @@ function normalise(run) {
   };
 }
 
-const runs = history.map(normalise);
+const everyRun = history.map(normalise);
+
+/** The PVec row (libviprs-bench#143) is a storage-family document whose only scenario is the one
+ *  config names. It is drawn in its own section and kept out of everything that takes "the latest
+ *  run of a family", because it has none of the sweep's cells and the storage claim is read off the
+ *  sweep. */
+const isPvecRun = (run) => run.samples.length > 0 && run.samples.every((s) => s.scenario === config.pvec.scenario);
+const pvecRuns = everyRun.filter(isPvecRun)
+  .sort((a, b) => String(a.capturedAt).localeCompare(String(b.capturedAt)));
+/** A run of a family is a sweep of it when it reports one of the family's headline keys. The
+ *  writer sweeps libviprs-bench files beside the storage sweep (`build_from_tiles`, `write_*`) are
+ *  storage-family documents too and report none, so they are not "the latest storage run" either. */
+const isSweep = (run) => config.families[run.family].headlineKeys.some((k) => run.samples.some((s) => s.key === k));
+const runs = everyRun.filter((r) => !isPvecRun(r) && isSweep(r));
 
 const byFamily = new Map();
 for (const run of runs) {
@@ -777,6 +790,60 @@ ${t.html}
       tree of loose files, so the bytes on disk are not the same bytes even when every tile in them is. What has to
       agree is the tile count, and it does, in every cell. <code class="mono">allocated_bytes</code> is the one
       that moves, because every loose tile rounds up to a filesystem block and a single archive rounds up once.</p>
+`;
+}
+
+// ---------------------------------------------------------------------------
+// 1b. the PVec row
+// ---------------------------------------------------------------------------
+
+function pvecSection() {
+  const run = pvecRuns.at(-1);
+  if (!run) return '<p>No PVec run in the history, so there is no row to show.</p>';
+  const cfg = config.pvec;
+  const ids = cfg.order.filter((id) => run.samples.some((s) => s.series === id));
+  const cell = (id, col) => run.samples.find((s) => s.series === id && s.key === col.key);
+  const fmt = (sample, col) => {
+    if (!sample) return '<td class="num absent" title="this run did not record it for this contender">not recorded</td>';
+    if (col.kind === 'seconds') return `<td class="num">${num(sample.median / 1000)}</td>`;
+    return `<td class="num">${bytes(sample.median)}</td>`;
+  };
+  const rows = ids.map((id) => {
+    const confidences = run.samples.filter((s) => s.series === id).map((s) => s.confidence);
+    const confidence = confidences.every((c) => c === 'high') ? 'high' : 'low';
+    const wrote = run.libraries[id]?.source ?? '';
+    return `        <tr><th scope="row">${esc(cfg.label[id] ?? id)}</th>${cfg.columns.map((col) => fmt(cell(id, col), col)).join('')}<td data-confidence="${confidence}">${confChip(confidence)}</td><td>${prose(wrote)}</td></tr>`;
+  }).join('\n');
+  const head = cfg.columns.map((col) => `<th scope="col">${esc(col.label)}</th>`).join('');
+
+  const [a, b] = cfg.compare;
+  const wall = (id) => cell(id, cfg.columns[0])?.median;
+  const rss = (id) => cell(id, cfg.columns[1])?.median;
+  const lead = Number.isFinite(wall(a)) && Number.isFinite(wall(b)) && Number.isFinite(rss(a)) && Number.isFinite(rss(b))
+    ? `<p class="lead">On the same scan and the same PNG tiles, ${esc(cfg.label[b])} took ${num(wall(b) / 1000)} s against
+      ${num(wall(a) / 1000)} s for ${esc(cfg.label[a])}, and peaked at ${bytes(rss(b))} resident against ${bytes(rss(a))}.</p>`
+    : '';
+
+  return `  <div class="section-head">
+      <div class="section-kicker">Measured ${esc(String(run.capturedAt).slice(0, 10))} ${MIDDOT} run <code class="mono">${esc(run.runId)}</code></div>
+      <h2 id="pvec-title">${esc(cfg.title)}</h2>
+    </div>
+
+    ${lead}
+
+    <div class="table-wrap">
+      <table class="results-table" data-pvec-table="${esc(run.runId)}">
+        <caption>Medians over the run's repetitions, one 18,720 by 13,240 scan, 512 px tiles, run <code class="mono">${esc(run.runId)}</code>.</caption>
+        <thead>
+          <tr><th scope="col">contender</th>${head}<th scope="col">confidence</th><th scope="col">what it wrote</th></tr>
+        </thead>
+        <tbody>
+${rows}
+        </tbody>
+      </table>
+    </div>
+
+    <p class="footnote">${prose(cfg.note)} ${prose(cfg.notRun)}</p>
 `;
 }
 
@@ -1556,6 +1623,7 @@ ${items}
 
 const SECTIONS = [
   ['claim', claimSection],
+  ['pvec', pvecSection],
   ['engines', enginesSection],
   ['history', historySection],
   ['charts', chartsSection],

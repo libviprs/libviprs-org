@@ -23,7 +23,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   verifyOrigin, readAtRev, readPin, BENCH, PIN_PATH, HISTORY_PATH, CHARTS_DIR,
-  renderChartsAt, diffCharts, chartCodeAt,
+  renderChartsAt, diffCharts, chartCodeAt, latestRun,
 } from './ingest.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -511,9 +511,7 @@ test('the pinned renderer draws the storage family from the document it was veri
   const manifest = JSON.parse(drawn.manifestText);
   assert.equal(manifest.rev, PINNED);
   assert.deepEqual(manifest.charts.map((c) => c.file), [...drawn.files.keys()]);
-  const latestStorage = pinnedHistory().filter((e) => e.family === 'storage')
-    .sort((a, b) => String(a.capturedAt).localeCompare(String(b.capturedAt))).at(-1);
-  assert.equal(manifest.runId, latestStorage.runId);
+  assert.equal(manifest.runId, latestRun(pinnedHistory()).runId);
   for (const [name, svg] of drawn.files) {
     assert.ok(svg.startsWith('<svg'), `${name} is not an SVG`);
     assert.ok(!svg.includes('<script'), `${name} carries a script`);
@@ -558,4 +556,20 @@ test('a pin that predates the chart renderer is refused with the reason, not an 
   // harness JSON and there is no storage-charts.mjs to draw the archive.
   const old = '6284b1e83f02c9863f95a2b576b2c8eaffc79caf';
   assert.throws(() => chartCodeAt(BENCH_DIR, old), /has no tools\/charts\/storage-charts\.mjs/);
+});
+
+test('the charts are drawn from the latest storage sweep, never from the writer sweeps or the later PVec run (libviprs-bench#143)', () => {
+  // The PVec run is a storage-family document with one scenario. Drawing "the latest storage run"
+  // from it would swap every storage chart for a one-scenario set, and the page shows the PVec row
+  // as its own table instead.
+  const entry = (runId, capturedAt, keys) => ({
+    runId, capturedAt, family: 'storage', samples: keys.map((key) => ({ key })),
+  });
+  const history = [
+    entry('sweep', '2026-10-01T00:00:00.000Z', ['generate.wall', 'read_random.p50']),
+    entry('writer', '2026-10-24T07:48:35.812Z', ['build_from_tiles.wall', 'write_ingest.wall']),
+    entry('pvec', '2026-10-31T18:57:07.992Z', ['generate_scan.wall', 'generate_scan.peak_rss']),
+  ];
+  assert.equal(latestRun(history).runId, 'sweep');
+  assert.equal(latestRun(history.slice(1)), undefined, 'writer sweeps and the PVec run are not sweeps to chart');
 });

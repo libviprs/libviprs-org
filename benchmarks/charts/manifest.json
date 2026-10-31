@@ -1,6 +1,6 @@
 {
   "renderer": "libviprs-bench tools/charts/storage-charts.mjs",
-  "rev": "f0271d02c3713e36506470335ca4f182605cef58",
+  "rev": "b49243ce1090abfa1401f41c8e313789df266ee4",
   "family": "storage",
   "runId": "20260915T071511Z-adcf1ff21699ded673af74297a4a83104b96abd1-29e9d16b",
   "charts": [
