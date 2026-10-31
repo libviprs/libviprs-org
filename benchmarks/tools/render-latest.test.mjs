@@ -1466,10 +1466,10 @@ test('the_charts_section_embeds_files_and_refuses_what_it_cannot_find', () => {
 function pvecRunFixture() {
   const base = clone(storageRun);
   const contenders = [
-    ['pmtiles', 8196.3, 650137600, 378279440, 109605291, 'scan-gray8 (png tiles)', 'high'],
-    ['pvec', 8309.5, 761065472, 587611589, 111570160, 'scan-gray8 (png tiles)', 'high'],
-    ['gdal-cog', 1960.8, 427085824, null, 5674192, 'scan-gray8 (deflate strips, predictor 2, not PNG)', 'high'],
-    ['libvips-zip', 1612.2, 381108224, null, 3785992, 'scan-gray8 (png tiles)', 'low'],
+    ['pmtiles', 8196, 650137600, 378279440, 109605291, 'scan-gray8 (png tiles)', 'high'],
+    ['pvec', 8310, 761065472, 587611589, 111570160, 'scan-gray8 (png tiles)', 'high'],
+    ['gdal-cog', 1961, 427085824, null, 5674192, 'scan-gray8 (deflate strips, predictor 2, not PNG)', 'high'],
+    ['libvips-zip', 1612, 381108224, null, 3785992, 'scan-gray8 (png tiles)', 'low'],
   ];
   const sample = (library, name, unit, direction, median, confidence) => ({
     ...clone(storageRun.samples[0]), library, key: `generate_scan.${name}`, scenario: 'generate_scan', metric: name,
@@ -1512,8 +1512,8 @@ test('the_pvec_row_has_its_own_section_and_never_stands_in_for_the_storage_claim
   for (const id of ['PMTiles', 'PVec', 'GDAL', 'libvips']) {
     assert(rows.includes(id), `the PVec table has no row for ${id}`);
   }
-  // Numbers are read off the run: wall in seconds to two decimals, never typed.
-  for (const wall of ['8.20', '8.31', '1.96', '1.61']) {
+  // Numbers are read off the run: wall in seconds, never typed.
+  for (const wall of ['8.196', '8.310', '1.961', '1.612']) {
     assert(rows.includes(wall), `the PVec table does not show a wall time of ${wall} s`);
   }
   // The caveat for the row GDAL wrote comes from its own `source`, and the low-confidence row is marked.
@@ -1522,9 +1522,9 @@ test('the_pvec_row_has_its_own_section_and_never_stands_in_for_the_storage_claim
 
   // Changing the run changes the page: the figure is computed, not written in.
   const changed = clone(withPvec);
-  changed.at(-1).samples.find((s) => s.library === 'pvec' && s.key === 'generate_scan.wall').median = 12345;
+  changed.at(-1).samples.find((s) => s.library === 'pvec' && s.key === 'generate_scan.wall').median = 12340;
   const r2 = renderInto(changed);
-  assert(r2.code === 0 && r2.html().includes('12.35'), 'editing the PVec wall time did not change the page');
+  assert(r2.code === 0 && r2.html().includes('12.34'), 'editing the PVec wall time did not change the page');
   return 'section, four rows, caveat from source, computed';
 });
 

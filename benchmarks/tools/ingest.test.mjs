@@ -511,9 +511,7 @@ test('the pinned renderer draws the storage family from the document it was veri
   const manifest = JSON.parse(drawn.manifestText);
   assert.equal(manifest.rev, PINNED);
   assert.deepEqual(manifest.charts.map((c) => c.file), [...drawn.files.keys()]);
-  const latestStorage = pinnedHistory().filter((e) => e.family === 'storage')
-    .sort((a, b) => String(a.capturedAt).localeCompare(String(b.capturedAt))).at(-1);
-  assert.equal(manifest.runId, latestStorage.runId);
+  assert.equal(manifest.runId, latestRun(pinnedHistory()).runId);
   for (const [name, svg] of drawn.files) {
     assert.ok(svg.startsWith('<svg'), `${name} is not an SVG`);
     assert.ok(!svg.includes('<script'), `${name} carries a script`);
