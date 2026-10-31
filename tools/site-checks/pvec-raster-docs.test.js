@@ -13,6 +13,8 @@
  *   2. points at ADR 0018 in libviprs/pvec and back at the generated page
  *   3. names the three commands
  *
+ *   4. cli/index.html documents the three commands (flags, examples, the feature they need)
+ *
  * Plain Node, no dependency and no build step. Usage:
  *   node tools/site-checks/pvec-raster-docs.test.js   # exit 1 on any failure
  */
@@ -58,6 +60,20 @@ check(section.includes('github.com/libviprs/libviprs/blob/main/docs/pvec-raster.
 for (const cmd of ['viprs pyramid --storage pvec', 'viprs pmtiles to-pvec', 'viprs pvec rasters']) {
   check(section.includes(cmd), `the page does not name \`${cmd}\``);
 }
+
+// 4. the CLI reference (hand written: the snippet extractor does not read the
+//    @doc-snippet slots in libviprs-cli's src/pvec_raster/imp.rs yet)
+const cli = fs.readFileSync(path.join(root, 'cli', 'index.html'), 'utf8');
+for (const id of ['pvec', 'pvec-pyramid', 'pvec-rasters', 'pmtiles-to-pvec']) {
+  check(cli.includes(`id="${id}"`), `cli/index.html has no id="${id}"`);
+}
+for (const flag of ['--storage pvec', '--pvec-into', '--pixel-to-source', '--source-to-geo', '--geo-origin',
+  '--geo-scale', '--affine', '--band', '--opacity', '--attribution', '--layer', '--drop-blanks',
+  '--tile-size', '--json', '--tile']) {
+  check(cli.includes(`<code>${flag}`) || cli.includes(`${flag}</code>`), `the CLI reference does not document ${flag}`);
+}
+check(/pvec-raster<\/code> feature/.test(cli), 'the CLI reference does not say the commands need the pvec-raster feature');
+check(cli.includes('viprs pmtiles to-pvec') && cli.includes('viprs pvec rasters'), 'the CLI reference has no example of to-pvec and rasters');
 
 if (failures.length) {
   for (const f of failures) console.error('FAIL: ' + f);
