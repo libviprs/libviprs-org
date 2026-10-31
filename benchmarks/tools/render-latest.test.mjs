@@ -97,7 +97,16 @@ function renderInto(history, { config = CONFIG, charts = CHARTS } = {}) {
   return { ...r, html: () => readFileSync(pp, 'utf8'), dir, hp, pp };
 }
 
-const history = readJson(HISTORY);
+/** The page draws a family's SWEEP: the run that reports one of its headline keys. The PVec row
+ *  (libviprs-bench#143, scenario `generate_scan`) and the writer sweeps are storage-family documents
+ *  too; neither stands in for the storage claim. */
+const isSweepEntry = (r) => readJson(CONFIG).families[r.family].headlineKeys
+  .some((k) => r.samples.some((s) => s.key === k));
+
+/** The history the guards below reason about is the sweeps the page draws. The committed file also
+ *  holds the writer sweeps and the PVec run, which have their own handling (guard 26). */
+const fullHistory = readJson(HISTORY);
+const history = fullHistory.filter(isSweepEntry);
 const config = readJson(CONFIG);
 /** The run the PAGE was drawn from: the latest by `capturedAt`, which is what
  *  `latest()` in the renderer returns.
@@ -109,11 +118,6 @@ const config = readJson(CONFIG);
  *  saying things like "storage carries no driftPct" about a run that is not on
  *  the page at all. The history is meant to accumulate, so that was a latent
  *  bug waiting for the second capture rather than a problem with it. */
-/** The page draws a family's SWEEP: the run that reports one of its headline keys. The PVec row
- *  (libviprs-bench#143, scenario `generate_scan`) and the writer sweeps are storage-family documents
- *  too; neither stands in for the storage claim. */
-const isSweepEntry = (r) => readJson(CONFIG).families[r.family].headlineKeys
-  .some((k) => r.samples.some((s) => s.key === k));
 
 const latestOf = (family) =>
   history
