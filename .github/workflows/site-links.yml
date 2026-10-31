@@ -47,3 +47,6 @@ jobs:
 
       - name: The PMTiles writer flags and memory contract are documented (#104)
         run: node tools/site-checks/pmtiles-writer-docs.test.js
+
+      - name: The PVec raster feature page is on the site (libviprs#1333)
+        run: node tools/site-checks/pvec-raster-docs.test.js
