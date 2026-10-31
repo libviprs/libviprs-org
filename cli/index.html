@@ -454,7 +454,7 @@ viprs pyramid input.pdf out/ --trace-level info</code></pre>
       <p>Geographic coordinate of the top-left pixel as <code>"longitude,latitude"</code>.</p>
     </dd>
 
-    <dt><code>--geo-scale &lt;SX,SY&gt;</code></dt>
+    <dt><code>--geo-scale &lt;SCALE_X,SCALE_Y&gt;</code></dt>
     <dd>
       <p>Degrees per pixel as <code>"scale_x,scale_y"</code>. Typically positive X (east) and negative Y (south). Together with <code>--geo-origin</code>, defines an affine transform that lets tile viewers overlay the pyramid on a world map.</p>
     </dd>
@@ -745,6 +745,38 @@ viprs pmtiles tile atlas.pmtiles 3 4 5 | shasum -a 256</code></pre>
 
     <dt><code>&lt;OUTPUT&gt;</code></dt>
     <dd><p>Directory to write the tile tree into. Created automatically. The result is the same tree <code>viprs pyramid --storage directory</code> would have written for the same input.</p></dd>
+  </dl>
+
+  <h3 id="pmtiles-to-pvec">pmtiles to-pvec</h3>
+  <p>Pass an archive's tiles into a <code>.pvec</code> as a raster, byte for byte. The placement is composed from the georeference the archive stores (<code>--geo-origin</code> and <code>--geo-scale</code> or <code>--affine</code> when it was made) and the drawing's <code>--source-to-geo</code>, or given outright with <code>--pixel-to-source</code>. No tile is re-encoded. Needs a build with the <code>pvec-raster</code> feature (see <a href="#pvec">pvec</a>).</p>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code>viprs pmtiles to-pvec scan.pmtiles sheet.pvec --pvec-into drawing.pvec --source-to-geo 1,0,2600000,0,1,1200000</code></pre>
+  </div>
+  <dl class="flags">
+    <dt><code>&lt;ARCHIVE&gt;</code></dt>
+    <dd><p>A libviprs archive written with <code>--layout google</code>: no centring, no overlap, PNG, JPEG or WebP tiles of 256, 512 or 1024 pixels, and a recorded source size. Anything else is refused with the reason.</p></dd>
+
+    <dt><code>&lt;OUTPUT&gt;</code></dt>
+    <dd><p>The <code>.pvec</code> to write.</p></dd>
+
+    <dt><code>--pvec-into &lt;DRAWING.PVEC&gt;</code></dt>
+    <dd><p>The drawing the raster joins, as for <code>pyramid --storage pvec</code>. Required.</p></dd>
+
+    <dt><code>--source-to-geo &lt;A,B,C,D,E,F&gt;</code></dt>
+    <dd><p>The drawing's calibration, composed with the georeference the archive stores. Cannot be combined with <code>--pixel-to-source</code>.</p></dd>
+
+    <dt><code>--pixel-to-source &lt;A,B,C,D,TX,TY&gt;</code></dt>
+    <dd><p>The placement given outright. Needed for an archive that stores no georeference.</p></dd>
+
+    <dt><code>--band &lt;0|1&gt;</code></dt>
+    <dd><p>0 under the linework (the default), 1 over it.</p></dd>
+
+    <dt><code>--opacity &lt;0..255&gt;</code></dt>
+    <dd><p>How opaque the raster draws. Default 255.</p></dd>
+
+    <dt><code>--layer &lt;NAME&gt;</code></dt>
+    <dd><p>Name of a layer to put the raster on.</p></dd>
   </dl>
 
   <h3 id="pmtiles-writer-memory">The PMTiles writer's memory contract</h3>
@@ -1051,6 +1083,91 @@ viprs pmtiles tile atlas.pmtiles 3 4 5 | shasum -a 256</code></pre>
 </nav>
 
 <section class="op-section" data-command="abs">
+  <!-- ---- pvec ---- -->
+  <h2 id="pvec">pvec</h2>
+  <p>Put a raster (a scan, an aerial, a PDF's page image) into a <code>.pvec</code> beside the drawing's linework, and look inside the result. The pixels go in exactly as the encoder wrote them and PVec never decodes one. The placement is a 2x3 affine into the drawing's source space (<a href="https://github.com/libviprs/pvec/blob/main/docs/adr/0018-raster-in-pvec.md">ADR 0018</a>, and the producer rules on the <a href="../index.html#pvec-raster">feature page</a>).</p>
+  <p>All three commands need a build with the <code>pvec-raster</code> feature. It is in <code>full</code> and not in the default features, and the release workflow does not build it yet, so a released binary does not have them until it does. Without the feature they exit 1 and name it, a mistake on the command line is still exit 2, and <code>viprs features</code> lists what a binary was built with. This section is written by hand: the snippet extractor does not read the <code>@doc-snippet</code> slots in <code>src/pvec_raster/imp.rs</code> yet, so the flags here come from the CLI's own <code>--help</code>.</p>
+  <h3 id="pvec-pyramid">pyramid --storage pvec</h3>
+  <p>Cut an image into a pyramid and write it into a copy of a drawing. Give the placement from the raster's georeference and the drawing's calibration, or give it outright. Under <code>--storage pvec</code> the grid is fixed, so <code>--centre</code>, <code>--overlap</code>, <code>--layout</code> other than <code>google</code>, <code>--format raw</code> and the placeholder blank flags (<code>--skip-blank</code>, <code>--blank-tolerance</code>) are usage errors.</p>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code># A scan into a copy of the drawing, placed from its georeference and the drawing's calibration
+viprs pyramid scan.tif sheet.pvec --storage pvec --pvec-into drawing.pvec \
+  --geo-origin 2600000,1200000 --geo-scale 0.5,-0.5 --source-to-geo 1,0,2600000,0,1,1200000
+
+# Or give the placement outright, in PVec's order a,b,c,d,tx,ty
+viprs pyramid scan.tif sheet.pvec --storage pvec --pvec-into drawing.pvec \
+  --pixel-to-source 0.5,0,0,-0.5,0,300 --band 0 --opacity 255 --layer Scan --attribution "Survey office"</code></pre>
+  </div>
+  <dl class="flags">
+    <dt><code>&lt;INPUT&gt;</code></dt>
+    <dd><p>The image or PDF to cut into a pyramid.</p></dd>
+
+    <dt><code>&lt;OUTPUT&gt;</code></dt>
+    <dd><p>The <code>.pvec</code> to write.</p></dd>
+
+    <dt><code>--storage pvec</code></dt>
+    <dd><p>Write the pyramid into a <code>.pvec</code> instead of a PMTiles archive or a tree. The pixels go in exactly as the encoder wrote them and PVec never decodes one. The grid is the un-centred Google grid and nothing else.</p></dd>
+
+    <dt><code>--pvec-into &lt;DRAWING.PVEC&gt;</code></dt>
+    <dd><p>The <code>.pvec</code> drawing the raster joins. The output is a copy of it with the raster added, so it may name the drawing itself to replace it. Required: a <code>.pvec</code> needs at least one entity, and scan-only sheets stay out of v1 (ADR 0018). A drawing that declares capabilities or styles entities is refused, because adding a raster cannot carry those over yet.</p></dd>
+
+    <dt><code>--pixel-to-source &lt;A,B,C,D,TX,TY&gt;</code></dt>
+    <dd><p>The placement given outright, pixels to source space, in PVec's order: <code>x = a*px + b*py + tx</code> and <code>y = c*px + d*py + ty</code>. Source space is y-up, so an upright image has <code>d &lt; 0</code>. Cannot be combined with <code>--source-to-geo</code>.</p></dd>
+
+    <dt><code>--geo-origin &lt;LON,LAT&gt;</code></dt>
+    <dd><p>Geo-reference origin of the top-left pixel; needs <code>--geo-scale</code>. Together they are the raster's north-up pixel to geographic transform. Composed with <code>--source-to-geo</code>.</p></dd>
+
+    <dt><code>--geo-scale &lt;SCALE_X,SCALE_Y&gt;</code></dt>
+    <dd><p>The pixel size that goes with <code>--geo-origin</code>.</p></dd>
+
+    <dt><code>--affine &lt;A,B,C,D,E,F&gt;</code></dt>
+    <dd><p>The raster's pixel to geographic transform as six numbers, the same flag <code>viprs geo</code> takes, for a rotated or sheared raster. Composed with <code>--source-to-geo</code>.</p></dd>
+
+    <dt><code>--source-to-geo &lt;A,B,C,D,E,F&gt;</code></dt>
+    <dd><p>The drawing's calibration, source space to geographic. The placement is the inverse of this after the raster's pixel to geographic transform. The raster and the calibration have to share one CRS. This flag cannot check that and no CRS is stored.</p></dd>
+
+    <dt><code>--band &lt;0|1&gt;</code></dt>
+    <dd><p>Which side of the linework the raster draws on: 0 under it (the default), 1 over it.</p></dd>
+
+    <dt><code>--opacity &lt;0..255&gt;</code></dt>
+    <dd><p>How opaque the raster draws. Default 255.</p></dd>
+
+    <dt><code>--attribution &lt;TEXT&gt;</code></dt>
+    <dd><p>Plain-text credit stored with the raster: at most 255 bytes, no control characters, line separators or bidirectional overrides.</p></dd>
+
+    <dt><code>--layer &lt;NAME&gt;</code></dt>
+    <dd><p>Name of a layer to put the raster on. The output gets a layer table with this one entry.</p></dd>
+
+    <dt><code>--tile-size &lt;256|512|1024&gt;</code></dt>
+    <dd><p>Under <code>--storage pvec</code> the tile edge has to be one of these three (RASTER-01).</p></dd>
+
+    <dt><code>--drop-blanks</code></dt>
+    <dd><p>Leave a blank tile out as a not-stored tile, which draws nothing.</p></dd>
+  </dl>
+  <p>The remaining <code>pyramid</code> flags are on the <a href="#pyramid">pyramid</a> entry.</p>
+
+  <p>See <a href="#pmtiles-to-pvec">pmtiles to-pvec</a> for passing an archive viprs already wrote into a <code>.pvec</code>.</p>
+
+  <h3 id="pvec-rasters">pvec rasters</h3>
+  <p>List the rasters a <code>.pvec</code> places, or write one tile out. A raster PVec would refuse to read is listed as skipped with the rule that refused it, and the file still opens.</p>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code>viprs pvec rasters sheet.pvec
+viprs pvec rasters sheet.pvec --json
+viprs pvec rasters sheet.pvec --tile 0 2 1 0 tile.png</code></pre>
+  </div>
+  <dl class="flags">
+    <dt><code>&lt;FILE&gt;</code></dt>
+    <dd><p>The <code>.pvec</code> to read.</p></dd>
+
+    <dt><code>--json</code></dt>
+    <dd><p>Print <code>{"v": 1, "rasters": [...], "skipped": [...]}</code> instead of text. A raster has <code>id</code>, <code>width</code>, <code>height</code>, <code>tile_edge</code>, <code>levels</code>, <code>codec</code>, <code>pixel_format</code>, <code>bit_depth</code>, <code>band</code>, <code>opacity</code>, <code>layer</code>, <code>attribution</code>, <code>pixel_to_source</code> and <code>visible_box</code>. A skipped raster has its <code>id</code>, the <code>RASTER-NN</code> rule that refused it and a <code>reason</code>. Cannot be combined with <code>--tile</code>.</p></dd>
+
+    <dt><code>--tile &lt;ID LEVEL COL ROW OUT&gt;</code></dt>
+    <dd><p>Write the stored bytes of one tile, untouched, to <code>OUT</code> (<code>-</code> for stdout) instead of listing. The raster's id, then the level, column and row.</p></dd>
+  </dl>
+
   <h2 id="abs">abs</h2>
   <p>Absolute value of every sample.</p>
   <p class="op-meta">arithmetic &middot; image-&gt;image &middot; EXACT</p>
