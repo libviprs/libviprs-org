@@ -659,6 +659,50 @@ viprs pyramid document.pdf out/ <span class="sh-flag">--dpi</span> 300 <span cla
     <p>The archive is a published format, not a private one, so a libviprs pyramid opens in any PMTiles-aware viewer or server, and an archive written elsewhere opens here. The writer streams, so peak memory tracks the tile being written rather than the size of the pyramid. The CLI side lives in the <a href="cli/#pmtiles" style="color:var(--primary);"><code>viprs pmtiles</code></a> command group: read a header, pull one tile out, check that an archive holds together, or unpack it back into a tree.</p>
   </section>
 
+  <section id="pvec-raster">
+    <h2>Rasters in a PVec</h2>
+    <p>A scanned underlay, an aerial or the images of a PDF can go into the same <code>.pvec</code> as the linework. libviprs encodes the tiles and PVec stores them as they are: it never decodes a pixel, nothing is resampled on the way, and a 16-bit or palette source is converted before tiling and the report says so. A 2x3 affine places the raster in the drawing's source space, and the georeference behind it is stored once, out of band, in the PMTiles metadata (<code>vnd.libviprs.geo_transform</code>). The format and the reasons are in <a href="https://github.com/libviprs/pvec/blob/main/docs/adr/0018-raster-in-pvec.md" style="color:var(--primary);">ADR 0018</a> in <code>libviprs/pvec</code>.</p>
+    <p>The placement is composed from the raster's <code>GeoTransform</code> and the drawing's calibration only when the raster is in the calibration's native CRS and the calibration is affine. Anything else is a typed refusal (<code>CrsMismatch</code>, <code>ProjectiveCalibration</code> and the rest), never a silent resample. A PDF's images are baked first: <code>/SMask</code> into alpha, <code>/ImageMask</code> in the fill colour, <code>/Indexed</code>, ICC, Cal and Lab colour into sRGB, <code>/Decode</code> applied and clips into alpha plus a visible box. A DWG <code>IMAGE</code> names a path no reader here opens, so it is a frame in the report and no placement is written.</p>
+    <p>These are the rules libviprs follows. The table is copied from the page generated in the repository, <a href="https://github.com/libviprs/libviprs/blob/main/docs/pvec-raster.md" style="color:var(--primary);"><code>docs/pvec-raster.md</code></a>, which a test keeps equal to the code, so go there if the two ever disagree.</p>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>Rule</th><th>What the producer does</th><th>Comes from</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>centring-off</code></td><td>Centring is off: the tile grid is anchored at pixel (0, 0) with no offset.</td><td>ADR 0018 Producers; RASTER-01</td></tr>
+          <tr><td><code>overlap-0</code></td><td>Tile overlap is 0.</td><td>ADR 0018 Producers; RASTER-01</td></tr>
+          <tr><td><code>google-tiles-past-the-grid-dropped</code></td><td>The plan is the Google layout, whose grid is a power of two on a side, so the tiles beyond <code>cols</code> by <code>rows</code> of a level are padding and are dropped (counted in the report).</td><td>ADR 0018 Producers; RASTER-02</td></tr>
+          <tr><td><code>skip-blanks-not-stored</code></td><td><code>skip_blanks</code> leaves a tile out. PVec stores that as a zero-length index entry, a not-stored tile that draws nothing.</td><td>ADR 0018 Producers; RASTER-02</td></tr>
+          <tr><td><code>placeholder-refused</code></td><td><code>BlankTileStrategy::Placeholder</code> writes a marker that is not an image, so it is refused.</td><td>ADR 0018 Producers; RASTER-03</td></tr>
+          <tr><td><code>raw-refused</code></td><td><code>TileFormat::Raw</code> carries no dimensions and no pixel format, so it is refused.</td><td>ADR 0018 Producers; RASTER-04</td></tr>
+          <tr><td><code>bit-depth-16-converted</code></td><td>A 16-bit source is converted to 8 bits before tiling (<code>v * 255 / 65535</code>, rounded) and the report says <code>converted-bit-depth</code>.</td><td>ADR 0018 pixel_format; RASTER-03</td></tr>
+          <tr><td><code>palette-converted</code></td><td>A palette source is expanded to gray or RGB before tiling. A palette PNG is not a legal tile.</td><td>ADR 0018 pixel_format; RASTER-03</td></tr>
+          <tr><td><code>legal-codec-and-format-pairs</code></td><td>Only the rows of <code>pvec-raster-tiles.md</code> are written: PNG in gray (1 or 8 bit), RGB and RGBA, JPEG in gray and RGB, lossless WebP in gray, RGB and RGBA. JPEG never carries alpha.</td><td>ADR 0018 pixel_format; RASTER-04</td></tr>
+          <tr><td><code>tile-edge</code></td><td>The tile edge is 256, 512 or 1024.</td><td>ADR 0018 tile_edge; RASTER-01</td></tr>
+          <tr><td><code>limit-15</code></td><td>A stored tile is at most <code>2 * 4 * edge^2 + 65,536</code> bytes, checked at encode time, before anything reaches PVec's writer.</td><td>LIMIT-15 (docs/SECURITY_LIMITS.md in libviprs/pvec)</td></tr>
+          <tr><td><code>no-interlace</code></td><td>PNG tiles are not interlaced (no Adam7), and the pyramid never writes a palette PNG.</td><td>ADR 0018 Producers; RASTER-03</td></tr>
+          <tr><td><code>raster-id-draw-order</code></td><td>A <code>RasterId</code> is dense and assigned in source draw order (for a PDF, content-stream order).</td><td>ADR 0018 Producers (M16)</td></tr>
+          <tr><td><code>negative-zero-normalised</code></td><td><code>-0.0</code> in a placement is normalised to <code>+0.0</code>.</td><td>ADR 0018 placement; RASTER-05; NP-03</td></tr>
+          <tr><td><code>attribution-plain-text</code></td><td>Attribution is plain text of at most 255 bytes, with no control characters, line separators or bidirectional overrides.</td><td>ADR 0018 Licensing; RASTER-07</td></tr>
+          <tr><td><code>source-digest-sha-256</code></td><td><code>source_digest</code> is the SHA-256 of the samples as the producer received them (32 bytes).</td><td>ADR 0018 Licensing; RASTER-07</td></tr>
+          <tr><td><code>placement-np-19</code></td><td>The placement passes NP-19: every coefficient finite, the four linear entries at most 2^20, the map invertible. libviprs checks it for a PDF placement before the write, and PVec's writer checks every placement.</td><td>ADR 0018 placement; RASTER-05; NP-19</td></tr>
+          <tr><td><code>geo-transform-permutation</code></td><td>libviprs's <code>GeoTransform</code> <code>[a b c d e f]</code> becomes PVec's <code>Transform2</code> order <code>[a b d e c f]</code>.</td><td>ADR 0018 Georeference</td></tr>
+          <tr><td><code>pixel-origin-corner</code></td><td>The pixel origin is the top-left corner of pixel (0, 0). A world file or a <code>PixelIsPoint</code> transform is shifted by half a pixel first.</td><td>ADR 0018 Georeference</td></tr>
+          <tr><td><code>composition-precondition</code></td><td>The placement is composed only when the raster's CRS is the calibration's native CRS and the calibration is affine, with metres per unit folded in. Anything else is a typed <code>PlacementError</code>, and nothing is resampled.</td><td>ADR 0018 Georeference</td></tr>
+          <tr><td><code>geo-transform-in-pmtiles-metadata</code></td><td>The <code>GeoTransform</code> is stored in the PMTiles metadata under <code>vnd.libviprs.geo_transform</code> (option D'). No CRS and no geographic transform is written into a <code>.pvec</code>.</td><td>ADR 0018 Georeference (option D')</td></tr>
+          <tr><td><code>clip-baked-into-alpha</code></td><td>A clip that is not a pixel-aligned rectangle is baked into the alpha channel and <code>visible_box</code> is its bounding box. An aligned rectangle sets <code>visible_box</code> only.</td><td>ADR 0018 Producers (M16)</td></tr>
+          <tr><td><code>clipped-image-lossless-tiles</code></td><td>An image with a baked alpha channel is written as PNG or WebP, never JPEG.</td><td>ADR 0018 Producers; RASTER-04</td></tr>
+          <tr><td><code>pdf-colour-and-mask-bake</code></td><td>PDF images are baked before tiling: <code>/SMask</code> into alpha, <code>/ImageMask</code> into RGBA in the fill colour, <code>/Indexed</code>, <code>/ICCBased</code>, <code>/CalGray</code>, <code>/CalRGB</code> and <code>/Lab</code> into sRGB (approximated, reported), <code>/Decode</code> applied, the unit square through the CTM. <code>JPXDecode</code>, <code>JBIG2Decode</code>, <code>CCITTFaxDecode</code>, <code>/Separation</code>, <code>/DeviceN</code>, a graphics-state soft mask and a singular CTM are refused by name.</td><td>ADR 0018 Producers (M17)</td></tr>
+          <tr><td><code>band-from-paint-order</code></td><td>An image painted before every painted path is band 0 (underlay), after every one band 1 (overlay), and between paths it is band 0 with <code>interleaved-draw-order</code> reported.</td><td>ADR 0018 band (M16)</td></tr>
+          <tr><td><code>dwg-image-is-a-frame</code></td><td>A DWG <code>IMAGE</code> is reported with its frame and no placement is written, because no reader here opens a path a drawing names.</td><td>ADR 0018 Producers</td></tr>
+          <tr><td><code>nothing-dropped-silently</code></td><td>The image constructs of a page equal the rasters written plus the refusals, and each refusal is a report line with its reason.</td><td>ADR 0018 Producers; EPIC R-L</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Three commands in <code>libviprs-cli</code> put this on the command line: <code>viprs pyramid --storage pvec</code>, <code>viprs pmtiles to-pvec</code> and <code>viprs pvec rasters</code>. They are not released yet, so they are not in the <a href="cli/" style="color:var(--primary);">CLI reference</a> yet either. Their flags and an example each go there when they land.</p>
+  </section>
+
   <section>
     <h2>Phase 3 Hardening</h2>
     <p>Phase 3 adds production-hardening features: durable storage sinks, resumable jobs, retry policies, checksums, deduplication, structured tracing, and versioned manifests. All features are opt-in via Cargo feature flags.</p>
