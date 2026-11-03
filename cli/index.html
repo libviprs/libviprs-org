@@ -819,6 +819,141 @@ viprs pmtiles tile atlas.pmtiles 3 4 5 | shasum -a 256</code></pre>
   </table>
   <p><code>tile-id</code> stays the default because <code>arrival</code> cannot keep the byte identity across shuffled or <code>clustered</code> runs: arrival order means the bytes depend on arrival order. Pick <code>arrival</code> when you want every byte written once and less free disk during the run, and you do not need the archive to be reproducible.</p>
   <p>Add <code>--ordered-emission</code> to <code>arrival</code> when you want the best of both: the engine hands over tiles in tile id order, so the archive is byte-identical to the <code>tile-id</code> one with no reordering pass. The cost moves into memory, since every level's raster is held at once (the levels below the top add up to about a third of the top one). With the default <code>tile-id</code> layout it pays that for an archive you would have got anyway.</p>
+
+  <!-- ---- pvec ---- -->
+  <h2 id="pvec">pvec</h2>
+  <p>Put a raster (a scan, an aerial, a PDF's page image) into a <code>.pvec</code> beside the drawing's linework, and look inside the result. The pixels go in exactly as the encoder wrote them and PVec never decodes one. The placement is a 2x3 affine into the drawing's source space (<a href="https://github.com/libviprs/pvec/blob/main/docs/adr/0018-raster-in-pvec.md">ADR 0018</a>, and the producer rules on the <a href="../index.html#pvec-raster">feature page</a>).</p>
+  <p>All three commands are in the default build (the <code>pvec-raster</code> feature is on by default), so a plain <code>cargo install</code> has them and so do the release binaries from the next release on. A <code>--no-default-features</code> build leaves them out: they exit 1 and name the feature, a mistake on the command line is still exit 2, and <code>viprs features</code> lists what a binary was built with. This section is written by hand: the snippet extractor does not read the <code>@doc-snippet</code> slots in <code>src/pvec_raster/imp.rs</code> yet, so the flags here come from the CLI's own <code>--help</code>.</p>
+  <h3 id="pvec-pyramid">pyramid --storage pvec</h3>
+  <p>Cut an image into a pyramid and write it into a copy of a drawing. Give the placement from the raster's georeference and the drawing's calibration, or give it outright. Under <code>--storage pvec</code> the grid is fixed, so <code>--centre</code>, <code>--overlap</code>, <code>--layout</code> other than <code>google</code>, <code>--format raw</code> and the placeholder blank flags (<code>--skip-blank</code>, <code>--blank-tolerance</code>) are usage errors.</p>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code># A scan into a copy of the drawing, placed from its georeference and the drawing's calibration
+viprs pyramid scan.tif sheet.pvec --storage pvec --pvec-into drawing.pvec \
+  --geo-origin 2600000,1200000 --geo-scale 0.5,-0.5 --source-to-geo 1,0,2600000,0,1,1200000
+
+# Or give the placement outright, in PVec's order a,b,c,d,tx,ty
+viprs pyramid scan.tif sheet.pvec --storage pvec --pvec-into drawing.pvec \
+  --pixel-to-source 0.5,0,0,-0.5,0,300 --band 0 --opacity 255 --layer Scan --attribution "Survey office"</code></pre>
+  </div>
+  <dl class="flags">
+    <dt><code>&lt;INPUT&gt;</code></dt>
+    <dd><p>The image or PDF to cut into a pyramid.</p></dd>
+
+    <dt><code>&lt;OUTPUT&gt;</code></dt>
+    <dd><p>The <code>.pvec</code> to write.</p></dd>
+
+    <dt><code>--storage pvec</code></dt>
+    <dd><p>Write the pyramid into a <code>.pvec</code> instead of a PMTiles archive or a tree. The pixels go in exactly as the encoder wrote them and PVec never decodes one. The grid is the un-centred Google grid and nothing else.</p></dd>
+
+    <dt><code>--pvec-into &lt;DRAWING.PVEC&gt;</code></dt>
+    <dd><p>The <code>.pvec</code> drawing the raster joins. The output is a copy of it with the raster added, so it may name the drawing itself to replace it. Required: a <code>.pvec</code> needs at least one entity, and scan-only sheets stay out of v1 (ADR 0018). A drawing that declares capabilities or styles entities is refused, because adding a raster cannot carry those over yet.</p></dd>
+
+    <dt><code>--pixel-to-source &lt;A,B,C,D,TX,TY&gt;</code></dt>
+    <dd><p>The placement given outright, pixels to source space, in PVec's order: <code>x = a*px + b*py + tx</code> and <code>y = c*px + d*py + ty</code>. Source space is y-up, so an upright image has <code>d &lt; 0</code>. Cannot be combined with <code>--source-to-geo</code>.</p></dd>
+
+    <dt><code>--geo-origin &lt;LON,LAT&gt;</code></dt>
+    <dd><p>Geo-reference origin of the top-left pixel; needs <code>--geo-scale</code>. Together they are the raster's north-up pixel to geographic transform. Composed with <code>--source-to-geo</code>.</p></dd>
+
+    <dt><code>--geo-scale &lt;SCALE_X,SCALE_Y&gt;</code></dt>
+    <dd><p>The pixel size that goes with <code>--geo-origin</code>.</p></dd>
+
+    <dt><code>--affine &lt;A,B,C,D,E,F&gt;</code></dt>
+    <dd><p>The raster's pixel to geographic transform as six numbers, the same flag <code>viprs geo</code> takes, for a rotated or sheared raster. Composed with <code>--source-to-geo</code>.</p></dd>
+
+    <dt><code>--source-to-geo &lt;A,B,C,D,E,F&gt;</code></dt>
+    <dd><p>The drawing's calibration, source space to geographic. The placement is the inverse of this after the raster's pixel to geographic transform. The raster and the calibration have to share one CRS. This flag cannot check that and no CRS is stored.</p></dd>
+
+    <dt><code>--band &lt;0|1&gt;</code></dt>
+    <dd><p>Which side of the linework the raster draws on: 0 under it (the default), 1 over it.</p></dd>
+
+    <dt><code>--opacity &lt;0..255&gt;</code></dt>
+    <dd><p>How opaque the raster draws. Default 255.</p></dd>
+
+    <dt><code>--attribution &lt;TEXT&gt;</code></dt>
+    <dd><p>Plain-text credit stored with the raster: at most 255 bytes, no control characters, line separators or bidirectional overrides.</p></dd>
+
+    <dt><code>--layer &lt;NAME&gt;</code></dt>
+    <dd><p>Name of a layer to put the raster on. The output gets a layer table with this one entry.</p></dd>
+
+    <dt><code>--tile-size &lt;256|512|1024&gt;</code></dt>
+    <dd><p>Under <code>--storage pvec</code> the tile edge has to be one of these three (RASTER-01).</p></dd>
+
+    <dt><code>--drop-blanks</code></dt>
+    <dd><p>Leave a blank tile out as a not-stored tile, which draws nothing.</p></dd>
+  </dl>
+  <p>The remaining <code>pyramid</code> flags are on the <a href="#pyramid">pyramid</a> entry.</p>
+
+  <p>See <a href="#pmtiles-to-pvec">pmtiles to-pvec</a> for passing an archive viprs already wrote into a <code>.pvec</code>.</p>
+
+  <h3 id="pvec-rasters">pvec rasters</h3>
+  <p>List the rasters a <code>.pvec</code> places, or write one tile out. A raster PVec would refuse to read is listed as skipped with the rule that refused it, and the file still opens.</p>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code>viprs pvec rasters sheet.pvec
+viprs pvec rasters sheet.pvec --json
+viprs pvec rasters sheet.pvec --tile 0 2 1 0 tile.png</code></pre>
+  </div>
+  <dl class="flags">
+    <dt><code>&lt;FILE&gt;</code></dt>
+    <dd><p>The <code>.pvec</code> to read.</p></dd>
+
+    <dt><code>--json</code></dt>
+    <dd><p>Print <code>{"v": 1, "rasters": [...], "skipped": [...]}</code> instead of text. A raster has <code>id</code>, <code>width</code>, <code>height</code>, <code>tile_edge</code>, <code>levels</code>, <code>codec</code>, <code>pixel_format</code>, <code>bit_depth</code>, <code>band</code>, <code>opacity</code>, <code>layer</code>, <code>attribution</code>, <code>pixel_to_source</code> and <code>visible_box</code>. A skipped raster has its <code>id</code>, the <code>RASTER-NN</code> rule that refused it and a <code>reason</code>. Cannot be combined with <code>--tile</code>.</p></dd>
+
+    <dt><code>--tile &lt;ID LEVEL COL ROW OUT&gt;</code></dt>
+    <dd><p>Write the stored bytes of one tile, untouched, to <code>OUT</code> (<code>-</code> for stdout) instead of listing. The raster's id, then the level, column and row.</p></dd>
+  </dl>
+
+  <!-- ---- vector ---- -->
+  <h2 id="vector">vector</h2>
+  <p>Turn a DWG into a vector PMTiles archive (MVT tiles, black linework and text, one file per view), and look inside or check one. It is a thin driver over the library's <code>vector::convert</code> module, so the command line and a Rust caller run the same code and get the same answer.</p>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code>viprs vector views    plan.dwg                     # the views: Model Space and each layout
+viprs vector build    plan.dwg plan.pmtiles        # Model Space to an archive (convert is an alias)
+viprs vector report   plan.dwg --json              # the same run, no file: fidelity and budgets
+viprs vector info     plan.pmtiles                 # zoom range, bounds, tile counts, layers
+viprs vector validate plan.pmtiles                 # structure, MVT tiles, vector_layers</code></pre>
+  </div>
+
+  <h3 id="vector-flags">vector flags</h3>
+  <dl class="flags">
+    <dt><code>--view &lt;VIEW&gt;</code></dt>
+    <dd><p>On <code>build</code> and <code>report</code>. <code>model</code> (the default), a view's index from <code>views</code>, or its name. A layout is refused with the reason, because only Model Space is enabled until paper space has its viewport fixtures.</p></dd>
+
+    <dt><code>--max-zoom &lt;ZOOM&gt;</code></dt>
+    <dd><p>On <code>build</code> and <code>report</code>. The deepest zoom, 0 to 24. Zoom 0 is one tile holding the drawing. Deeper is sharper and larger. <span class="default-val">Default: 12</span></p></dd>
+
+    <dt><code>--timeout &lt;DURATION&gt;</code></dt>
+    <dd><p>On <code>build</code> and <code>report</code>. Stop after this long and leave nothing behind. A bare number is seconds, and <code>ms</code>, <code>s</code>, <code>m</code> and <code>h</code> are understood (<code>90</code>, <code>500ms</code>, <code>2m</code>). Exits 1.</p></dd>
+
+    <dt><code>--name &lt;NAME&gt;</code></dt>
+    <dd><p>On <code>build</code>. The archive's name. The view's name when omitted.</p></dd>
+
+    <dt><code>--hardened</code></dt>
+    <dd><p>On <code>views</code>, <code>build</code> and <code>report</code>. Open the drawing under the hardened provider limits (a quarter of a gigabyte of input, ten million entities, bounded strings, polylines, nesting and output). Use it for a drawing somebody else made.</p></dd>
+
+    <dt><code>--json</code></dt>
+    <dd><p>On every command. One JSON object on stdout, with <code>"v": 1</code>, instead of text.</p></dd>
+  </dl>
+
+  <h3 id="vector-output">Output and exit codes</h3>
+  <p><code>build</code> takes an optional output path and otherwise names the archive after the input with a <code>.pmtiles</code> extension. It writes the archive beside the output, syncs it and renames it into place only when it is complete, so a run that fails, passes <code>--timeout</code> or is stopped with Ctrl-C leaves nothing at the output (an existing file there is untouched) and removes its staging files on the way out. A process killed outright can leave <code>&lt;output&gt;.tmp.data</code> and <code>&lt;output&gt;.tmp.idx</code> beside the output, and still never a half-written archive. The native reader cannot be interrupted inside one record, so a timeout or a Ctrl-C takes effect at the next primitive, which is soon but not instant.</p>
+  <p><code>report</code> prints what a build would have done and writes nothing: the primitive counts, how many were drawable, the tile and budget counters, and every diagnostic the reader and the tiler filed. <code>info</code> and <code>validate</code> read a <code>.pmtiles</code> file and work in every build. <code>validate</code> exits 0 for a sound archive and 1 with one line per finding otherwise.</p>
+  <table>
+    <thead><tr><th>Exit</th><th>When</th></tr></thead>
+    <tbody>
+      <tr><td><code>0</code></td><td>Success. A decode that reports errors still exits 0, so a script that must refuse such an archive reads <code>decode.complete</code> and <code>decode.has_errors</code> from <code>--json</code>.</td></tr>
+      <tr><td><code>1</code></td><td>An unreadable drawing or archive, a failed decode, an exceeded budget, a <code>--timeout</code>, or <code>validate</code> findings.</td></tr>
+      <tr><td><code>2</code></td><td>A usage error: a view that does not exist or is a layout, <code>--timeout 0</code>, an out-of-range <code>--max-zoom</code>. Nothing is written.</td></tr>
+      <tr><td><code>130</code></td><td>Ctrl-C. A second one quits at once and cannot clean up.</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="vector-dwg-feature">The DWG reader is a build feature</h3>
+  <p><code>views</code>, <code>build</code> and <code>report</code> need a build with <code>--features dwg-acadsharp</code> (it is in <code>full</code>). That feature pulls in <code>acadsharp-rs</code>, which links a native ACadSharp library (a NativeAOT archive from <a href="https://github.com/libviprs/libviprs-dep" target="_blank" rel="noopener">libviprs-dep</a>) found through <code>ACADSHARP_NATIVE_DIR</code>. A build without the feature exits 1 and says so; <code>vector info</code> and <code>vector validate</code> still work. Run <code>viprs features</code> to see which kind of binary you have.</p>
+  <p>The native library is linked shared, so the binary has to find it at run time: put the archive's <code>lib/</code> directory on <code>LD_LIBRARY_PATH</code> (<code>DYLD_LIBRARY_PATH</code> on macOS) when you run it. A binary built without <code>dwg-acadsharp</code> needs none of this.</p>
 </section>
 
 <!-- ================================================================== -->
@@ -1083,91 +1218,6 @@ viprs pmtiles tile atlas.pmtiles 3 4 5 | shasum -a 256</code></pre>
 </nav>
 
 <section class="op-section" data-command="abs">
-  <!-- ---- pvec ---- -->
-  <h2 id="pvec">pvec</h2>
-  <p>Put a raster (a scan, an aerial, a PDF's page image) into a <code>.pvec</code> beside the drawing's linework, and look inside the result. The pixels go in exactly as the encoder wrote them and PVec never decodes one. The placement is a 2x3 affine into the drawing's source space (<a href="https://github.com/libviprs/pvec/blob/main/docs/adr/0018-raster-in-pvec.md">ADR 0018</a>, and the producer rules on the <a href="../index.html#pvec-raster">feature page</a>).</p>
-  <p>All three commands are in the default build (the <code>pvec-raster</code> feature is on by default), so a plain <code>cargo install</code> has them and so do the release binaries from the next release on. A <code>--no-default-features</code> build leaves them out: they exit 1 and name the feature, a mistake on the command line is still exit 2, and <code>viprs features</code> lists what a binary was built with. This section is written by hand: the snippet extractor does not read the <code>@doc-snippet</code> slots in <code>src/pvec_raster/imp.rs</code> yet, so the flags here come from the CLI's own <code>--help</code>.</p>
-  <h3 id="pvec-pyramid">pyramid --storage pvec</h3>
-  <p>Cut an image into a pyramid and write it into a copy of a drawing. Give the placement from the raster's georeference and the drawing's calibration, or give it outright. Under <code>--storage pvec</code> the grid is fixed, so <code>--centre</code>, <code>--overlap</code>, <code>--layout</code> other than <code>google</code>, <code>--format raw</code> and the placeholder blank flags (<code>--skip-blank</code>, <code>--blank-tolerance</code>) are usage errors.</p>
-  <div class="code-wrap">
-    <button class="copy-btn">&#x2398; Copy</button>
-    <pre><code># A scan into a copy of the drawing, placed from its georeference and the drawing's calibration
-viprs pyramid scan.tif sheet.pvec --storage pvec --pvec-into drawing.pvec \
-  --geo-origin 2600000,1200000 --geo-scale 0.5,-0.5 --source-to-geo 1,0,2600000,0,1,1200000
-
-# Or give the placement outright, in PVec's order a,b,c,d,tx,ty
-viprs pyramid scan.tif sheet.pvec --storage pvec --pvec-into drawing.pvec \
-  --pixel-to-source 0.5,0,0,-0.5,0,300 --band 0 --opacity 255 --layer Scan --attribution "Survey office"</code></pre>
-  </div>
-  <dl class="flags">
-    <dt><code>&lt;INPUT&gt;</code></dt>
-    <dd><p>The image or PDF to cut into a pyramid.</p></dd>
-
-    <dt><code>&lt;OUTPUT&gt;</code></dt>
-    <dd><p>The <code>.pvec</code> to write.</p></dd>
-
-    <dt><code>--storage pvec</code></dt>
-    <dd><p>Write the pyramid into a <code>.pvec</code> instead of a PMTiles archive or a tree. The pixels go in exactly as the encoder wrote them and PVec never decodes one. The grid is the un-centred Google grid and nothing else.</p></dd>
-
-    <dt><code>--pvec-into &lt;DRAWING.PVEC&gt;</code></dt>
-    <dd><p>The <code>.pvec</code> drawing the raster joins. The output is a copy of it with the raster added, so it may name the drawing itself to replace it. Required: a <code>.pvec</code> needs at least one entity, and scan-only sheets stay out of v1 (ADR 0018). A drawing that declares capabilities or styles entities is refused, because adding a raster cannot carry those over yet.</p></dd>
-
-    <dt><code>--pixel-to-source &lt;A,B,C,D,TX,TY&gt;</code></dt>
-    <dd><p>The placement given outright, pixels to source space, in PVec's order: <code>x = a*px + b*py + tx</code> and <code>y = c*px + d*py + ty</code>. Source space is y-up, so an upright image has <code>d &lt; 0</code>. Cannot be combined with <code>--source-to-geo</code>.</p></dd>
-
-    <dt><code>--geo-origin &lt;LON,LAT&gt;</code></dt>
-    <dd><p>Geo-reference origin of the top-left pixel; needs <code>--geo-scale</code>. Together they are the raster's north-up pixel to geographic transform. Composed with <code>--source-to-geo</code>.</p></dd>
-
-    <dt><code>--geo-scale &lt;SCALE_X,SCALE_Y&gt;</code></dt>
-    <dd><p>The pixel size that goes with <code>--geo-origin</code>.</p></dd>
-
-    <dt><code>--affine &lt;A,B,C,D,E,F&gt;</code></dt>
-    <dd><p>The raster's pixel to geographic transform as six numbers, the same flag <code>viprs geo</code> takes, for a rotated or sheared raster. Composed with <code>--source-to-geo</code>.</p></dd>
-
-    <dt><code>--source-to-geo &lt;A,B,C,D,E,F&gt;</code></dt>
-    <dd><p>The drawing's calibration, source space to geographic. The placement is the inverse of this after the raster's pixel to geographic transform. The raster and the calibration have to share one CRS. This flag cannot check that and no CRS is stored.</p></dd>
-
-    <dt><code>--band &lt;0|1&gt;</code></dt>
-    <dd><p>Which side of the linework the raster draws on: 0 under it (the default), 1 over it.</p></dd>
-
-    <dt><code>--opacity &lt;0..255&gt;</code></dt>
-    <dd><p>How opaque the raster draws. Default 255.</p></dd>
-
-    <dt><code>--attribution &lt;TEXT&gt;</code></dt>
-    <dd><p>Plain-text credit stored with the raster: at most 255 bytes, no control characters, line separators or bidirectional overrides.</p></dd>
-
-    <dt><code>--layer &lt;NAME&gt;</code></dt>
-    <dd><p>Name of a layer to put the raster on. The output gets a layer table with this one entry.</p></dd>
-
-    <dt><code>--tile-size &lt;256|512|1024&gt;</code></dt>
-    <dd><p>Under <code>--storage pvec</code> the tile edge has to be one of these three (RASTER-01).</p></dd>
-
-    <dt><code>--drop-blanks</code></dt>
-    <dd><p>Leave a blank tile out as a not-stored tile, which draws nothing.</p></dd>
-  </dl>
-  <p>The remaining <code>pyramid</code> flags are on the <a href="#pyramid">pyramid</a> entry.</p>
-
-  <p>See <a href="#pmtiles-to-pvec">pmtiles to-pvec</a> for passing an archive viprs already wrote into a <code>.pvec</code>.</p>
-
-  <h3 id="pvec-rasters">pvec rasters</h3>
-  <p>List the rasters a <code>.pvec</code> places, or write one tile out. A raster PVec would refuse to read is listed as skipped with the rule that refused it, and the file still opens.</p>
-  <div class="code-wrap">
-    <button class="copy-btn">&#x2398; Copy</button>
-    <pre><code>viprs pvec rasters sheet.pvec
-viprs pvec rasters sheet.pvec --json
-viprs pvec rasters sheet.pvec --tile 0 2 1 0 tile.png</code></pre>
-  </div>
-  <dl class="flags">
-    <dt><code>&lt;FILE&gt;</code></dt>
-    <dd><p>The <code>.pvec</code> to read.</p></dd>
-
-    <dt><code>--json</code></dt>
-    <dd><p>Print <code>{"v": 1, "rasters": [...], "skipped": [...]}</code> instead of text. A raster has <code>id</code>, <code>width</code>, <code>height</code>, <code>tile_edge</code>, <code>levels</code>, <code>codec</code>, <code>pixel_format</code>, <code>bit_depth</code>, <code>band</code>, <code>opacity</code>, <code>layer</code>, <code>attribution</code>, <code>pixel_to_source</code> and <code>visible_box</code>. A skipped raster has its <code>id</code>, the <code>RASTER-NN</code> rule that refused it and a <code>reason</code>. Cannot be combined with <code>--tile</code>.</p></dd>
-
-    <dt><code>--tile &lt;ID LEVEL COL ROW OUT&gt;</code></dt>
-    <dd><p>Write the stored bytes of one tile, untouched, to <code>OUT</code> (<code>-</code> for stdout) instead of listing. The raster's id, then the level, column and row.</p></dd>
-  </dl>
-
   <h2 id="abs">abs</h2>
   <p>Absolute value of every sample.</p>
   <p class="op-meta">arithmetic &middot; image-&gt;image &middot; EXACT</p>

@@ -9,3 +9,6 @@ pipeline.rs
 verify.rs
 features.rs
 pdf_geo_plan.rs
+vector.rs
+pvec_raster.rs
+pvec_raster/imp.rs
