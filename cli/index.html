@@ -932,14 +932,17 @@ viprs vector validate plan.pmtiles                 # structure, MVT tiles, vecto
     <dd><p>On <code>build</code>. The archive's name. The view's name when omitted.</p></dd>
 
     <dt><code>--hardened</code></dt>
-    <dd><p>On <code>views</code>, <code>build</code> and <code>report</code>. Open the drawing under the hardened provider limits (a quarter of a gigabyte of input, ten million entities, bounded strings, polylines, nesting and output). Use it for a drawing somebody else made.</p></dd>
+    <dd><p>On <code>views</code>, <code>build</code> and <code>report</code>. Open the drawing under the hardened provider limits (ACadSharp bounds a quarter of a gigabyte of input, ten million entities, strings, polylines, nesting and output; acadrust refuses an input over a quarter of a gigabyte before it reads it). Use it for a drawing somebody else made.</p></dd>
+
+    <dt><code>--provider &lt;PROVIDER&gt;</code></dt>
+    <dd><p>On <code>views</code>, <code>build</code> and <code>report</code>. The DWG reader: <code>acadrust</code> (the default, pure Rust) or <code>acadsharp</code> (experimental, needs a native library). A reader the build left out exits 1 and names the feature to rebuild with.</p></dd>
 
     <dt><code>--json</code></dt>
     <dd><p>On every command. One JSON object on stdout, with <code>"v": 1</code>, instead of text.</p></dd>
   </dl>
 
   <h3 id="vector-output">Output and exit codes</h3>
-  <p><code>build</code> takes an optional output path and otherwise names the archive after the input with a <code>.pmtiles</code> extension. It writes the archive beside the output, syncs it and renames it into place only when it is complete, so a run that fails, passes <code>--timeout</code> or is stopped with Ctrl-C leaves nothing at the output (an existing file there is untouched) and removes its staging files on the way out. A process killed outright can leave <code>&lt;output&gt;.tmp.data</code> and <code>&lt;output&gt;.tmp.idx</code> beside the output, and still never a half-written archive. The native reader cannot be interrupted inside one record, so a timeout or a Ctrl-C takes effect at the next primitive, which is soon but not instant.</p>
+  <p><code>build</code> takes an optional output path and otherwise names the archive after the input with a <code>.pmtiles</code> extension. It writes the archive beside the output, syncs it and renames it into place only when it is complete, so a run that fails, passes <code>--timeout</code> or is stopped with Ctrl-C leaves nothing at the output (an existing file there is untouched) and removes its staging files on the way out. A process killed outright can leave <code>&lt;output&gt;.tmp.data</code> and <code>&lt;output&gt;.tmp.idx</code> beside the output, and still never a half-written archive. ACadSharp's native reader cannot be interrupted inside one record, so with it a timeout or a Ctrl-C takes effect at the next primitive, which is soon but not instant.</p>
   <p><code>report</code> prints what a build would have done and writes nothing: the primitive counts, how many were drawable, the tile and budget counters, and every diagnostic the reader and the tiler filed. <code>info</code> and <code>validate</code> read a <code>.pmtiles</code> file and work in every build. <code>validate</code> exits 0 for a sound archive and 1 with one line per finding otherwise.</p>
   <table>
     <thead><tr><th>Exit</th><th>When</th></tr></thead>
@@ -952,7 +955,10 @@ viprs vector validate plan.pmtiles                 # structure, MVT tiles, vecto
   </table>
 
   <h3 id="vector-dwg-feature">The DWG reader is a build feature</h3>
-  <p><code>views</code>, <code>build</code> and <code>report</code> need a build with <code>--features dwg-acadsharp</code> (it is in <code>full</code>). That feature pulls in <code>acadsharp-rs</code>, which links a native ACadSharp library (a NativeAOT archive from <a href="https://github.com/libviprs/libviprs-dep" target="_blank" rel="noopener">libviprs-dep</a>) found through <code>ACADSHARP_NATIVE_DIR</code>. A build without the feature exits 1 and says so; <code>vector info</code> and <code>vector validate</code> still work. Run <code>viprs features</code> to see which kind of binary you have.</p>
+  <p><code>views</code>, <code>build</code> and <code>report</code> need a build with a DWG reader. The default is acadrust (<code>dwg-acadrust</code>, on by default): a pure Rust reader that needs no native library, taken from libviprs's own fork by revision through the core. A plain <code>viprs vector build plan.dwg</code> uses it, and <code>--provider acadrust</code> asks for it by name. A build with no reader (<code>--no-default-features</code>) exits 1 and names the feature to rebuild with, and <code>vector info</code> and <code>vector validate</code> still work. Run <code>viprs features</code> to see which kind of binary you have.</p>
+
+  <h3 id="vector-experimental">Experimental: the ACadSharp reader</h3>
+  <p>The other reader is ACadSharp (<code>dwg-acadsharp</code>, in <code>full</code>), and it is experimental. <code>--provider acadsharp</code> selects it. It pulls in <code>acadsharp-rs</code>, which links a native ACadSharp library (a NativeAOT archive from <a href="https://github.com/libviprs/libviprs-dep" target="_blank" rel="noopener">libviprs-dep</a>) found through <code>ACADSHARP_NATIVE_DIR</code>. Asking for it in a build without the feature exits 1 and names the feature, and a build that has the feature but no native library reports the reader as not linked, also exit 1.</p>
   <p>The native library is linked shared, so the binary has to find it at run time: put the archive's <code>lib/</code> directory on <code>LD_LIBRARY_PATH</code> (<code>DYLD_LIBRARY_PATH</code> on macOS) when you run it. A binary built without <code>dwg-acadsharp</code> needs none of this.</p>
 </section>
 
