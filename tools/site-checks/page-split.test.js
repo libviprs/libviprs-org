@@ -427,10 +427,16 @@ test('the_libviprs_page_publishes_no_number_that_is_not_generated', () => {
       'and the rest of this test would pass on an empty page');
 
   assert(!/<canvas\b/i.test(html), 'the libviprs page charts into a <canvas>, which is blank with JavaScript off');
-  const images = (html.match(/<img\b[^>]*src="(?!https?:)[^"]*"/gi) || []);
+  // A chart is either inline SVG or a static SVG file committed under benchmarks/charts/, both of
+  // which a reader sees with JavaScript off. Any other local image is rejected.
+  const images = (html.match(/<img\b[^>]*src="(?!https?:)[^"]*"/gi) || []).filter((tag) => {
+    const src = (tag.match(/src="([^"]*)"/i) || [])[1] || '';
+    const m = /^charts\/([A-Za-z0-9_.-]+\.svg)$/.exec(src);
+    return !(m && fs.existsSync(path.join(ROOT, 'benchmarks', 'charts', m[1])));
+  });
   assert(images.length === 0,
-    'the libviprs page carries a local image, which on this site means a chart, and a chart here is inline SVG so a ' +
-      'reader sees it with JavaScript off:\n  ' + images.join('\n  '));
+    'the libviprs page carries a local image that is not a committed benchmarks/charts/*.svg, and a chart here is ' +
+      'inline SVG or one of those, so a reader sees it with JavaScript off:\n  ' + images.join('\n  '));
 
   // Every run the page renders has to be named on the page, by id and by
   // digest. "Generated from an archived run" is only checkable if the page says
