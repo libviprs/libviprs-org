@@ -1,0 +1,31 @@
+name: bench-drift
+
+# Advisory. The static fallback tables on /benchmarks/libvips/ should say what the JSON renders,
+# cell for cell, and this reports when they do not. It used to be a required job in ci.yml and a
+# step in the pre-commit hook; benchmarks are optional now, so nothing waits on it. It is its own
+# workflow file (a new file is exempt from the hook-mirror guard in libviprs-tests), it does not
+# run on pull requests as a gate, and `continue-on-error` keeps a red run from colouring a push.
+# Run it by hand with `node benchmarks/tools/bench-drift.js`.
+
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  bench-drift:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Static fallback tables match the JSON render
+        run: node benchmarks/tools/bench-drift.js
+
+      - name: The drift check can actually fail (injected drifts + controls)
+        run: node benchmarks/tools/bench-drift.test.js
