@@ -60,8 +60,8 @@ name: benchmark-release
 # ---------------------------------------------------------------------------
 # WHY THE LAST STEP IS A PULL REQUEST AND NOT A PUSH
 #
-# `main` is protected with six required contexts (sync, extract, test-flags,
-# gen-op-sections, msrv, links). A push straight to main is
+# `main` is protected with seven required contexts (sync, extract, test-flags,
+# gen-op-sections, bench-drift, msrv, links). A push straight to main is
 # refused, and a token that bypasses protection would mean the regenerated page
 # reaches the live site without the gates that exist to check it. So the merge
 # back goes through a pull request, the required checks run on it, and it merges
@@ -197,11 +197,6 @@ jobs:
           node benchmarks/tools/render-latest.test.mjs
           node tools/site-checks/links.js
           node tools/site-checks/page-split.test.js
-
-      # Advisory: a drift here is worth a look, not a reason to stop a republish.
-      - name: Report fallback-table drift (advisory)
-        continue-on-error: true
-        run: |
           node benchmarks/tools/bench-drift.js
           node benchmarks/tools/bench-drift.test.js
 
@@ -272,6 +267,7 @@ jobs:
           - \`render-latest.mjs --check\`
           - \`render-latest.test.mjs\`
           - \`tools/site-checks/links.js\` and \`page-split.test.js\`
+          - \`benchmarks/tools/bench-drift.js\` and its test
 
           GitHub Pages serves \`main\` at \`/\`, so merging this is what publishes the page.${note}"
 
