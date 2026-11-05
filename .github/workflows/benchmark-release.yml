@@ -60,8 +60,8 @@ name: benchmark-release
 # ---------------------------------------------------------------------------
 # WHY THE LAST STEP IS A PULL REQUEST AND NOT A PUSH
 #
-# `main` is protected with seven required contexts (sync, extract, test-flags,
-# gen-op-sections, bench-drift, msrv, links). A push straight to main is
+# `main` is protected with six required contexts (sync, extract, test-flags,
+# gen-op-sections, msrv, links). A push straight to main is
 # refused, and a token that bypasses protection would mean the regenerated page
 # reaches the live site without the gates that exist to check it. So the merge
 # back goes through a pull request, the required checks run on it, and it merges
@@ -130,7 +130,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${BENCH_RELEASE_TOKEN:-}" ]; then
-            echo "::error::BENCH_RELEASE_TOKEN is not set. A branch pushed with GITHUB_TOKEN does not start a workflow run, so the pull request this opens would carry none of main's seven required checks and there would be nothing to merge on. Set a fine-grained PAT scoped to this repository with Contents and Pull requests read/write."
+            echo "::error::BENCH_RELEASE_TOKEN is not set. A branch pushed with GITHUB_TOKEN does not start a workflow run, so the pull request this opens would carry none of main's required checks and there would be nothing to merge on. Set a fine-grained PAT scoped to this repository with Contents and Pull requests read/write."
             exit 1
           fi
           echo "token present"
@@ -197,8 +197,6 @@ jobs:
           node benchmarks/tools/render-latest.test.mjs
           node tools/site-checks/links.js
           node tools/site-checks/page-split.test.js
-          node benchmarks/tools/bench-drift.js
-          node benchmarks/tools/bench-drift.test.js
 
       - name: Commit the regenerated page to the release branch
         id: commit
@@ -267,7 +265,6 @@ jobs:
           - \`render-latest.mjs --check\`
           - \`render-latest.test.mjs\`
           - \`tools/site-checks/links.js\` and \`page-split.test.js\`
-          - \`benchmarks/tools/bench-drift.js\` and its test
 
           GitHub Pages serves \`main\` at \`/\`, so merging this is what publishes the page.${note}"
 
