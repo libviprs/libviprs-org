@@ -747,6 +747,38 @@ viprs pmtiles tile atlas.pmtiles 3 4 5 | shasum -a 256</code></pre>
     <dd><p>Directory to write the tile tree into. Created automatically. The result is the same tree <code>viprs pyramid --storage directory</code> would have written for the same input.</p></dd>
   </dl>
 
+  <h3 id="pmtiles-pack">pmtiles pack</h3>
+  <p>Pack a loose <code>{z}/{x}/{y}</code> tile tree into a PMTiles archive. The plan comes from the <code>manifest.json</code> of a <code>viprs pyramid</code> run that wrote one, or from the geometry flags below.</p>
+  <div class="code-wrap">
+    <button class="copy-btn">&#x2398; Copy</button>
+    <pre><code>viprs pmtiles pack tiles/ out.pmtiles --manifest tiles/manifest.json</code></pre>
+  </div>
+  <dl class="flags">
+    <dt><code>&lt;INPUT&gt;</code></dt>
+    <dd><p>The <code>{z}/{x}/{y}</code> tile tree to pack.</p></dd>
+
+    <dt><code>&lt;ARCHIVE&gt;</code></dt>
+    <dd><p>The <code>.pmtiles</code> archive to write.</p></dd>
+
+    <dt><code>--manifest &lt;MANIFEST&gt;</code></dt>
+    <dd><p>Take the plan from the <code>manifest.json</code> of a <code>viprs pyramid</code> run that wrote one (for example with <code>--manifest-emit-checksums</code>).</p></dd>
+
+    <dt><code>--width &lt;WIDTH&gt;</code>, <code>--height &lt;HEIGHT&gt;</code></dt>
+    <dd><p>Source image size in pixels. No default.</p></dd>
+
+    <dt><code>--tile-size &lt;TILE_SIZE&gt;</code>, <code>--overlap &lt;OVERLAP&gt;</code></dt>
+    <dd><p>Tile size and tile overlap in pixels.</p></dd>
+
+    <dt><code>--layout &lt;deep-zoom|xyz|google&gt;</code></dt>
+    <dd><p>The tile layout that placed the tree.</p></dd>
+
+    <dt><code>--format &lt;png|jpeg|raw|webp&gt;</code></dt>
+    <dd><p>The encoding the stored tiles are in.</p></dd>
+
+    <dt><code>--centre</code></dt>
+    <dd><p>The tree was written with the image centred in the grid.</p></dd>
+  </dl>
+
   <h3 id="pmtiles-to-pvec">pmtiles to-pvec</h3>
   <p>Pass an archive's tiles into a <code>.pvec</code> as a raster, byte for byte. The placement is composed from the georeference the archive stores (<code>--geo-origin</code> and <code>--geo-scale</code> or <code>--affine</code> when it was made) and the drawing's <code>--source-to-geo</code>, or given outright with <code>--pixel-to-source</code>. No tile is re-encoded. Needs a build with the <code>pvec-raster</code> feature (see <a href="#pvec">pvec</a>).</p>
   <div class="code-wrap">
