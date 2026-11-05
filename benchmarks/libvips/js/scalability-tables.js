@@ -45,7 +45,7 @@
  * Filling the nulls clears all three with no edit here or in
  * engine-scenarios.json. It does NOT update the static fallback rows in
  * index.html, which are the JS-off copy of the same cells and drift silently:
- * benchmarks/tools/bench-drift.js is the gate that catches that, and it reads
+ * benchmarks/tools/bench-drift.js is the on-demand check that catches that, and it reads
  * the models below rather than a second copy of this formatting.
  *
  * This file is a classic <script defer>, and it is also require()-able from

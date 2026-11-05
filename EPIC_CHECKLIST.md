@@ -226,9 +226,9 @@ libviprs-tests' root pin above; `cli-resync.yml` opens the bump as a PR), and th
 `extract` gate regenerates `snippets.generated.json` and fails on drift. The contract is
 [`cli/SCHEMA_V2.md`](cli/SCHEMA_V2.md).
 
-**Done when** the seven required checks on `main` are green: `sync`, `extract`, `test-flags`,
-`gen-op-sections`, `bench-drift`, `msrv` and `links`. The first three are SCHEMA_V2 §5's
-gates and `gen-op-sections` gates its §3.2 build step, while `bench-drift`, `msrv` and
+**Done when** the six required checks on `main` are green: `sync`, `extract`, `test-flags`,
+`gen-op-sections`, `msrv` and `links`. The first three are SCHEMA_V2 §5's
+gates and `gen-op-sections` gates its §3.2 build step, while `msrv` and
 `links` have nothing to do with the docs generator, which is worth keeping straight.
 `links` is the one that catches a relative path pointing at nothing, and it sits in its own
 workflow file rather than in `ci.yml` because adding a job to `ci.yml` reddens the

@@ -95,4 +95,4 @@ revision as an input.
 ## The libvips article
 
 `benchmarks/libvips/` is unrelated to all of this. It is the same hand-written
-comparison article it always was, guarded by `tools/bench-drift.js`.
+comparison article it always was, checked on demand by `tools/bench-drift.js`.
