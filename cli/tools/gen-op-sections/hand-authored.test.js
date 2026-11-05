@@ -55,6 +55,9 @@ function collectH2Ids(html) {
 
 // Every `<h3 id="...">` heading before `limit`, which is where a command
 // group's subcommand sections live.
+// <h3> ids under a hand-authored command that document a contract, not a subcommand.
+const PROSE_SECTIONS = new Set(['pmtiles-writer-memory']);
+
 function collectH3Ids(html, limit) {
   const re = /<h3\s+id="([^"]+)"/g;
   const found = [];
@@ -133,6 +136,8 @@ function main() {
     for (const id of [...h3Ids].sort()) {
       if (!id.startsWith(`${cmd.name}-`)) continue;
       const sub = id.slice(cmd.name.length + 1);
+      // Prose sections that sit under a command's heading but are not subcommands.
+      if (PROSE_SECTIONS.has(id)) continue;
       if (!subs.includes(sub)) {
         failures.push(`cli/index.html documents <h3 id="${id}"> but '${sub}' is not a subcommand of '${cmd.name}' in sample-dump.json — either it was renamed upstream or the section is stale`);
       }

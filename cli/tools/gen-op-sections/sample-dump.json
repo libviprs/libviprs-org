@@ -11221,6 +11221,134 @@
           "subcommands": []
         },
         {
+          "name": "pack",
+          "about": "Pack a loose `{z}/{x}/{y}` tile tree into an archive",
+          "family": "builtin",
+          "shape": null,
+          "oracle_class": null,
+          "positionals": [
+            {
+              "name": "input",
+              "index": 1,
+              "required": true,
+              "value_name": "INPUT",
+              "possible_values": null,
+              "help": "The `{z}/{x}/{y}` tile tree to pack"
+            },
+            {
+              "name": "archive",
+              "index": 2,
+              "required": true,
+              "value_name": "ARCHIVE",
+              "possible_values": null,
+              "help": "The `.pmtiles` archive to write"
+            }
+          ],
+          "flags": [
+            {
+              "long": "manifest",
+              "short": null,
+              "value_name": "MANIFEST",
+              "takes_value": true,
+              "multiple": false,
+              "required": false,
+              "default": null,
+              "possible_values": null,
+              "help": "Take the plan from the manifest.json of a `viprs pyramid` run that wrote one (for example with `--manifest-emit-checksums`)"
+            },
+            {
+              "long": "width",
+              "short": null,
+              "value_name": "WIDTH",
+              "takes_value": true,
+              "multiple": false,
+              "required": false,
+              "default": null,
+              "possible_values": null,
+              "help": "Source image width in pixels"
+            },
+            {
+              "long": "height",
+              "short": null,
+              "value_name": "HEIGHT",
+              "takes_value": true,
+              "multiple": false,
+              "required": false,
+              "default": null,
+              "possible_values": null,
+              "help": "Source image height in pixels. No default, for the same reason"
+            },
+            {
+              "long": "tile-size",
+              "short": null,
+              "value_name": "TILE_SIZE",
+              "takes_value": true,
+              "multiple": false,
+              "required": false,
+              "default": null,
+              "possible_values": null,
+              "help": "Tile size in pixels"
+            },
+            {
+              "long": "overlap",
+              "short": null,
+              "value_name": "OVERLAP",
+              "takes_value": true,
+              "multiple": false,
+              "required": false,
+              "default": null,
+              "possible_values": null,
+              "help": "Tile overlap in pixels"
+            },
+            {
+              "long": "layout",
+              "short": null,
+              "value_name": "LAYOUT",
+              "takes_value": true,
+              "multiple": false,
+              "required": false,
+              "default": null,
+              "possible_values": [
+                "deep-zoom",
+                "xyz",
+                "google"
+              ],
+              "help": "Tile layout that placed the tree"
+            },
+            {
+              "long": "format",
+              "short": null,
+              "value_name": "FORMAT",
+              "takes_value": true,
+              "multiple": false,
+              "required": false,
+              "default": null,
+              "possible_values": [
+                "png",
+                "jpeg",
+                "raw",
+                "webp"
+              ],
+              "help": "Encoding the stored tiles are in"
+            },
+            {
+              "long": "centre",
+              "short": null,
+              "value_name": "CENTRE",
+              "takes_value": false,
+              "multiple": false,
+              "required": false,
+              "default": null,
+              "possible_values": [
+                "true",
+                "false"
+              ],
+              "help": "The tree was written with the image centred in the grid"
+            }
+          ],
+          "subcommands": []
+        },
+        {
           "name": "tile",
           "about": "Write one tile's bytes to a file or to stdout",
           "family": "builtin",
@@ -11271,6 +11399,100 @@
               "default": "-",
               "possible_values": null,
               "help": "Where the tile bytes go. `-` (the default) is stdout"
+            }
+          ],
+          "subcommands": []
+        },
+        {
+          "name": "to-pvec",
+          "about": "Pass an archive's tiles into a `.pvec` as a raster, byte for byte",
+          "family": "builtin",
+          "shape": null,
+          "oracle_class": null,
+          "positionals": [
+            {
+              "name": "archive",
+              "index": 1,
+              "required": true,
+              "value_name": "ARCHIVE",
+              "possible_values": null,
+              "help": "The libviprs archive to pass through. It has to be a `--layout google` pyramid with no centring and no overlap, with PNG, JPEG or WebP tiles of 256, 512 or 1024 pixels"
+            },
+            {
+              "name": "output",
+              "index": 2,
+              "required": true,
+              "value_name": "OUTPUT",
+              "possible_values": null,
+              "help": "The `.pvec` to write"
+            }
+          ],
+          "flags": [
+            {
+              "long": "pvec-into",
+              "short": null,
+              "value_name": "DRAWING.PVEC",
+              "takes_value": true,
+              "multiple": false,
+              "required": false,
+              "default": null,
+              "possible_values": null,
+              "help": "The `.pvec` drawing the raster joins. The output is a copy of it with the raster added; the drawing itself is not touched. Required: an artifact needs at least one entity (WRT-01)"
+            },
+            {
+              "long": "source-to-geo",
+              "short": null,
+              "value_name": "A,B,C,D,E,F",
+              "takes_value": true,
+              "multiple": false,
+              "required": false,
+              "default": null,
+              "possible_values": null,
+              "help": "The drawing's calibration as \"a,b,c,d,e,f\", source space to geographic. Composed with the transform the archive stores. The raster and the calibration have to share one CRS; no CRS is stored or checked"
+            },
+            {
+              "long": "pixel-to-source",
+              "short": null,
+              "value_name": "A,B,C,D,TX,TY",
+              "takes_value": true,
+              "multiple": false,
+              "required": false,
+              "default": null,
+              "possible_values": null,
+              "help": "The placement given directly, pixels to source space, as \"a,b,c,d,tx,ty\" in PVec's order. Needed for an archive that stores no transform"
+            },
+            {
+              "long": "band",
+              "short": null,
+              "value_name": "0|1",
+              "takes_value": true,
+              "multiple": false,
+              "required": false,
+              "default": null,
+              "possible_values": null,
+              "help": "Which side of the linework the raster draws on: 0 under it (the default), 1 over it"
+            },
+            {
+              "long": "opacity",
+              "short": null,
+              "value_name": "0..255",
+              "takes_value": true,
+              "multiple": false,
+              "required": false,
+              "default": null,
+              "possible_values": null,
+              "help": "How opaque the raster draws, 0 to 255 (default 255)"
+            },
+            {
+              "long": "layer",
+              "short": null,
+              "value_name": "NAME",
+              "takes_value": true,
+              "multiple": false,
+              "required": false,
+              "default": null,
+              "possible_values": null,
+              "help": "Name of a layer to put the raster on; the output gets a layer table with this one entry"
             }
           ],
           "subcommands": []
