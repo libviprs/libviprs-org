@@ -1,24 +1,27 @@
 # The EPIC checklist
 
-Four things every feature epic delivers. A feature that has landed in `libviprs` and
+Three things every feature epic delivers. A feature that has landed in `libviprs` and
 carries none of these is code rather than a shipped feature, and the epic holding it is
 not done.
 
 The wording lives here. The mechanism lives in
 [`libviprs/libviprs/.github/ISSUE_TEMPLATE/epic.yml`](https://github.com/libviprs/libviprs/blob/main/.github/ISSUE_TEMPLATE/epic.yml),
-which puts the four boxes in the issue for you. Tick them against this page, because the
+which puts the three boxes in the issue for you. Tick them against this page, because the
 box is one line and the reason it exists is not.
 
 ```
 [ ] 1. End-to-end tests in libviprs-tests, with fixtures
-[ ] 2. Benchmarks captured, against the previous release AND against a comparable library
-[ ] 3. CLI commands, so the feature is reachable without writing Rust
-[ ] 4. Documentation on libviprs.org, for the feature and for its CLI surface
+[ ] 2. CLI commands, so the feature is reachable without writing Rust
+[ ] 3. Documentation on libviprs.org, for the feature and for its CLI surface
 ```
 
-EPIC F is the worked example. PMTiles v3 got all four (the suite in libviprs-tests, the
-`storage` benchmark family with its published table, the `viprs pmtiles` group, and the
-write-up here), and it got them because the campaign ran long enough to notice they were
+Benchmarks are an optional, on-demand tool and no longer part of this list: an epic is not
+held open for a benchmark run, a profile or a baseline capture. The section further down
+keeps what we learned doing them, for whoever chooses to.
+
+EPIC F is the worked example. PMTiles v3 got all three (the suite in libviprs-tests, the
+`viprs pmtiles` group, and the write-up here), plus a benchmark family with a published
+table that nothing required, and it got them because the campaign ran long enough to notice they were
 missing. Attention is not a gate, which is what this page is for.
 
 ---
@@ -79,7 +82,9 @@ and the round trip is green. Compare against something we did not write.
 
 ---
 
-## 2. Benchmarks captured, and both comparisons made
+## Optional: benchmarks, and the comparisons worth making
+
+Nothing here is required. This is the reference for a benchmark you decide to run.
 
 **Where.** [`libviprs-bench`](https://github.com/libviprs/libviprs-bench), which keys
 everything on a **family**. `engines` compares the three engines, `storage` compares
@@ -116,7 +121,7 @@ One command for the last step, because the two halves must not be able to come a
 every branch. See [`benchmarks/README.md`](benchmarks/README.md) for what `--check` actually
 checks, which is the origin rather than the copy.
 
-**Done when** the numbers are on the page and each one joins an archived document at the
+**If you publish numbers, done when** they are on the page and each one joins an archived document at the
 pinned revision by run id.
 
 **Four traps, all of them measured rather than imagined.**
@@ -172,7 +177,7 @@ trusts the next number on it.
 
 ---
 
-## 3. CLI commands
+## 2. CLI commands
 
 **Where.** [`libviprs-cli`](https://github.com/libviprs/libviprs-cli).
 
@@ -197,7 +202,7 @@ years.
 
 ---
 
-## 4. Documentation on libviprs.org
+## 3. Documentation on libviprs.org
 
 **Where.** This repository. Two surfaces, and both are required:
 
